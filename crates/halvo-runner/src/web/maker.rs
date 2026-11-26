@@ -48,6 +48,11 @@
 //! the last of the path that its target names (`read_again`); and the read after the reply waits for a new document in
 //! the frame of the released request (`Page::arm_hold`, `Page::page_amounts`).
 //!
+//! A click or a press of a compile (r3 U7.10; the coordinator's rulings of 2026-11-26, P1 and M2) arms the rule in
+//! `Mode::Hold` the same way for its act alone, after reading the values that a card of its category's effect step
+//! would need (`Runner::hold_a_compiles_click`); where its act holds ONE request, the drive writes and stores the
+//! effect step and gives that request to the same card (`Runner::release_a_compiles_request`), with no second act.
+//!
 //! A binary that holds the maker holds its marker text (`MAKER_MARKER`), which the scan of check 62-build
 //! (scripts/r1/ci.d/62-build.sh) refuses in every shipped file.
 
@@ -61,7 +66,7 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::step::{Cond, Target, WebTarget};
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, ExecutableStep, WebOrigin};
-use halvo_web::cdp::{HeldForm, HeldRequest, STEP_TIMEOUT};
+use halvo_web::cdp::{HeldForm, HeldRequest, PausedRequest, STEP_TIMEOUT};
 
 use super::{class_of, end_of_step, refused_by_the_page, rule_origin, Act, Values, Web};
 use crate::release::{Left, MakerFacts, PageAfter, Paused, ReadPage, Replied};
@@ -75,6 +80,11 @@ const SETTLE: Duration = Duration::from_millis(300);
 
 /// How often a wait reads the rule's held requests or the status again.
 const POLL: Duration = Duration::from_millis(20);
+
+/// How long after the act of a compile's click or press the drive reads the rule's held requests for the first one
+/// (r3 U7.10, the window of the coordinator's point M4); where it finds none, the rule fails again, and a request that
+/// the page sends later is failed.
+const CLICK_WINDOW: Duration = Duration::from_millis(500);
 
 /// The one success status of a web request of an effect (the coordinator's ruling of log line 14732).
 const MADE: i64 = 200;
@@ -171,8 +181,15 @@ fn body_holds_the_card(form: &HeldForm, card: Option<u64>) -> Result<(), Cause> 
 enum From {
     Const(String),
     Slot(String),
-    Extract { target: WebTarget, parse: String },
-    Read { value: String, origin: WebOrigin },
+    Extract {
+        key: String,
+        target: WebTarget,
+        parse: String,
+    },
+    Read {
+        value: String,
+        origin: WebOrigin,
+    },
 }
 
 /// The one held request of a web step of an effect class, paused: dropped before it is let through, it is failed.
@@ -492,8 +509,10 @@ impl Runner {
                     Source::Const => From::Const(arg.value.as_ref()?.as_str().to_string()),
                     Source::Slot => From::Slot(arg.key.as_ref()?.as_str().to_string()),
                     Source::Extract => {
-                        let (target, parse) = self.extracts.get(arg.key.as_ref()?.as_str())?;
+                        let key = arg.key.as_ref()?.as_str();
+                        let (target, parse) = self.extracts.get(key)?;
                         From::Extract {
+                            key: key.to_string(),
                             target: target.clone(),
                             parse: parse.clone(),
                         }
@@ -569,7 +588,7 @@ impl Runner {
         let mut fields = Vec::with_capacity(sources.len());
         for (name, from) in sources {
             fields.push(match from {
-                From::Extract { target, parse } => {
+                From::Extract { target, parse, .. } => {
                     let (value, origin) =
                         read_again(web, &target, &parse).map_err(|()| failed())?;
                     (name, From::Read { value, origin })
@@ -614,10 +633,46 @@ impl Runner {
             let _ = web.0.arm(&origins);
             return end_of_step(Err(()), &record);
         };
+        self.give_to_the_card(
+            step,
+            loaded,
+            Card {
+                class,
+                id,
+                origin,
+                form,
+                fields,
+                post,
+            },
+            &origins,
+        )
+    }
+
+    /// The tail of an effect step whose ONE request the rule holds, a replay's (`effect_step`) and a compile's
+    /// (`release_a_compiles_request`) alike: for a `payment` or a `purchase` the body of the held request held against
+    /// the card's amount (r3 U5.10-C), then the held request given to `release` with its card, and the rule armed in
+    /// `Mode::Fail` again.
+    fn give_to_the_card(
+        &mut self,
+        step: &ExecutableStep,
+        loaded: &LoadReply,
+        card: Card,
+        origins: &[WebOrigin],
+    ) -> Result<(), Failure> {
+        let Card {
+            class,
+            id,
+            origin,
+            form,
+            fields,
+            post,
+        } = card;
         if matches!(class, ActionClass::Payment | ActionClass::Purchase) {
             if let Err(cause) = body_holds_the_card(&form, card_amount(&fields, loaded)) {
-                let _ = web.0.fail_held();
-                let _ = web.0.arm(&origins);
+                if let Some(web) = self.web.as_mut() {
+                    let _ = web.0.fail_held();
+                    let _ = web.0.arm(origins);
+                }
                 return Err(Failure::Step(cause));
             }
         }
@@ -642,10 +697,230 @@ impl Runner {
             ));
         }
         self.web = lock(&shared).take();
-        let rearmed = self.web.as_mut().map_or(Err(()), |web| web.0.arm(&origins));
+        let rearmed = self.web.as_mut().map_or(Err(()), |web| web.0.arm(origins));
         end?;
-        rearmed.map_err(|()| failed())
+        rearmed.map_err(|()| Failure::Step(Cause::StepFailed))
     }
+
+    /// A click or a press of a compile in a build with the maker (r3 U7.10; the coordinator's rulings of 2026-11-26,
+    /// P1, M2 and M4): first, while the page is idle, what a card of the category's effect step of A9.4 would need of
+    /// the page (the top page's origin and each kept extract that its fields name, read again, `read_again`); then the
+    /// rule armed in `Mode::Hold` with the run's origins for the act, noting the top frame and the target's frame
+    /// (`Page::arm_hold`); the act; and the rule's held requests read for `CLICK_WINDOW`, and `SETTLE` more where one
+    /// is held. Where one or more is held, the drive takes them (`Runner::held_click`) and nothing of the page is read
+    /// until the person's answer; where none is held, the rule is armed in `Mode::Fail` again and the act's end and the
+    /// rule's record go on as a plain step's.
+    pub(crate) fn hold_a_compiles_click(
+        &mut self,
+        step: &ExecutableStep,
+        loaded: &LoadReply,
+        pre: &[(&Cond, Option<String>)],
+        act: &Act<'_>,
+    ) -> Result<ClickEnd, Failure> {
+        let failed = || Failure::Step(Cause::StepFailed);
+        let origins = self.run_origins(loaded);
+        let frame: Vec<WebOrigin> = match &step.target {
+            Some(Target::Web(target)) => target.frame.clone(),
+            _ => Vec::new(),
+        };
+        let needed = crate::compile::needed_extracts(loaded.config.category);
+        let web = self.web.as_mut().ok_or_else(failed)?;
+        let mut top = None;
+        let mut read = Vec::new();
+        if !needed.is_empty() {
+            top = web
+                .0
+                .address()
+                .ok()
+                .and_then(|address| WebOrigin::of_address(&address).ok());
+            for name in needed {
+                if let Some((target, parse)) = self.extracts.get(*name) {
+                    read.push(((*name).to_string(), read_again(web, target, parse)));
+                }
+            }
+        }
+        if web.0.arm_hold(&origins, &frame).is_err() {
+            let _ = web.0.arm(&origins);
+            return Err(failed());
+        }
+        let done = web.0.carry_out(pre, act, &[]);
+        let held = held_in_the_window(web);
+        let record = web.0.record();
+        if held.is_empty() {
+            web.0.arm(&origins).map_err(|()| failed())?;
+            return Ok(ClickEnd::NoneHeld(done, record));
+        }
+        self.held_click = Some(HeldClick {
+            origins,
+            read,
+            top,
+            held,
+            done: done.is_ok(),
+            record,
+        });
+        Ok(ClickEnd::Held)
+    }
+
+    /// Fails every request that a compile's click held and arms the rule in `Mode::Fail` again, after one line that
+    /// names `why`; the end that the step then answers: `refused` with `origin` where the rule's record holds a failed
+    /// request of the page (`end_of_step`), else `step_failed`. Nothing leaves.
+    pub(crate) fn let_nothing_leave(&mut self, held: &HeldClick, why: &str) -> Failure {
+        crate::line(&format!(
+            "run effect=failed at=compile why={why} act={} held={} refused={}",
+            if held.done { "done" } else { "failed" },
+            held.held.len(),
+            if refused_by_the_page(&held.record) {
+                "yes"
+            } else {
+                "no"
+            }
+        ));
+        if let Some(web) = self.web.as_mut() {
+            let _ = web.0.fail_held();
+            let _ = web.0.arm(&held.origins);
+        }
+        match end_of_step(Err::<(), ()>(()), &held.record) {
+            Err(failure) => failure,
+            Ok(()) => Failure::Step(Cause::StepFailed),
+        }
+    }
+
+    /// The card of the effect step `step` that a compile wrote and stored for the ONE request that its click held
+    /// (r3 U7.10): its fields from their sources, each extract's value as `hold_a_compiles_click` read it again before
+    /// the act; for a step that reaches a frame, the top page's origin and every frame path bound, as `effect_step`
+    /// requires them; then `give_to_the_card`. No second act is made. Where a field's value was not read, or a frame path is
+    /// not bound, every held request is failed and the step answers `step_failed`.
+    pub(crate) fn release_a_compiles_request(
+        &mut self,
+        step: &ExecutableStep,
+        loaded: &LoadReply,
+        held: HeldClick,
+    ) -> Result<(), Failure> {
+        std::hint::black_box(MAKER_MARKER.as_ptr());
+        let class = class_of(loaded.config.category, step);
+        let (Some(origin), [one]) = (held.origin(), held.held.as_slice()) else {
+            return Err(self.let_nothing_leave(&held, "count"));
+        };
+        let (id, form) = (one.id, one.form.clone());
+        let fields = self.sources(step, class).and_then(|sources| {
+            sources
+                .into_iter()
+                .map(|(name, from)| match from {
+                    From::Extract { key, .. } => held
+                        .read
+                        .iter()
+                        .find(|(read, _)| *read == key)
+                        .and_then(|(_, value)| value.clone().ok())
+                        .map(|(value, origin)| (name, From::Read { value, origin })),
+                    other => Some((name, other)),
+                })
+                .collect::<Option<Vec<_>>>()
+        });
+        let Some(fields) = fields else {
+            let _ = self.let_nothing_leave(&held, "fields");
+            return Err(Failure::Step(Cause::StepFailed));
+        };
+        if self.reaches_a_frame(step) {
+            let top = held
+                .top
+                .as_ref()
+                .is_some_and(|top| held.origins.contains(top));
+            let paths = self
+                .frame_paths(step)
+                .iter()
+                .all(|path| path.iter().all(|origin| held.origins.contains(origin)));
+            if !top || !paths {
+                let _ = self.let_nothing_leave(&held, "frame");
+                return Err(Failure::Step(Cause::StepFailed));
+            }
+        }
+        let values = Values {
+            loaded,
+            kept: &self.kept,
+        };
+        let post: Vec<(Cond, Option<String>)> = values
+            .conditions(&step.post)
+            .ok_or(Failure::Step(Cause::StepFailed))?
+            .into_iter()
+            .map(|(cond, arg)| (cond.clone(), arg))
+            .collect();
+        let origins = held.origins.clone();
+        self.give_to_the_card(
+            step,
+            loaded,
+            Card {
+                class,
+                id,
+                origin,
+                form,
+                fields,
+                post,
+            },
+            &origins,
+        )
+    }
+}
+
+/// What a card of a held request needs, beside the step: its class, the executor's id of the request, its origin, the
+/// wire's reading of its body, the bound fields and the step's conditions `post`.
+struct Card {
+    class: ActionClass,
+    id: u64,
+    origin: WebOrigin,
+    form: HeldForm,
+    fields: Vec<(FieldName, From)>,
+    post: Vec<(Cond, Option<String>)>,
+}
+
+/// What became of a click or a press of a compile in a build with the maker (r3 U7.10).
+pub(crate) enum ClickEnd {
+    /// The rule holds a request of it: the drive takes it (`Runner::held_click`).
+    Held,
+    /// The rule held none and fails again: the act's end and the rule's record, as a plain step's.
+    NoneHeld(Result<Option<String>, ()>, Vec<PausedRequest>),
+}
+
+/// The value of a kept extract as `read_again` read it right before a compile's click, with the origin of its page;
+/// `Err` where that read failed.
+type ReadAgain = Result<(String, WebOrigin), ()>;
+
+/// The requests that a compile's click or press held (r3 U7.10): the run's origins of the arm, each kept extract that
+/// the category's effect step names as `read_again` read it right before the act, the top page's origin read then, the
+/// held requests after the act's window, whether the act was done, and the rule's record after the window.
+pub(crate) struct HeldClick {
+    origins: Vec<WebOrigin>,
+    read: Vec<(String, ReadAgain)>,
+    top: Option<WebOrigin>,
+    held: Vec<HeldRequest>,
+    done: bool,
+    record: Vec<PausedRequest>,
+}
+
+impl HeldClick {
+    /// The origin of the bindings of the ONE held request, where the act was done and the rule's record holds no failed
+    /// request of the page; none where the rule holds more than one, or any of those does not hold.
+    pub(crate) fn origin(&self) -> Option<WebOrigin> {
+        match self.held.as_slice() {
+            [one] if self.done && !refused_by_the_page(&self.record) => {
+                origin_of(one, &self.origins)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The held requests after the act of a compile's click: the first within `CLICK_WINDOW`, then all of them after
+/// `SETTLE`; none where none came within the window.
+fn held_in_the_window(web: &mut Web) -> Vec<HeldRequest> {
+    let until = Instant::now() + CLICK_WINDOW;
+    while web.0.held().is_empty() && Instant::now() < until {
+        std::thread::sleep(POLL);
+    }
+    if web.0.held().is_empty() {
+        return Vec::new();
+    }
+    std::thread::sleep(SETTLE);
+    web.0.held()
 }
 
 #[cfg(test)]

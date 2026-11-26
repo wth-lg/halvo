@@ -13,6 +13,13 @@ path = "src/lib.rs"
 name = "halvo-runner"
 path = "src/main.rs"
 
+# The stand-in model door of the tests of the whole runner (r3 U7.10): built with the feature `loopback` alone, which
+# no shipped build turns on, so that no release build makes it.
+[[bin]]
+name = "halvo-runner-stand-in-door"
+path = "src/stand_in_door.rs"
+required-features = ["loopback"]
+
 [features]
 loopback = ["halvo-connect/loopback"]
 

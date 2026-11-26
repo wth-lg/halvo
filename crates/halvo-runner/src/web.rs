@@ -23,7 +23,10 @@
 //! step as before. Every other step with the effect `request`, a web step of an effect class (`payment`, `purchase`,
 //! `submit`, `sign`), is the browser's request maker's (crate::web::maker), which this build holds under the feature
 //! `loopback` alone: without it such a step answers `step_failed` before any browser starts, and `Live` lets no held
-//! request through.
+//! request through. A click or a press of a compile (crate::compile) goes, in a build with the maker, with the rule in
+//! `Mode::Hold` for its act alone, after the values of a card were read, and a request that it holds goes to the
+//! maker's card with no second act (`ClickWay::Hold`, r3 U7.10); in every other build the rule fails that request and
+//! the drive writes the effect step, which answers `step_failed` before any act (`ClickWay::Fail`).
 
 use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -59,6 +62,35 @@ use crate::run::{Failure, Runner, Stop};
 mod maker;
 #[cfg(all(test, feature = "loopback"))]
 pub(crate) use maker::amounts_named;
+#[cfg(feature = "loopback")]
+pub(crate) use maker::{ClickEnd, HeldClick};
+
+/// How a click or a press of a compile's drive meets a state-changing request of its page to an origin of the bindings
+/// (r3 U7.10; the coordinator's rulings of 2026-11-26, P1 and P7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ClickWay {
+    /// The rule fails the request; the drive writes and stores the effect step of A9.4, which answers `step_failed`
+    /// before any act (r3 U7.2b): the way of every build without the browser's maker.
+    Fail,
+    /// The rule holds the request at the click's own act, after the values of its card were read; the drive writes
+    /// and stores the effect step and gives the held request to its card, with no second act (crate::web::maker): the
+    /// way of a build with the feature `loopback`.
+    #[cfg_attr(not(feature = "loopback"), allow(dead_code))]
+    Hold,
+}
+
+/// The end of an act and the rule's record after it, in a build without the browser's maker.
+#[cfg(not(feature = "loopback"))]
+type ActEnd = (Result<Option<String>, ()>, Vec<PausedRequest>);
+
+impl ClickWay {
+    /// The way of this build: `Hold` with the browser's maker, `Fail` without it.
+    pub(crate) const BUILT: ClickWay = if cfg!(feature = "loopback") {
+        ClickWay::Hold
+    } else {
+        ClickWay::Fail
+    };
+}
 
 /// The name of the profile directory in `<data directory>/agents/profiles/<run id>/` (A8.3); the executor's start
 /// makes it and its temporary directory beside it.
@@ -1129,17 +1161,36 @@ impl Runner {
             let read = self.read_page(&mut *web.0, loaded, step.n);
             self.web = Some(web);
             read?;
-            let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
-            let done = web
-                .carry_out(&pre, &act, &post)
-                .and_then(|read| match (&as_parsed, read) {
-                    (Some((_, parse)), Some(text)) => parsed(parse, text).map(Some),
-                    _ => Ok(None),
-                });
-            let record = if done.is_err() || act.on_a_control() {
-                web.record_after_a_fault()
+            #[cfg(feature = "loopback")]
+            let held_way = if self.compiling
+                && self.click_way == ClickWay::Hold
+                && matches!(act, Act::Click(_) | Act::Press(..))
+            {
+                match self.hold_a_compiles_click(step, loaded, &pre, &act)? {
+                    ClickEnd::Held => return Ok(()),
+                    ClickEnd::NoneHeld(done, record) => Some((done, record)),
+                }
             } else {
-                web.record()
+                None
+            };
+            #[cfg(not(feature = "loopback"))]
+            let held_way: Option<ActEnd> = None;
+            let read_as = |read: Option<String>| match (&as_parsed, read) {
+                (Some((_, parse)), Some(text)) => parsed(parse, text).map(Some),
+                _ => Ok(None),
+            };
+            let (done, record) = match held_way {
+                Some((done, record)) => (done.and_then(read_as), record),
+                None => {
+                    let web = &mut self.web.as_mut().ok_or_else(failed)?.0;
+                    let done = web.carry_out(&pre, &act, &post).and_then(read_as);
+                    let record = if done.is_err() || act.on_a_control() {
+                        web.record_after_a_fault()
+                    } else {
+                        web.record()
+                    };
+                    (done, record)
+                }
             };
             if done.is_err() && !refused_by_the_page(&record) {
                 let mut web = self.web.take().ok_or_else(failed)?;
@@ -1153,7 +1204,10 @@ impl Runner {
                     continue;
                 }
             }
-            if self.compiling && matches!(act, Act::Click(_) | Act::Press(..)) {
+            if self.compiling
+                && self.click_way == ClickWay::Fail
+                && matches!(act, Act::Click(_) | Act::Press(..))
+            {
                 if let Some(origin) = a_bound_origin_whose_change_failed(&record, loaded) {
                     self.effect_origin = Some(origin);
                     return Ok(());

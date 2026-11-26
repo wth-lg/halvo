@@ -499,6 +499,22 @@ pub fn serve_with(
     serve_runner(sup, Runner::start(&args_with(sup, browser)), rule, limit)
 }
 
+/// `serve_with` with the program `program`, a copy of the built runner (`Runner::start_copy`).
+pub fn serve_copy(
+    sup: &Supervisor,
+    browser: &Path,
+    program: &Path,
+    rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
+    limit: Duration,
+) -> Seen {
+    serve_runner(
+        sup,
+        Runner::start_copy(&args_with(sup, browser), program),
+        rule,
+        limit,
+    )
+}
+
 /// `serve_with` with the runner's data directory `data_dir`, a directory that the test made (`Runner::start_in`).
 pub fn serve_in(
     sup: &Supervisor,
