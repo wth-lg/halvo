@@ -28,6 +28,9 @@
   var running = false;
   var statusStore = null;
   var lastInventory = null;
+  var reads = 0;
+  /** The number of the read whose reply the inventory feed holds, which its listener draws. */
+  var replyRead = 0;
 
   function storeWords(store) {
     if (!store) return ["", ""];
@@ -131,14 +134,19 @@
 
   function refresh() {
     var sentAt = Halvo.answersSoFar();
+    reads += 1;
+    var mine = reads;
     return Halvo.ipc
       .call("inventory")
       .then(function (inv) {
         if (sentAt !== Halvo.answersSoFar()) return;
         if (inv && typeof inv === "object") inv.sentAt = sentAt;
+        replyRead = mine;
         inventory.set(inv);
       })
-      .catch(Halvo.showError);
+      .catch(function (e) {
+        Halvo.readFailed("stored", mine, e);
+      });
   }
 
   function heading(text, cls) {
@@ -179,7 +187,13 @@
       Halvo.feed("status").on(renderStatus);
       inventory.on(function (inv) {
         if (inv && typeof inv === "object" && typeof inv.sentAt === "number" && inv.sentAt !== Halvo.answersSoFar()) return;
-        render(inv);
+        try {
+          render(inv);
+        } catch (e) {
+          Halvo.readFailed("stored", replyRead, e);
+          return;
+        }
+        Halvo.readSucceeded("stored", replyRead);
       });
       inventory.source(refresh);
       refresh();

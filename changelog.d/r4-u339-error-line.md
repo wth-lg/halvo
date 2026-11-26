@@ -1,0 +1,1 @@
+- Fixed: (interface run, U3.39) An error line that you dismissed stays away while the same read still fails in the same way, and the error line of a list read goes when the read succeeds.

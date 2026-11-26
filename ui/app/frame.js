@@ -25,6 +25,7 @@
       order.forEach(function (name) {
         feeds[name].flush();
       });
+      if (lineKept) drawLine();
     },
   };
 
@@ -91,11 +92,61 @@
     return w.ERROR_OTHER;
   }
 
+  /** The text of the error line and the list read that wrote it; null where a press or another view wrote it. */
+  var line = { text: "", from: null };
+  /** Each list read that fails, by its name: the text of its failure, and whether a Dismiss took that text away. */
+  var failing = {};
+  /** The number of the newest read of each list whose outcome the line took. */
+  var taken = {};
+  /** A list read changed the line while held: the change is drawn at the release. */
+  var lineKept = false;
+
+  function newest(name, n) {
+    if (n < (taken[name] || 0)) return false;
+    taken[name] = n;
+    return true;
+  }
+
+  function drawLine() {
+    lineKept = false;
+    document.getElementById("error").textContent = line.text;
+    document.getElementById("dismiss-error").classList.toggle("hidden", line.text === "");
+  }
+
+  function writeLine(text, from, byRead) {
+    line = { text: text, from: from };
+    if (byRead && holding) lineKept = true;
+    else drawLine();
+  }
+
   Halvo.showError = function (e) {
-    var text = wordsOf(e);
-    document.getElementById("error").textContent = text;
-    document.getElementById("dismiss-error").classList.toggle("hidden", text === "");
+    writeLine(wordsOf(e), null, false);
   };
+
+  /** A list read that failed writes its line, unless the line has taken the outcome of a newer read of that list, or a Dismiss took the same text away while that list's reads failed and none of them has succeeded or failed in another way since. */
+  Halvo.readFailed = function (name, n, e) {
+    if (!newest(name, n)) return;
+    var text = wordsOf(e);
+    var known = failing[name];
+    if (known && known.dismissed && known.text === text) return;
+    failing[name] = { text: text, dismissed: false };
+    writeLine(text, name, true);
+  };
+
+  /** A list read that succeeded takes away the line that its list wrote, unless the line has taken the outcome of a newer read of that list; a line that a press or another view wrote stays. */
+  Halvo.readSucceeded = function (name, n) {
+    if (!newest(name, n)) return;
+    delete failing[name];
+    if (line.from === name) writeLine("", null, true);
+  };
+
+  function dismissLine() {
+    var shown = document.getElementById("error").textContent;
+    Object.keys(failing).forEach(function (name) {
+      if (failing[name].text === shown) failing[name].dismissed = true;
+    });
+    Halvo.showError("");
+  }
 
   Halvo.showConnection = function (text) {
     document.getElementById("connection").textContent = text || "";
@@ -154,9 +205,7 @@
     var main = document.getElementById("views");
     var dismiss = document.getElementById("dismiss-error");
     dismiss.textContent = Halvo.words.DISMISS;
-    dismiss.onclick = function () {
-      Halvo.showError("");
-    };
+    dismiss.onclick = dismissLine;
     entries
       .slice()
       .sort(function (a, b) {

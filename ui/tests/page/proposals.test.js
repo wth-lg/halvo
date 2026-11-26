@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { openPage, keptDelete } = require("../lib/page.js");
+const { openPage, keptDelete, fixture } = require("../lib/page.js");
 
 const PROPOSED = "0123456789abcdef0123456789abcdef";
 const STORED = "fedcba9876543210fedcba9876543210";
@@ -235,4 +235,71 @@ test("the view reads again at a show and after a decision, and not on a status r
   await page.clock.advance(14999);
   assert.ok(page.calls("capture_status").length >= statusBefore + 2, "two status replies came in the 15 s");
   assert.equal(reads(), 3, "a status reply reads nothing");
+});
+
+const NO_ANSWER = "Halvo's capture service did not answer within 5 s.";
+const UNREADABLE = "Halvo could not read the answer of its capture service.";
+const noAnswer = () => Promise.reject({ error: "deadline", seconds: 5 });
+
+test("r4 U3.39: behind Dismiss a list read that fails in the same way writes nothing, and one that fails in another way writes its line, while armed at the disarm", async () => {
+  let workflows = noAnswer;
+  let inventory = noAnswer;
+  const page = await openPage({ replies: { workflows: () => workflows(), inventory: () => inventory() } });
+  const reads = () => [page.calls("workflows").length, page.calls("inventory").length];
+  assert.equal(page.text("error"), NO_ANSWER);
+  await page.click("dismiss-error");
+  assert.equal(page.text("error"), "");
+  const before = reads();
+  await page.clock.fire(15000);
+  assert.deepEqual(reads(), [before[0] + 1, before[1] + 1], "both lists were read again");
+  assert.equal(page.text("error"), "", "both reads failed in the same way");
+  assert.equal(page.visible("dismiss-error"), false);
+  workflows = () => Promise.reject({ error: "broken_reply" });
+  await page.click("delete", { detail: 0 });
+  await page.clock.fire(15000);
+  assert.equal(page.text("error"), "", "armed");
+  await page.click("cancel-delete");
+  assert.equal(page.text("error"), UNREADABLE, "behind the disarm");
+  assert.equal(page.visible("dismiss-error"), true);
+});
+
+test("r4 U3.39: the error line that a list read wrote goes when that read succeeds, while armed at the disarm, and a line that another view or a press wrote stays", async () => {
+  const proposal = { id: PROPOSED, category: "email", app: null, site: null, count: 2 };
+  let workflows = noAnswer;
+  let inventory = () => fixture("inventory-empty");
+  const page = await openPage({
+    replies: { workflows: () => workflows(), inventory: () => inventory(), dismiss_workflow: () => Promise.reject({ error: "not_running" }) },
+  });
+  assert.equal(page.text("error"), NO_ANSWER);
+  workflows = running([proposal], []);
+  await page.click("delete", { detail: 0 });
+  await page.clock.fire(15000);
+  assert.equal(page.text("error"), NO_ANSWER, "armed");
+  await page.click("cancel-delete");
+  assert.equal(page.text("error"), "", "behind the disarm");
+  assert.equal(page.visible("dismiss-error"), false);
+  inventory = () => Promise.reject({ error: "broken_reply" });
+  await page.clock.fire(15000);
+  assert.equal(page.text("error"), UNREADABLE, "the list of what is stored wrote it, and the workflows read that succeeded took nothing away");
+  inventory = () => fixture("inventory-empty");
+  await page.clock.fire(15000);
+  assert.equal(page.text("error"), "", "the list of what is stored was read");
+  await page.click(controlsOf(page)[1]);
+  assert.equal(page.text("error"), "The request failed.");
+  await page.clock.fire(15000);
+  assert.equal(page.text("error"), "The request failed.", "a line that a press wrote stays");
+});
+
+test("r4 U3.39: a success and then a failure of the stored list's read while armed leave the failure's line at the disarm", async () => {
+  let inventory = () => fixture("inventory-empty");
+  const page = await openPage({ replies: { inventory: () => inventory() } });
+  assert.equal(page.text("error"), "");
+  await page.click("delete", { detail: 0 });
+  inventory = () => fixture("inventory-two-rows-one-day");
+  await page.clock.fire(15000);
+  inventory = noAnswer;
+  await page.clock.fire(15000);
+  assert.equal(page.text("error"), "", "armed");
+  await page.click("cancel-delete");
+  assert.equal(page.text("error"), NO_ANSWER, "behind the disarm");
 });
