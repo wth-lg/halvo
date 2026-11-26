@@ -27,7 +27,7 @@ tries=3
 # check's bound for the line of that step.
 app_window_s=45
 ready_s=50
-rest_s=10
+rest_s=20
 rest_step_s=2
 watch_s=20
 watch_wait_s=2
@@ -440,25 +440,27 @@ wait_count() {
   done
 }
 
-# The front at rest behind the show of the app's window. The counts of foreground_app records
-# and of titles that the store holds were read once behind the step ready; they are read again
-# behind the step passer, and then every rest_step_s until two reads in a row are equal, rest_s
-# at most. The last read is the baseline of occasion 1, so that no record of the opening lands
-# behind that baseline.
+# The front at rest behind the show of the app's window. A record stands in the store's counts
+# only when the service has written its batch, up to 5 s behind the batch's first event, and
+# until then the status counts it in events_pending. So a read is the counts of foreground_app
+# records and of titles with the status's events_pending. The first read stands behind the step
+# ready; the stage reads again behind the step passer, and then every rest_step_s, until two
+# reads in a row hold equal counts and each reads events_pending=0, rest_s at most. No span is
+# added where the first two reads agree. The last read is the baseline of occasion 1, so that
+# no record of the opening lands behind that baseline.
 rest_stage() {
   stage=rest
   rest_reads=1
   waited=0
   while :; do
     read_counts
+    read_status
     rest_reads=$((rest_reads + 1))
-    [ "$c_fa:$c_titles" != "$rest_fa:$rest_titles" ] || break
-    if [ "$waited" -ge "$rest_s" ]; then
-      read_status
-      fail "occasion 0, stage rest: foreground_app and window_title did not hold still between two reads within $rest_s s behind the show of the app's window: foreground_app=+$((c_fa - first_fa)) window_title=+$((c_titles - first_titles)) since the first read; $status_text"
-    fi
+    [ "$c_fa:$c_titles:$s_pending:$rest_pending" != "$rest_fa:$rest_titles:0:0" ] || break
+    [ "$waited" -lt "$rest_s" ] || fail "occasion 0, stage rest: foreground_app and window_title did not hold still with nothing pending between two reads within $rest_s s behind the show of the app's window: foreground_app=+$((c_fa - first_fa)) window_title=+$((c_titles - first_titles)) since the first read; $status_text"
     rest_fa=$c_fa
     rest_titles=$c_titles
+    rest_pending=$s_pending
     pause "$rest_step_s"
     waited=$((waited + rest_step_s))
   done
@@ -828,10 +830,12 @@ cases() {
   walk_do ready "$ready_s"
   need_own
   field halvo_window "$walk_line"
-  [ "$value" = yes ] || fail "occasion 0, stage service: no window of the app within $app_window_s s of the walk's start: $walk_line"
+  [ "$value" = yes ] || fail "occasion 0, stage service: Halvo's own window did not show within $app_window_s s of the walk's start: $walk_line"
   read_counts
+  read_status
   rest_fa=$c_fa
   rest_titles=$c_titles
+  rest_pending=$s_pending
   first_fa=$c_fa
   first_titles=$c_titles
   start_walk noticing-pass.exe passer passer.out
@@ -1128,8 +1132,6 @@ fixture() {
   step_s=5
   row_s=5
   ready_s=5
-  rest_s=4
-  rest_step_s=2
   watch_s=4
   watch_wait_s=2
   w_clock=1000
@@ -1146,6 +1148,8 @@ fixture() {
   w_front=halvo
   w_last_title=none
   w_second_due=
+  w_pending=0
+  w_batch_due=
   to_native() {
     native=$1
   }
@@ -1160,6 +1164,13 @@ fixture() {
   pause() {
     w_clock=$((w_clock + $1))
     [ "$mode:$stage" != the-opening-never-rests:rest ] || world_adds fa 1
+    # The world's batch writes the records that it holds once it is due.
+    if [ -n "$w_batch_due" ] && [ "$w_clock" -ge "$w_batch_due" ]; then
+      w_batch_due=
+      w_pending=0
+      world_adds fa 1
+      world_adds title 1 338
+    fi
     if [ -n "$w_second_due" ] && [ "$w_clock" -ge "$w_second_due" ]; then
       w_second_due=
       world_second_pair
@@ -1257,7 +1268,7 @@ capture=running
 capture_reason=-
 lease=$lease
 store=open
-events_pending=0
+events_pending=$w_pending
 events_lost=$w_lost
 title_read_errors=0
 last_flush_at=$w_clock
@@ -1287,12 +1298,14 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
         walk_line="walk: step=ready ok=yes pid=4242 halvo_window=$window waited_ms=0"
         ;;
       passer)
-        # A record of the opening that lands behind the first read of the stage rest: a title
-        # of a third program with its foreground record, or one foreground record.
+        # Records of the opening behind the first read of the stage rest. In the mode
+        # the-opening-comes-to-rest-late the service's batch holds a title of a third program
+        # and its foreground record and writes them 5 s later, as a hosted machine did; in the
+        # mode the-opening-never-rests one foreground record lands at once.
         case $mode in
           the-opening-comes-to-rest-late)
-            world_adds fa 1
-            world_adds title 1 338
+            w_pending=2
+            w_batch_due=$((w_clock + 5))
             ;;
           the-opening-never-rests) world_adds fa 1 ;;
         esac
@@ -1455,8 +1468,8 @@ self_test() {
   # 2026-11-26, in which a title of a third program and its foreground record came behind the
   # baseline, beside the workbook's two: 649 bytes for two titles.
   run_case the-opening-is-at-rest PASS 'stage rest occasion=0 ok reads=2 foreground_app=+0 window_title=+0 since its first read'
-  run_case the-opening-comes-to-rest-late PASS 'stage rest occasion=0 ok reads=3 foreground_app=+1 window_title=+1 since its first read'
-  run_case the-opening-never-rests FAIL '(occasion 0, stage rest: foreground_app and window_title did not hold still between two reads within 4 s behind the show of the app'"'"'s window: foreground_app=+'
+  run_case the-opening-comes-to-rest-late PASS 'stage rest occasion=0 ok reads=6 foreground_app=+1 window_title=+1 since its first read'
+  run_case the-opening-never-rests FAIL '(occasion 0, stage rest: foreground_app and window_title did not hold still with nothing pending between two reads within 20 s behind the show of the app'"'"'s window: foreground_app=+'
   run_case a-third-program-behind-the-baseline FAIL '(occasion 1, stage title: foreground_app=+2 window_title=+2 title_bytes=+649 behind the baseline, wanted +1 and +1 or +2: a record of another program stands among them, so the front was not at rest at the baseline and the bytes of the workbook'"'"'s title cannot be read;'
   run_case two-titles-at-each-return PASS 'stage return-short occasion=2 ok foreground_app=+2 window_title=+2 title_bytes=+120, the titles are the workbook'"'"'s, wanted +2 and +1 or +2;'
   run_case second-pair-comes-late PASS 'second worker occasion=3: 1 batch lines behind the own one, 1 commit lines behind its commit, waited 2 s'
@@ -1466,7 +1479,7 @@ self_test() {
   run_case the-later-fronts-are-listed PASS 'watch: the list behind the stage title of occasion 1, 1 lines:' '' 'watch: ms=31000 at=shown file=halvo.exe class=Tauri_Window visible=yes size=620x720 window=0x50112 record=213 title=Halvo'
   run_case the-watcher-is-not-ready FAIL '(occasion 0, stage service: the third program of the check, which lists the windows in front, was not ready within 4 s)'
   run_case service-no-fresh-lease FAIL '(occasion 0, stage service: within 4 s ctl status read desired=running capture=running capture_reason=- lease=none'
-  run_case service-no-window-of-the-app FAIL '(occasion 0, stage service: no window of the app'
+  run_case service-no-window-of-the-app FAIL '(occasion 0, stage service: Halvo'"'"'s own window did not show within 45 s of the walk'"'"'s start: walk: step=ready ok=yes pid=4242 halvo_window=no waited_ms=0)'
   run_case no-title-count FAIL '(occasion 1, stage title: window_title=+0 within 4 s behind the click into the window; pointer=+1 foreground_app=+1; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at=' '' 'watch: the list to the failure, 6 lines:'
   run_case eleven-clicks FAIL '(occasion 1, stage clicks: pointer=+11 of 12 within 4 s; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at='
   run_case no-batch-line FAIL '(occasion 1, stage search: no batch line within 80 s of the last input; walk idle_ms=250000;'
