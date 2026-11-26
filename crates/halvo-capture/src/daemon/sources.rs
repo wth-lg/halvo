@@ -199,6 +199,13 @@ impl ServiceSources {
         }
     }
 
+    /// A share of the factory's handle of what its foreground sources have
+    /// told of browsers.
+    #[cfg(test)]
+    pub(crate) fn browsers_told(&self) -> crate::macos::foreground::BrowsersTold {
+        self.browsers_told.clone()
+    }
+
     /// The factory whose foreground sources read their titles through a
     /// stand-in that reads none, for a test that must read no title of the
     /// machine that runs it.

@@ -10119,4 +10119,26 @@ mod tests {
             .set_slot_answering(Slot::Deleting, None, &mut |_| {});
         assert_eq!(told(&f), (None, None), "behind a delete of everything");
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_delete_of_everything_has_a_browser_that_was_told_and_one_with_a_count_looked_at_anew() {
+        use crate::macos::foreground::tests_support::looks;
+        let (writer, reader) = crate::macos::foreground::foreground_state_for_test();
+        let factory = crate::daemon::sources::ServiceSources::new(
+            writer,
+            reader,
+            crate::macos::run_loop::RunLoopTurns::for_test(Instant::now()),
+        );
+        let told = factory.browsers_told();
+        let mut f = fixture(factory);
+        // A process that told its language: one look, and none behind it.
+        let answered = (looks(&told, 40, Some("en")), looks(&told, 40, Some("en")));
+        // A process with no answer: 25 looks in all, and none behind them.
+        let unanswered: usize = (0..30).map(|_| looks(&told, 41, None)).sum();
+        f.supervisor
+            .set_slot_answering(Slot::Deleting, None, &mut |_| {});
+        let anew = (looks(&told, 40, Some("en")), looks(&told, 41, None));
+        assert_eq!((answered, unanswered, anew), ((1, 0), 25, (1, 1)));
+    }
 }

@@ -351,6 +351,45 @@ pub(crate) mod tests_support {
         AppIdentity::of(None, Some(path))
     }
 
+    /// For a test of another module: how often the title rules of a new
+    /// source, which share `told`, look at the process `pid` of Chrome at one
+    /// title request, over stand-in reads of the system under which that look
+    /// answers `answer`.
+    pub(crate) fn looks(
+        told: &super::BrowsersTold,
+        pid: libc::pid_t,
+        answer: Option<&str>,
+    ) -> usize {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct Counting {
+            answer: Option<String>,
+            looks: std::sync::Arc<AtomicUsize>,
+        }
+        impl super::LanguageReads for Counting {
+            fn started(&mut self, _pid: libc::pid_t) -> Option<u64> {
+                Some(7)
+            }
+            fn place(&mut self, _pid: libc::pid_t, bundle_id: &str) -> Option<String> {
+                Some(format!("/Applications/{bundle_id}.app"))
+            }
+            fn held_language(&mut self, _pid: libc::pid_t, _place: &str) -> Option<String> {
+                self.looks.fetch_add(1, Ordering::SeqCst);
+                self.answer.clone()
+            }
+        }
+        let looks = std::sync::Arc::new(AtomicUsize::new(0));
+        let reads = Counting {
+            answer: answer.map(str::to_string),
+            looks: looks.clone(),
+        };
+        let mut rules = super::TitleRules::new(Box::new(|| None), Box::new(reads)).sharing(told);
+        rules.rule_of(&super::TitleRequest {
+            front: front("com.google.Chrome", pid),
+            change: 1,
+        });
+        looks.load(Ordering::SeqCst)
+    }
+
     pub(crate) fn stored_and_read(
         stored: Foreground,
         read: Foreground,
@@ -2350,6 +2389,11 @@ mod tests {
         fn lies(&self, pid: libc::pid_t, place: &str) {
             self.said().places.push((pid, place.to_string()));
         }
+
+        /// The process `pid` has ended: its start no longer reads.
+        fn ended(&self, pid: libc::pid_t) {
+            self.said().started.retain(|(process, _)| *process != pid);
+        }
     }
 
     impl LanguageReads for SaidLanguage {
@@ -2790,6 +2834,28 @@ mod tests {
         }
         let (_, titles, _, _) = through.made();
         assert_eq!((titles, said.reads_of(40)), (Vec::<String>::new(), 25));
+    }
+
+    #[test]
+    fn a_running_browser_is_not_looked_at_again_after_four_others_of_it_were_told_and_ended_one_after_another(
+    ) {
+        let normal = "Quarterly plan - Google Docs - Google Chrome";
+        let said = SaidLanguage::holding("en");
+        said.started(40, at(5));
+        let first = app("com.google.Chrome", 40);
+        let mut through = Through::new(None, &said);
+        through.shows(&first, normal);
+        for pid in 41..45 {
+            said.started(pid, at(10));
+            through.shows(&app("com.google.Chrome", pid), normal);
+            said.ended(pid);
+        }
+        through.shows(&first, normal);
+        assert_eq!(
+            said.reads_of(40),
+            1,
+            "never more than two ran at once, and the first still runs"
+        );
     }
 
     #[test]
