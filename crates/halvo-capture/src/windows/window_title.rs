@@ -11,12 +11,12 @@ use crate::floor::payload::{Title, TitleWhy};
 use crate::floor::site::Site;
 use crate::floor::Switch;
 use crate::secure_input::windows::{ContentReading, PasswordFieldProbe, PasswordGate};
+use crate::sink::CarryEnds;
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
 use super::exclusion::{chrome_window_is_private, private_window, Browser};
-use super::foreground::FrontChanges;
 use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
@@ -123,6 +123,10 @@ pub(crate) const TITLE_LOOK_STEP: Duration = Duration::from_millis(16);
 /// front, and the first read of that window decides it.
 pub(crate) const TITLE_LATE_STEP: Duration = Duration::from_millis(250);
 
+/// How often the title thread looks at the sink's counts of the records that
+/// ended a title's carry: the step of the foreground source's own poll.
+pub(crate) const TITLE_BREAK_STEP: Duration = Duration::from_millis(400);
+
 fn ms_of(duration: Duration) -> u32 {
     u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
 }
@@ -136,6 +140,9 @@ pub(crate) enum AskBy {
     Front,
     /// A change of the title of the window in front.
     Name,
+    /// A record that ended a title's carry was placed in the stream: the end
+    /// mark of an agent's run, or a `foreground_app` record.
+    Break,
 }
 
 /// A title asked of the window in front.
@@ -183,9 +190,12 @@ impl Waiting {
     /// a window that no switch named tell the gate of a switch by `switched`,
     /// which asks the gate for a read and answers the number behind which a
     /// read counts; a change of the title of the window of the visit takes
-    /// the visit's number. An ask of the window whose ask waits leaves that
-    /// ask as it is; an ask of another window takes its place. Answers whether
-    /// it took the place of an ask of another window.
+    /// the visit's number. An ask by a record that ended a title's carry is
+    /// taken as a change of the title is: of the window of the visit it takes
+    /// the visit's number and tells the gate nothing, and of another window
+    /// it tells the gate of a switch. An ask of the window whose ask waits
+    /// leaves that ask as it is; an ask of another window takes its place.
+    /// Answers whether it took the place of an ask of another window.
     pub(crate) fn ask(
         &mut self,
         (window, by): (usize, AskBy),
@@ -193,7 +203,9 @@ impl Waiting {
         switched: impl FnOnce() -> Option<u64>,
     ) -> bool {
         let after = match self.visit {
-            Some((seen, after)) if seen == window && by == AskBy::Name => after,
+            Some((seen, after)) if seen == window && matches!(by, AskBy::Name | AskBy::Break) => {
+                after
+            }
             _ => switched(),
         };
         self.visit = Some((window, after));
@@ -201,7 +213,7 @@ impl Waiting {
             return false;
         }
         let why = match by {
-            AskBy::Start | AskBy::Front => TitleWhy::AppChange,
+            AskBy::Start | AskBy::Front | AskBy::Break => TitleWhy::AppChange,
             AskBy::Name => TitleWhy::TitleChange,
         };
         self.ask
@@ -378,15 +390,21 @@ pub(crate) fn read_window_title(hwnd: HWND) -> ReadTitle {
 /// The title source's memory of its last decision: the window and the text
 /// that it decided last, written or left out. A decision for the same window
 /// and text writes nothing while the memory holds. The memory ends where the
-/// foreground source of the same set has seen another program come in front
-/// since that decision, so that the title of a window is decided anew at the
-/// return to it, behind the `foreground_app` record of the return, also where
-/// no title was decided for the window that was in front in between.
+/// sink has counted, since that decision, a record that ended a title's
+/// carry: a `foreground_app` record or the end mark of an agent's run. The
+/// store owner counts such a record once it has placed it, so a title that
+/// is decided behind a moved count stands behind that record in the stream.
 #[derive(Debug, Default)]
 pub(crate) struct LastTitle {
     emitted: Option<Seen>,
-    front: FrontChanges,
-    front_seen: u64,
+    ends: CarryEnds,
+    ends_seen: (u64, u64),
+}
+
+/// The two counts of `ends` as they stand: the run ends and the
+/// `foreground_app` records.
+fn counted(ends: &CarryEnds) -> (u64, u64) {
+    (ends.run_ends(), ends.fronts())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -408,20 +426,20 @@ impl TitleDigest {
 }
 
 impl LastTitle {
-    /// The memory of a title source whose set counts the changes of the
-    /// program in front in `front`.
-    pub(crate) fn behind(front: FrontChanges) -> LastTitle {
+    /// The memory of a title source that reads `ends`, the sink's counts of
+    /// the records that ended a title's carry.
+    pub(crate) fn ending_at(ends: CarryEnds) -> LastTitle {
         LastTitle {
             emitted: None,
-            front,
-            front_seen: 0,
+            ends,
+            ends_seen: (0, 0),
         }
     }
 
     pub(crate) fn is_new(&mut self, window: usize, title: &str) -> bool {
-        let front = self.front.seen();
-        if self.front_seen != front {
-            self.front_seen = front;
+        let ends = counted(&self.ends);
+        if self.ends_seen != ends {
+            self.ends_seen = ends;
             self.emitted = None;
         }
         let seen = Some(Seen {
@@ -448,11 +466,36 @@ impl LastTitle {
     }
 }
 
+/// The title thread's steady look at the sink's counts of the records that
+/// ended a title's carry.
+pub(crate) struct BreakLook {
+    ends: CarryEnds,
+    seen: (u64, u64),
+}
+
+impl BreakLook {
+    /// A look at `ends` that has seen the counts as they stand.
+    pub(crate) fn new(ends: CarryEnds) -> BreakLook {
+        let seen = counted(&ends);
+        BreakLook { ends, seen }
+    }
+
+    /// Whether a record that ended a title's carry was placed in the stream
+    /// since the last look.
+    pub(crate) fn moved(&mut self) -> bool {
+        let now = counted(&self.ends);
+        let moved = self.seen != now;
+        self.seen = now;
+        moved
+    }
+}
+
 struct TitleState {
     producer: Producer,
     floor: Floor,
     gate: Option<Arc<PasswordGate>>,
     last: LastTitle,
+    breaks: BreakLook,
     waiting: Waiting,
     counts: Arc<WaitCounts>,
     timer: Option<(usize, u32)>,
@@ -551,7 +594,6 @@ pub struct WindowTitleSource {
     drops: Arc<DropCounts>,
     waits: Arc<WaitCounts>,
     gate: Option<Arc<PasswordGate>>,
-    front: FrontChanges,
     installer: HookInstaller,
     remover: HookRemover,
 }
@@ -563,19 +605,9 @@ impl WindowTitleSource {
             drops: Arc::default(),
             waits: Arc::default(),
             gate: None,
-            front: FrontChanges::default(),
             installer: set_win_event_hook,
             remover: unhook_win_event,
         }
-    }
-
-    /// A title source of a service set, which hands it `front`, the count
-    /// that the set's foreground source adds each change of the program in
-    /// front to: the source's memory of the last title ends where that count
-    /// has moved.
-    pub(crate) fn with_front_changes(mut self, front: FrontChanges) -> Self {
-        self.front = front;
-        self
     }
 
     /// A title source that reads a password gate, the one of the service
@@ -702,6 +734,25 @@ unsafe extern "system" fn look_timer(_hwnd: HWND, _message: u32, _id: usize, _ti
     });
 }
 
+/// The title thread's steady timer, every [`TITLE_BREAK_STEP`]: where a
+/// record that ended a title's carry was placed in the stream since the last
+/// look, it asks the title of the window in front anew.
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn break_timer(_hwnd: HWND, _message: u32, _id: usize, time: u32) {
+    if super::reading_at_stop() {
+        return;
+    }
+    let moved = TITLE_CTX.with(|cell| {
+        cell.borrow_mut()
+            .as_mut()
+            .is_some_and(|state| state.breaks.moved())
+    });
+    if moved {
+        // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+        ask_title(unsafe { GetForegroundWindow() }, time, AskBy::Break);
+    }
+}
+
 /// One look at the waiting ask: a decision writes the title, or not, by the
 /// floor; a wait sets the timer to its step; an end stops the timer. A
 /// decision for a window of the frame host, a frame in which Windows shows
@@ -824,14 +875,15 @@ impl CaptureSource for WindowTitleSource {
         }
         let gate = self.gate.clone();
         let counts = Arc::clone(&self.waits);
-        let front = self.front.clone();
+        let ends = ctx.sink().carry_ends();
         self.life
             .begin(&ctx, "halvo-window-title-forward", move |producer| {
                 let state = TitleState {
                     producer,
                     floor,
                     gate,
-                    last: LastTitle::behind(front),
+                    last: LastTitle::ending_at(ends.clone()),
+                    breaks: BreakLook::new(ends),
                     waiting: Waiting::default(),
                     counts,
                     timer: None,
@@ -888,6 +940,20 @@ fn run_title_hook(
         return;
     }
     super::ensure_message_queue();
+    // SAFETY: SetTimer with no window makes a timer of this thread, whose
+    // callback has the TIMERPROC signature; the pump below dispatches it.
+    let break_look = unsafe { SetTimer(None, 0, ms_of(TITLE_BREAK_STEP), Some(break_timer)) };
+    if break_look == 0 {
+        let error = super::last_os_error("SetTimer");
+        // SAFETY: both are the valid handles that this thread installed above.
+        unsafe {
+            let _ = UnhookWinEvent(front_hook);
+            let _ = UnhookWinEvent(hook);
+        }
+        TITLE_CTX.with(|cell| *cell.borrow_mut() = None);
+        ready.report(Err(error));
+        return;
+    }
     ready.report(Ok(()));
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
     ask_title(
@@ -896,6 +962,10 @@ fn run_title_hook(
         AskBy::Start,
     );
     super::pump_messages(signal);
+    // SAFETY: `break_look` is the timer of this thread made above.
+    unsafe {
+        let _ = KillTimer(None, break_look);
+    }
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             state.stop_timer();
@@ -2162,66 +2232,48 @@ mod tests {
         assert!(!last.shows_new(1, "Inbox"));
     }
 
-    /// A foreground tracker on the count `front`: whether the program `pid`
-    /// that comes in front gives a `foreground_app` record.
-    fn programs_in_front(front: &FrontChanges) -> impl FnMut(u32) -> bool {
-        use super::super::foreground::FrontTracker;
-        let cell = std::sync::Mutex::new(None);
-        let mut tracker = FrontTracker::counting(front.clone());
-        move |pid| {
-            let app = |pid| {
-                Some(FrontApp {
-                    pid,
-                    path: Some(format!("C:\\Apps\\{pid}.exe")),
-                })
-            };
-            tracker.on_window(&cell, pid, app).emit.is_some()
-        }
-    }
-
     #[test]
     fn a_return_behind_a_foreground_app_record_writes_the_same_title_once_more() {
+        use crate::sink::CarryEnd;
         const BOOK: &str = "Budget.xlsx - Excel";
-        let front = FrontChanges::default();
-        let mut in_front = programs_in_front(&front);
-        let mut last = LastTitle::behind(front);
-        let book = in_front(10);
+        let (sink, writer) = crate::sink::channel(4);
+        let mut last = LastTitle::ending_at(sink.carry_ends());
+        writer.carry_ended(CarryEnd::Front);
         let first = last.shows_new(A, BOOK);
         let with_no_other_program_between = last.shows_new(A, BOOK);
-        let other = in_front(20);
-        let back = in_front(10);
+        writer.carry_ended(CarryEnd::Front);
+        writer.carry_ended(CarryEnd::Front);
         let at_the_return = last.shows_new(A, BOOK);
         let once_more = last.shows_new(A, BOOK);
         assert_eq!(
             (
-                [book, other, back],
                 first,
                 with_no_other_program_between,
                 at_the_return,
                 once_more
             ),
-            ([true, true, true], true, false, true, false),
-            "the records of the workbook's program, of another program whose title was never \
-             decided and of the return; then the workbook's title at first, with no other \
-             program between, at the return and once more"
+            (true, false, true, false),
+            "the workbook's title behind the counted record of its program, with no other \
+             program between, at the return behind the counted records of another program \
+             whose title was never decided and of the return, and once more"
         );
     }
 
     #[test]
     fn a_title_that_the_gate_leaves_out_stays_left_out_at_a_return_behind_a_foreground_app_record()
     {
-        let front = FrontChanges::default();
-        let mut in_front = programs_in_front(&front);
-        let mut last = LastTitle::behind(front);
+        use crate::sink::CarryEnd;
+        let (sink, writer) = crate::sink::channel(4);
+        let mut last = LastTitle::ending_at(sink.carry_ends());
         let mut bench = Bench::new();
-        let vault = in_front(9);
+        writer.carry_ended(CarryEnd::Front);
         bench.ask(B, AskBy::Front, 500);
         bench.gate.focus_read_in(Some(B), 510, answered(false));
         let first_visit = last.shows_new(B, "Vault") && bench.look(B, 516) == Some(true);
-        let other = in_front(7);
+        writer.carry_ended(CarryEnd::Front);
         bench.ask(A, AskBy::Front, 800);
         let in_a_window_that_gave_no_read = bench.look(A, 900);
-        let back = in_front(9);
+        writer.carry_ended(CarryEnd::Front);
         bench.ask(B, AskBy::Front, 1_000);
         let before_the_read_at_the_return = bench.look(B, 1_000);
         bench.gate.focus_read_in(Some(B), 1_010, answered(true));
@@ -2229,19 +2281,143 @@ mod tests {
         let written_at_a_password_field = bench.look(B, 1_016);
         assert_eq!(
             (
-                [vault, other, back],
                 first_visit,
                 (in_a_window_that_gave_no_read, before_the_read_at_the_return),
                 decided_anew,
                 written_at_a_password_field,
                 bench.drops.read().secure_input
             ),
-            ([true, true, true], true, (None, None), true, Some(false), 1),
-            "the records of the vault's program, of another program whose title was never \
-             decided and of the return; the vault's title written at a clear field; nothing \
-             decided in the other window or before the read at the return; the return decided \
-             anew, its title not written at a password field, and one event left out under \
-             secure input"
+            (true, (None, None), true, Some(false), 1),
+            "the vault's title written at a clear field behind the counted record of its \
+             program; nothing decided in the window of another program, whose record is \
+             counted, or before the read at the return, whose record is counted; the return \
+             decided anew, its title not written at a password field, and one event left out \
+             under secure input"
+        );
+    }
+
+    #[test]
+    fn a_counted_break_asks_the_title_of_the_window_in_front_anew_and_writes_it() {
+        use crate::sink::CarryEnd;
+        let (sink, writer) = crate::sink::channel(4);
+        let mut breaks = BreakLook::new(sink.carry_ends());
+        let mut last = LastTitle::ending_at(sink.carry_ends());
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 500);
+        bench.gate.focus_read_in(Some(B), 510, answered(false));
+        let at_first = last.shows_new(B, "Vault") && bench.look(B, 516) == Some(true);
+        let with_no_record = breaks.moved();
+        writer.carry_ended(CarryEnd::RunEnd);
+        let behind_a_run_end = breaks.moved();
+        let at_the_next_look = breaks.moved();
+        let replaced = bench.ask(B, AskBy::Break, 2_000);
+        let decided_anew = last.shows_new(B, "Vault");
+        let written_at_once = bench.look(B, 2_000);
+        let once_more = last.shows_new(B, "Vault");
+        assert_eq!(
+            (
+                at_first,
+                (with_no_record, behind_a_run_end, at_the_next_look),
+                replaced,
+                decided_anew,
+                written_at_once,
+                once_more
+            ),
+            (true, (false, true, false), false, true, Some(true), false),
+            "the title at first; a look with no record and a look behind a counted run end, \
+             and the next look; then the ask by that record with the window of the visit in \
+             front: no ask replaced, the title new once more, written at once by the gate's \
+             newest read of that window, and not new a second time"
+        );
+    }
+
+    #[test]
+    fn a_title_asked_anew_at_a_password_field_stays_left_out() {
+        use crate::sink::CarryEnd;
+        let (sink, writer) = crate::sink::channel(4);
+        let mut breaks = BreakLook::new(sink.carry_ends());
+        let mut last = LastTitle::ending_at(sink.carry_ends());
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 500);
+        bench.gate.focus_read_in(Some(B), 510, answered(false));
+        let at_first = last.shows_new(B, "Vault") && bench.look(B, 516) == Some(true);
+        bench.gate.focus_read_in(Some(B), 900, answered(true));
+        writer.carry_ended(CarryEnd::RunEnd);
+        let asked = breaks.moved();
+        bench.ask(B, AskBy::Break, 2_000);
+        let decided_anew = last.shows_new(B, "Vault");
+        let written = bench.look(B, 2_000);
+        assert_eq!(
+            (
+                at_first,
+                asked,
+                decided_anew,
+                written,
+                bench.drops.read().secure_input
+            ),
+            (true, true, true, Some(false), 1),
+            "the title written at a clear field; behind a counted run end, with the cursor in \
+             a password field of the same window since: the look asks, the title is decided \
+             anew, nothing is written, and one event is left out under secure input"
+        );
+    }
+
+    #[test]
+    fn an_ask_by_a_break_tells_the_gate_of_one_switch_for_another_window_and_of_none_for_the_window_of_the_visit(
+    ) {
+        use crate::sink::CarryEnd;
+        let (sink, writer) = crate::sink::channel(4);
+        let mut breaks = BreakLook::new(sink.carry_ends());
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 500);
+        bench.gate.focus_read_in(Some(B), 510, answered(false));
+        let at_first = bench.look(B, 516);
+        writer.carry_ended(CarryEnd::Front);
+        let asked = breaks.moved();
+        let switches = std::cell::Cell::new(0);
+        let by_a_break = |bench: &mut Bench, window: usize, tick: u32| {
+            let gate = &bench.gate;
+            bench.waiting.ask((window, AskBy::Break), (tick, tick), || {
+                switches.set(switches.get() + 1);
+                Some(gate.switched_to(window, tick))
+            })
+        };
+        by_a_break(&mut bench, B, 2_000);
+        let for_the_window_of_the_visit = (switches.get(), bench.look(B, 2_000));
+        by_a_break(&mut bench, C, 3_000);
+        let for_another_window = (
+            switches.get(),
+            bench.waiting.look(Some(&bench.gate), C, 3_000),
+        );
+        bench.gate.own_read_in(Some(C), 3_100, answered(false));
+        let decided = bench.waiting.look(Some(&bench.gate), C, 3_116);
+        assert_eq!(
+            (
+                at_first,
+                asked,
+                for_the_window_of_the_visit,
+                for_another_window
+            ),
+            (Some(true), true, (0, Some(true)), (1, Look::Wait(16))),
+            "the title at first; the look behind a counted foreground_app record; the switches \
+             told to the gate and the title's decision for an ask by that record of the window \
+             of the visit; and the switches told and the first look for an ask of another \
+             window"
+        );
+        assert!(
+            matches!(
+                decided,
+                Look::Decide(
+                    TitleAsk {
+                        window: C,
+                        why: TitleWhy::AppChange,
+                        tick: 3_000,
+                        ..
+                    },
+                    Some(_)
+                )
+            ),
+            "the ask of the other window at the read asked at its switch: {decided:?}"
         );
     }
 

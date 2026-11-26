@@ -136,15 +136,51 @@ pub enum FoldEmitted {
     Refused,
 }
 
+/// A record that ends the carry of a title record into the batches behind
+/// it: the end mark of an agent's run, or a `foreground_app` record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CarryEnd {
+    /// A `run_mark` record with the edge end.
+    RunEnd,
+    /// A `foreground_app` record.
+    Front,
+}
+
+/// The counts of the records that ended a title's carry, as the writer's
+/// side counted each once it had placed it in the stream. A title source
+/// reads them: a title that it emits after it has read a moved count stands
+/// behind the record that moved it.
+#[derive(Debug, Clone, Default)]
+pub struct CarryEnds(Arc<[AtomicU64; 2]>);
+
+impl CarryEnds {
+    /// The end marks of agents' runs counted so far.
+    pub fn run_ends(&self) -> u64 {
+        self.0[0].load(Ordering::SeqCst)
+    }
+
+    /// The `foreground_app` records counted so far.
+    pub fn fronts(&self) -> u64 {
+        self.0[1].load(Ordering::SeqCst)
+    }
+}
+
 #[derive(Clone)]
 pub struct SinkHandle {
     tx: SyncSender<Item>,
     sequence: Arc<AtomicU64>,
     counts: Arc<[KindCounters; KINDS]>,
     resumes: Arc<AtomicU64>,
+    carry: CarryEnds,
 }
 
 impl SinkHandle {
+    /// The counts of the records that ended a title's carry, which the
+    /// writer's side moves.
+    pub fn carry_ends(&self) -> CarryEnds {
+        self.carry.clone()
+    }
+
     /// The next monotonic sequence number for the stream.
     pub fn next_sequence(&self) -> MonotonicSequence {
         MonotonicSequence::new(self.sequence.fetch_add(1, Ordering::Relaxed))
@@ -387,6 +423,7 @@ pub struct SinkWriter {
     rx: Receiver<Item>,
     next: Cell<u64>,
     resumes: Arc<AtomicU64>,
+    carry: CarryEnds,
 }
 
 const _: fn() = || {
@@ -433,6 +470,17 @@ impl SinkWriter {
     /// starts after this call returns does not.
     pub fn resume_mark(&self) -> ResumeMark {
         ResumeMark(self.resumes.fetch_add(1, Ordering::SeqCst) + 1)
+    }
+
+    /// Counts one record that ended a title's carry. The store owner calls it
+    /// once it has placed the record in the stream, so that a title emitted
+    /// after a source has read the moved count stands behind that record.
+    pub fn carry_ended(&self, by: CarryEnd) {
+        let index = match by {
+            CarryEnd::RunEnd => 0,
+            CarryEnd::Front => 1,
+        };
+        self.carry.0[index].fetch_add(1, Ordering::SeqCst);
     }
 
     /// The next number of this writer's counter, for a record that did not
@@ -504,16 +552,19 @@ pub fn bounded(capacity: NonZeroUsize) -> (SinkHandle, SinkWriter) {
 fn build(capacity: usize) -> (SinkHandle, SinkWriter) {
     let (tx, rx) = sync_channel(capacity);
     let resumes = Arc::new(AtomicU64::new(0));
+    let carry = CarryEnds::default();
     let handle = SinkHandle {
         tx,
         sequence: Arc::new(AtomicU64::new(0)),
         counts: Arc::default(),
         resumes: resumes.clone(),
+        carry: carry.clone(),
     };
     let writer = SinkWriter {
         rx,
         next: Cell::new(0),
         resumes,
+        carry,
     };
     (handle, writer)
 }
