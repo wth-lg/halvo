@@ -598,7 +598,8 @@ impl Place {
 /// The decision for one process of Chrome or Edge, found by the browser, the
 /// pid and the start of the process in ticks: taken at its first title
 /// request and kept, by the sources that share one [`BrowsersTold`], while it
-/// is among the [`DECISIONS_KEPT`] that were taken or found last.
+/// is among the [`DECISIONS_KEPT`] of its browser that were taken or found
+/// last.
 struct Decided {
     browser: &'static str,
     pid: libc::pid_t,
@@ -606,14 +607,14 @@ struct Decided {
     english: bool,
 }
 
-/// The most decisions that one [`BrowsersTold`] keeps, for both browsers
-/// together.
-const DECISIONS_KEPT: usize = 8;
+/// The most decisions that one [`BrowsersTold`] keeps for each browser.
+const DECISIONS_KEPT: usize = 4;
 
 /// What title rules have told of the processes of Chrome and of Edge: one
-/// decision for each process, at most [`DECISIONS_KEPT`] of them, in the
-/// order in which they were taken or found last; the first leaves for a new
-/// one, and its process is then decided anew. The foreground sources that
+/// decision for each process, at most [`DECISIONS_KEPT`] of each browser, in
+/// the order in which they were taken or found last; the first of a browser
+/// leaves for a new one of that browser, and its process is then decided
+/// anew. The foreground sources that
 /// share one handle find each other's decisions, so that a decision outlives
 /// the source that took it. It holds no reading of a language and no epoch:
 /// each source reads both places anew at its start, so a process that started
@@ -642,13 +643,17 @@ impl BrowsersTold {
     }
 
     /// Keeps `decided` as the last to leave, in the place of an older
-    /// decision of its browser and pid; with [`DECISIONS_KEPT`] others kept,
-    /// the first of them leaves.
+    /// decision of its browser and pid; with [`DECISIONS_KEPT`] others of its
+    /// browser kept, the first of them leaves, and no decision of the other
+    /// browser does.
     fn keep(&self, decided: Decided) {
         let mut decisions = self.decisions();
         decisions.retain(|kept| kept.browser != decided.browser || kept.pid != decided.pid);
-        if decisions.len() >= DECISIONS_KEPT {
-            decisions.remove(0);
+        let of_its_browser = |kept: &Decided| kept.browser == decided.browser;
+        if decisions.iter().filter(|kept| of_its_browser(kept)).count() >= DECISIONS_KEPT {
+            if let Some(first) = decisions.iter().position(of_its_browser) {
+                decisions.remove(first);
+            }
         }
         decisions.push(decided);
     }
@@ -713,8 +718,10 @@ impl TitleRules {
     }
 
     /// Reads both places of each browser at the source's start; the ticks
-    /// after those readings are their first epoch, so a browser that already
-    /// runs keeps no title until it starts again.
+    /// after those readings are their first epoch, so a process of a browser
+    /// that already runs is told as English only by a decision that these
+    /// rules find kept, and one with no such decision keeps no title until
+    /// it starts again.
     fn begin(&mut self) {
         let global = self.languages.global();
         let own: Vec<(&'static str, Languages)> = window_title::NAME_ENDINGS
@@ -2709,6 +2716,22 @@ mod tests {
         let (_, behind, _, dropped) = through.made();
         let both = vec![other.to_string(), normal.to_string()];
         assert_eq!((by_turns, behind, dropped), (both.clone(), both, 1));
+
+        // The processes of one browser take no place of the other browser:
+        // Edge is told as English, eight processes of Chrome are told behind
+        // it, and Edge keeps its title behind the new start.
+        let edge_title = "Quarterly plan - Google Docs - Microsoft Edge";
+        let edge = app("com.microsoft.edgemac", 50);
+        said.started(50, at(76));
+        through.shows(&edge, edge_title, at(78));
+        for pid in 60..68 {
+            said.started(pid, at(80));
+            through.shows(&app("com.google.Chrome", pid), normal, at(82));
+        }
+        through.made();
+        let mut through = through.starts_again(at(90));
+        through.shows(&edge, edge_title, at(92));
+        assert_eq!(through.made().1, [edge_title]);
     }
 
     #[test]
