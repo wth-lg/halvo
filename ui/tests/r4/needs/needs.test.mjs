@@ -2611,7 +2611,7 @@ async function again(origin, dir) {
     const r = await read(h);
     if (firstDiff(r.units, expectedUnits([later])) >= 0) faults.push('not_read_anew');
     const says = r.region.flatMap((x) => x.says);
-    if (says.length !== 0) faults.push('said=' + says.length);
+    if (says.join('|') !== pageWords().CARD_WAITS) faults.push('said=' + says.length);
     const kept = await h.page.evaluate(() => [...document.querySelectorAll('#views [data-param]')].filter((el) => el.r4needsMark).length);
     if (kept !== 0) faults.push('not_rebuilt=' + kept);
     for (const a of prepare(later)) await act(h, a);

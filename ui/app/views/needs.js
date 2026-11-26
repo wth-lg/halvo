@@ -570,7 +570,7 @@
     return true;
   }
 
-  /** The control of a question drawn anew that takes the cursor from the control `was` of the old one:
+  /** The control of a question drawn anew that takes the cursor from the control of the old one that held it:
    * the same control (its typed line, its Choose a file, its choice of the same value), else its typed
    * line, else its checked choice, else its first choice; null where it has none of them. */
   function cursorTo(old, a, was) {
