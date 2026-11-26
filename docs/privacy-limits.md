@@ -141,8 +141,8 @@ Where a sentence names a unit, that unit makes it true.
   copies of that browser that it remembers, to tell whether they still run. macOS
   answers with a block of numbers about the process, such as the processor time that it
   has used and the memory that it holds, and Halvo takes one of them alone: the time at
-  which the process started. What it remembers of a look is in its memory alone: for
-  each copy of a browser that it looked at, the number and the start of its process, by
+  which the process started. What it remembers of a browser is in its memory alone: for
+  each copy of a browser that came in front, the number and the start of its process, by
   which Halvo finds it again, and whether it took that copy for English or how often it
   has looked without an answer. It forgets all of that when its capture service ends and
   when Halvo deletes everything. It looks once for a browser that it finds running,
