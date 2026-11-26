@@ -1690,3 +1690,41 @@ fn u1111_the_card_of_a_file_agent_says_that_halvo_saves_a_copy_behind_its_line_o
         }
     }
 }
+
+/// r3 U11.11, the round of the reader's fault: the quit row of an agent of the runtime file whose
+/// controls hold Start now reads `line.problem.quit` and then the close sentence, one space
+/// between; with no Start now among them, and for another runtime, the quit line alone. The line
+/// that the coordinator puts in place of the line of `needs_you.ready` behind a take-back
+/// (`line_offering` of `line.needs_you.asks_again`) reads the same way.
+#[test]
+fn u1111_the_quit_row_and_the_asks_again_line_of_a_file_agent_with_start_now_say_to_close_first() {
+    let quit = "Its task was still running when Halvo quit and may have gone on. Check outside Halvo before repeating it.";
+    let again = "You cancelled its start, so it asks you again before it starts.";
+    let sheet = facts(State::Ten)
+        .into_iter()
+        .find(|f| f.config.runtime() == Runtime::File)
+        .unwrap();
+    let web = facts(State::Ten).remove(0);
+    let with = vec![Control::RunNow, Control::SwitchOff, Control::Delete];
+    let without = vec![Control::SwitchOff, Control::Delete];
+    // The case, its facts, the controls of its row, and whether its lines end with the sentence.
+    let cases = [
+        ("a file agent with Start now", &sheet, with.clone(), true),
+        ("a file agent with no Start now", &sheet, without, false),
+        ("a web agent with Start now", &web, with, false),
+    ];
+    for (case, f, offered, close) in cases {
+        let tail = if close {
+            format!(" {CLOSE}")
+        } else {
+            String::new()
+        };
+        let r = quit_row(f, NAME, offered).unwrap();
+        assert_eq!(r.line, format!("{quit}{tail}"), "the quit row: {case}");
+        assert_eq!(
+            line_offering(f, &r, "line.needs_you.asks_again").unwrap(),
+            format!("{again}{tail}"),
+            "the line that asks again: {case}"
+        );
+    }
+}

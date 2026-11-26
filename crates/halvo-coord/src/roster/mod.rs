@@ -983,13 +983,34 @@ pub fn quit_row<C: ConfigView>(
     name: &str,
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
-    row_with(
+    let mut row = row_with(
         facts,
         crate::types::Status::Problem,
         "line.problem.quit",
         name,
         offered,
-    )
+    )?;
+    row.line = line_offering(facts, &row, "line.problem.quit")?;
+    Ok(row)
+}
+
+/// The line of a row that the text of `key` makes outside `row_offering`, for the agent of
+/// `facts` and the controls of `row` (r3 U11.11): that text, and behind it, one space between,
+/// the sentence of `line.note.close_first` where the agent is of the runtime file and the row
+/// offers `run_now`. The quit row's line is made so, and so is the line that the coordinator puts
+/// in place of the line of `needs_you.ready` behind a take-back.
+pub(crate) fn line_offering<C: ConfigView>(
+    facts: &Facts<C>,
+    row: &Row,
+    key: &str,
+) -> Result<String, Cause> {
+    let line = text(key, &[])?;
+    let run_now = row.controls.iter().any(|c| c.control == Control::RunNow);
+    if run_now && facts.config.runtime() == Runtime::File {
+        Ok(format!("{line} {}", text("line.note.close_first", &[])?))
+    } else {
+        Ok(line)
+    }
 }
 
 /// The row of an agent of a gone workflow whose newest run a Quit named as not stopped, once the
