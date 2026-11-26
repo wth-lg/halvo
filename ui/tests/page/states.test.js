@@ -393,7 +393,7 @@ test("says-left-out: an entry of left_out_before with the cause doubt shows on a
   const FROM = Date.UTC(2026, 10, 14, 9, 30, 7);
   const UNTIL = Date.UTC(2026, 10, 14, 10, 1, 59);
   const second = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
-  const date = (ms) => new Date(ms).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  const date = (ms) => new Date(ms).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
   const stretch = (cause, from, until) => [{ cause, what: ["everything"], from: second(from), until: second(until) }];
   const open = (status, nowMs, timezoneOffset = 0) => openPage({ replies: { capture_status: () => status }, nowMs, timezoneOffset });
   const line = (p) => (p.document.getElementById("left-out-before-line") || { textContent: "" }).textContent;

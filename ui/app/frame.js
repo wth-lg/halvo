@@ -137,6 +137,19 @@
     return (v < 10 ? v.toFixed(1) : Math.round(v)) + " " + units[i];
   };
 
+  /** The region whose form the page writes a date and a count in, whatever region the system is set to: `26 November 2026`, `1,234`. */
+  var FORM = "en-GB";
+
+  /** The day of `ms` on the clock of this computer, as the core writes a day: a day number, a month name and a year. */
+  Halvo.dateOf = function (ms) {
+    var local = new Date(ms - new Date(ms).getTimezoneOffset() * 60000);
+    return local.toLocaleDateString(FORM, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  };
+
+  Halvo.formatCount = function (n) {
+    return Number(n).toLocaleString(FORM);
+  };
+
   function start() {
     var main = document.getElementById("views");
     var dismiss = document.getElementById("dismiss-error");

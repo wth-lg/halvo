@@ -365,8 +365,8 @@ const NOT_READ = [
   ["agents.js", "BUTTON", "a tag name compared with tagName"],
   ["needs.js", "BUTTON", "a tag name compared with tagName"],
   ["frame.js", "DOMContentLoaded", "an event name"],
-  ["delete.js", "UTC", "the time zone in which toLocaleDateString reads a date that is already shifted to the clock of this computer"],
-  ["model-limit.js", "UTC", "the time zone in which toLocaleDateString reads a date that is already shifted to the clock of this computer"],
+  ["frame.js", "en-GB", "the region whose form the page writes a date and a count in, whatever region the system is set to"],
+  ["frame.js", "UTC", "the time zone in which toLocaleDateString reads a date that is already shifted to the clock of this computer"],
   ["stored.js", "the inventory reply has no list of rows", "the message of an Error: Halvo.showError shows ERROR_BROKEN for an Error, never its message"],
   ["cap.js", "confirm-row hidden", "a class list"],
   ["delete.js", "confirm-row hidden", "a class list"],
@@ -376,7 +376,6 @@ const NOT_READ = [
   ["permissions.js", "muted why", "a class list"],
   ["permissions.js", "muted walkback-intro", "a class list"],
   ["status.js", "row status-row", "a class list"],
-  ["status.js", "UTC", "the time zone in which toLocaleDateString reads a date that is already shifted to the clock of this computer"],
 ];
 
 const READ = /[A-Z]|\p{L} \p{L}/u;

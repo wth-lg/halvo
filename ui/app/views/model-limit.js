@@ -44,17 +44,8 @@
   var lines, label, field, setButton, said, controlRow, later;
   var flying = 0;
 
-  function localOf(ms) {
-    return new Date(ms - new Date(ms).getTimezoneOffset() * 60000);
-  }
-
-  /** The day of `ms` on the person's own clock, as the view of Delete everything writes a day. */
-  function dateOf(ms) {
-    return localOf(ms).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
-  }
-
   function filled(words) {
-    var end = reply && typeof reply.period_end_ms === "number" && isFinite(reply.period_end_ms) ? dateOf(reply.period_end_ms) : "";
+    var end = reply && typeof reply.period_end_ms === "number" && isFinite(reply.period_end_ms) ? Halvo.dateOf(reply.period_end_ms) : "";
     var texts = {
       "{host}": host || "",
       "{cap}": (reply && reply.cap) || "",

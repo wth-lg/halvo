@@ -1,0 +1,1 @@
+- Fixed: (interface run, U3.38) A date on Halvo's page reads the same on every system, a day number, a month name and a year, and a count of events is written with a comma between its thousands on every system.

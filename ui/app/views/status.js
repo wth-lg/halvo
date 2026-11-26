@@ -290,10 +290,6 @@
     return local.getUTCFullYear() * 10000 + local.getUTCMonth() * 100 + local.getUTCDate();
   }
 
-  function dateOf(ms) {
-    return localOf(ms).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
-  }
-
   function leftOutBefore(s) {
     var entry = s.service === "running" ? leftOutBy(s.left_out_before, "doubt") : null;
     var from = entry ? Date.parse(entry.from) : NaN;
@@ -301,7 +297,7 @@
     if (isNaN(from) || isNaN(until)) return "";
     var today = dayOf(Date.now());
     if (dayOf(from) === today && dayOf(until) === today) return w.LEFT_OUT_BEFORE_TODAY.replace("{from}", clockOf(from)).replace("{until}", clockOf(until));
-    return w.LEFT_OUT_BEFORE.replace("{from_date}", dateOf(from)).replace("{from}", clockOf(from)).replace("{until_date}", dateOf(until)).replace("{until}", clockOf(until));
+    return w.LEFT_OUT_BEFORE.replace("{from_date}", Halvo.dateOf(from)).replace("{from}", clockOf(from)).replace("{until_date}", Halvo.dateOf(until)).replace("{until}", clockOf(until));
   }
 
   function partLost(s) {

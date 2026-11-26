@@ -76,7 +76,7 @@ function defaultReplies() {
 }
 
 async function openPage(options = {}) {
-  const { dir = APP, replies = {}, globalTauri = false, timezoneOffset } = options;
+  const { dir = APP, replies = {}, globalTauri = false, timezoneOffset, region } = options;
   const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
   const { document, scripts } = parse(html);
   if (options.visibility) document.visibilityState = options.visibility;
@@ -130,6 +130,27 @@ async function openPage(options = {}) {
   );
   if (timezoneOffset !== undefined) {
     vm.runInContext(`(function () { var D = Date; globalThis.Date = class extends D { getTimezoneOffset() { return ${Number(timezoneOffset)}; } }; })()`, context);
+  }
+  if (region !== undefined) {
+    vm.runInContext(
+      `(function (region) {
+        var asked = function (locales) { return locales === undefined ? region : locales; };
+        [[Date.prototype, ["toLocaleDateString", "toLocaleString"]],[Number.prototype, ["toLocaleString"]]].forEach(function (entry) {
+          entry[1].forEach(function (name) {
+            var own = entry[0][name];
+            entry[0][name] = function (locales, opts) { return own.call(this, asked(locales), opts); };
+          });
+        });
+        ["DateTimeFormat", "NumberFormat"].forEach(function (name) {
+          var Own = Intl[name];
+          var made = function (locales, opts) { return new Own(asked(locales), opts); };
+          made.prototype = Own.prototype;
+          made.supportedLocalesOf = Own.supportedLocalesOf;
+          Intl[name] = made;
+        });
+      })(${JSON.stringify(String(region))})`,
+      context,
+    );
   }
   const loaded = [];
   for (const script of scripts) {

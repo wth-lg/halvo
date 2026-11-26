@@ -167,7 +167,7 @@ test("G5 (N11): at a load that no delete started the kept answer stands in its p
 
 test("G5 (I-114 (19)): the kept answer of an earlier day carries its date before its time, in the clock of this computer", async () => {
   const page = await openPage({ replies: { last_delete: () => answered(KEPT_AT_MS) }, nowMs: KEPT_AT_MS + 2 * 86400000, timezoneOffset: 0 });
-  const date = new Date(KEPT_AT_MS).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  const date = new Date(KEPT_AT_MS).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
   assert.ok(page.text("delete-result").startsWith(`On ${date} at 09:30: `), page.text("delete-result"));
   const today = await openPage({ replies: { last_delete: () => answered(KEPT_AT_MS) }, nowMs: KEPT_AT_MS + 3600000, timezoneOffset: 0 });
   assert.ok(today.text("delete-result").startsWith("At 09:30: "), today.text("delete-result"));

@@ -99,14 +99,10 @@
     return local.getUTCFullYear() * 10000 + local.getUTCMonth() * 100 + local.getUTCDate();
   }
 
-  function dateOf(ms) {
-    return localOf(ms).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
-  }
-
   function whenOf(ms) {
     if (typeof ms !== "number" || !isFinite(ms)) return "";
     if (dayOf(ms) === dayOf(Date.now())) return w.DELETE_AT.replace("{time}", clockOf(ms));
-    return w.DELETE_ON_DAY.replace("{date}", dateOf(ms)).replace("{time}", clockOf(ms));
+    return w.DELETE_ON_DAY.replace("{date}", Halvo.dateOf(ms)).replace("{time}", clockOf(ms));
   }
 
   function disarm() {

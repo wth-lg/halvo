@@ -8,7 +8,7 @@ const HOST = "api.host.invalid";
 /** The end of the period, 2026-12-12T00:30:00Z: on a clock one hour behind UTC it is still 11 December. */
 const END = Date.UTC(2026, 11, 12, 0, 30);
 const OFFSET = 60;
-const DATE = new Date(END - OFFSET * 60000).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+const DATE = new Date(END - OFFSET * 60000).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
 
 /** The reply of model_limit_state at `state`, with the texts of a count that reads unless `more` says otherwise. */
 const stateOf = (state, more = {}) => ({
