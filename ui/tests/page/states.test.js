@@ -433,7 +433,27 @@ test("says-left-out: an entry of left_out_before with the cause doubt shows on a
   assert.notEqual(date(night), date(night + 20 * 60000), "two dates");
 });
 
-test("no-key-arrives: where the status's left_out holds no_key_arrives with typing in its what, the line under the heading says the ruled sentence with the heading and the dot as they are; the doubt and a hold win; with a failed row of the app in front, without typing in its what, by the row's reason alone, paused or held it does not show", async () => {
+test("the page says the stretch in the past tense, today and across days", async () => {
+  const because = "because a password field or another app had asked your Mac to keep typing private.";
+  const FROM = Date.UTC(2026, 10, 14, 9, 30, 7);
+  const UNTIL = Date.UTC(2026, 10, 14, 10, 1, 59);
+  const second = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
+  const date = (ms) => new Date(ms).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  const held = (what, from, until) => ({ cause: "secure_input", what, from: second(from), until: second(until) });
+  const open = (status, nowMs) => openPage({ replies: { capture_status: () => status }, nowMs, timezoneOffset: 0 });
+  const line = (p) => (p.document.getElementById("left-out-before-line") || { textContent: "" }).textContent;
+  const mac = fixture("capture_status-running");
+  const told = { ...mac, left_out_before: [held(["typing", "window_titles"], FROM, UNTIL)] };
+  assert.equal(line(await open(told, UNTIL + 3600000)), `Today from 09:30 to 10:01, Halvo recorded no typing or window titles, ${because}`, "today");
+  assert.equal(line(await open(told, UNTIL + 20 * 3600000)), `From ${date(FROM)} at 09:30 to ${date(UNTIL)} at 10:01, Halvo recorded no typing or window titles, ${because}`, "read on the next day");
+  const three = { ...mac, left_out_before: [held(["typing", "window_titles", "screen_activity"], FROM, UNTIL)] };
+  assert.equal(line(await open(three, UNTIL + 3600000)), `Today from 09:30 to 10:01, Halvo recorded no typing, window titles or screen activity, ${because}`, "three parts");
+  const doubt = { cause: "doubt", what: ["everything"], from: second(FROM), until: second(UNTIL) };
+  const both = { ...mac, left_out_before: [doubt, held(["window_titles"], FROM - 3600000, FROM - 1800000)] };
+  assert.equal(line(await open(both, UNTIL + 3600000)), `Today from 08:30 to 09:00, Halvo recorded no window titles, ${because} Today from 09:30 to 10:01, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.`, "beside a stretch of doubt that began later, the earlier first");
+});
+
+test("no-key-arrives:where the status's left_out holds no_key_arrives with typing in its what, the line under the heading says the ruled sentence with the heading and the dot as they are; the doubt and a hold win; with a failed row of the app in front, without typing in its what, by the row's reason alone, paused or held it does not show", async () => {
   const said = "Keys are being pressed on this Mac and none of them reaches Halvo, so Halvo is not recording typing right now. It records typing again by itself as soon as keys reach it.";
   const doubt = "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.";
   const hold = "Halvo is not recording typing or window titles right now, because a password field or another app has asked your Mac to keep typing private. It records typing and window titles again by itself when that ends.";
