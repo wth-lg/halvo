@@ -22,6 +22,13 @@ acts as the same user can still decrypt after each of them.
 | Window expiry or cap eviction of a segment | The segment does not decrypt: 0 of 1,125 shredded keys were left in the raw pages of store.db (evidence/interrogate-rr-store-1/08-raw-pages-pinned.log), and none after any oldest-first pass (evidence/interrogate-rr-store-1/12-oldest-first-pinned.log). Note of 2026-11-11: until store-4 removes the per-event rows (ADR 0009), rows of an expired segment can stay in freed page space of store.db (RR-store-08); docs-2 deletes this note. | The segment decrypts: the older files gave back 66,313 bytes equal to the original plaintext, with the Time Machine exclusion attribute set (evidence/interrogate-rr-store-1/09-rollback.log). | The segment decrypts, as in the column before: expiry destroys no root, and that run read the older files with the root that was still in place (evidence/interrogate-rr-store-1/09-rollback.log). |
 | Delete-all | Nothing decrypts: delete-all destroys the root first (RD-20; store-3 lands the root step, and daemon-3d lands Delete everything on it) and then removes the key file, the database and the segments, and after it even the older files of the next column open Sealed (evidence/interrogate-rr-store-1/09-rollback.log, control line). | Nothing decrypts: the older files open Sealed, because the root they need is gone (evidence/interrogate-rr-store-1/09-rollback.log, control line). | Everything decrypts, by reading the code on both systems, because both use the same root-file code. Not run: store-6 ports the rollback test and win-5 runs the restore test on Windows. |
 
+Window expiry and the cap remove recordings alone. A summary of what Halvo noticed on a
+day, and the rows that support it, stay in Halvo's encrypted store of what it noticed
+for 93 days from that day; a workflow that Halvo noticed stays there until the person
+deletes it or deletes everything; and an agent stays until the person deletes it or
+deletes everything, with the records of its runs for 93 days and a sign-in that it
+keeps for 35 days.
+
 Limit of delete-all: Delete everything destroys every key file in Halvo's data folder, not only the one of the store in use. So if the store folder inside it was moved away or replaced, for example by a shortcut, what was recorded there cannot be read again, wherever those files are. Halvo removes nothing in a place that is not its own folder: files may be left there, and you can remove them. One exception: a copy or a move of Halvo's whole data folder, with the folder roots inside it, takes the key files with it. Such a copy can still be opened, and Halvo cannot reach it. A key file that another program copied, or renamed inside the folder, is such a copy: Halvo does not find it, and with an earlier copy of the recordings it can still open them. Source: the store tests `delete_all_acts_through_its_handle_and_leaves_a_directory_put_at_the_store_name_as_it_was`, `delete_all_opens_lists_and_changes_nothing_behind_a_link_put_at_the_store_name`, `the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_file_under_roots`, `delete_all_destroys_every_root_file_under_its_roots_directory_and_names_one_that_stays`, `the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_it` and `the_tail_answers_each_arm_as_its_row_says_and_leaves_the_roots_directory_as_its_row_says` (store-3, P1 to P4 of ruling ST-30, and ruling ST-45 H1).
 
 If the folder roots, or a key file in it, was moved, renamed or replaced while Halvo ran, Delete everything says that it is not finished and names the key file it could not find, unless a program put a file with that key file's name into the folder that stands there now. If you choose Delete everything again after Halvo starts again, it destroys every key file in the folder that now stands at that place and can say that it is finished; the key files in the moved folder can still open the recordings that were moved with them.
@@ -102,7 +109,7 @@ Where a sentence names a unit, that unit makes it true.
   Edge title where a closing square bracket stands before ` - Microsoft Edge` with
   nothing but signs that are neither letters nor digits between them, because there Edge
   on Windows puts the mark of its InPrivate window, and where the end of the title that
-  it reads holds no letter, digit or bracket before that name. Chrome and Edge end the
+  it reads holds no letter, digit or closing square bracket before that name. Chrome and Edge end the
   title of a private window with `(Incognito)` or `(InPrivate)` and of a Guest window
   with `(Guest)`, and while a dialog over the page has the focus the title is the
   dialog's own: Halvo records none of these titles. Chrome also opens windows that keep
@@ -149,12 +156,13 @@ Where a sentence names a unit, that unit makes it true.
   app and the time are recorded as for every app. A browser whose program it does not
   know by name is recorded like any app, the title of its private windows too.
 - On Windows, an Edge title is kept only where it ends with the brand name,
-  `Microsoft Edge`, and no closing bracket stands before the brand with nothing but
-  characters that are neither letters nor digits between them. An InPrivate window
-  carries the marker `[InPrivate]` there; under the German and the Japanese interface
-  it read the same, with an en dash or a hyphen before the brand. A page whose own
-  title ends in a closing bracket is not kept. If Edge marked a private window
-  otherwise under some interface language, the titles of that window would be kept.
+  `Microsoft Edge`, and no closing square bracket, `]` or its full-width form `］`,
+  stands before the brand with nothing but characters that are neither letters nor
+  digits between them. An InPrivate window carries the marker `[InPrivate]` there;
+  under the German and the Japanese interface it read the same, with an en dash or a
+  hyphen before the brand. A page whose own title ends in a closing square bracket is
+  not kept. If Edge marked a private window otherwise under some interface language,
+  the titles of that window would be kept.
 - On Windows the title of a Chrome window does not tell a private window: it reads
   `PAGE - Google Chrome` in an Incognito and in a Guest window too. Halvo asks the
   window instead, through UI Automation, and keeps a title of Chrome only where three

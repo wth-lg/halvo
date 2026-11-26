@@ -33,6 +33,7 @@ fn ready(stands: bool) -> ModelUse {
             period: "month".to_owned(),
             near: false,
         },
+        hands_back: false,
     }
 }
 
@@ -193,6 +194,55 @@ fn with_no_key_no_limit_or_a_state_that_does_not_read_the_row_says_one_sentence_
             "{case}"
         );
         assert!(sets(&c, m).is_empty(), "{case}: nothing sent");
+    }
+}
+
+/// r4 U3.34, the coordinator's way (c) of its log line 23312: while the app hands that every
+/// compile, recover and write row of the router's table hands back, the row of an agent whose yes
+/// does not stand (the tier `on_device`, and a hosted tier whose yes does not stand) offers no Use
+/// an AI model and carries no question and no note, and the action `use_model` is refused with
+/// `state` and sends nothing; an agent whose yes stands keeps Use this computer only. Where the app
+/// hands that a row is open, each state offers what it offered before.
+#[test]
+fn u334_while_every_row_hands_back_no_row_offers_use_an_ai_model_and_the_action_refuses() {
+    use Control::{ThisComputerOnly as Back, UseModel as Use};
+    let rows = [
+        (Tier::OnDevice, false, false, vec![Use]),
+        (Tier::OnDevice, false, true, vec![]),
+        (Tier::Frontier, false, false, vec![Use, Back]),
+        (Tier::Frontier, false, true, vec![Back]),
+        (Tier::Frontier, true, false, vec![Back]),
+        (Tier::Frontier, true, true, vec![Back]),
+    ];
+    for (tier, stands, hands_back, want) in rows {
+        let case = format!("{tier} stands={stands} hands_back={hands_back}");
+        let c = world(
+            tier,
+            ModelUse {
+                hands_back,
+                ..ready(stands)
+            },
+        );
+        let r = row(&c);
+        let shown: Vec<Control> = r
+            .controls
+            .iter()
+            .map(|x| x.control)
+            .filter(|x| matches!(x, Use | Back))
+            .collect();
+        assert_eq!(shown, want, "{case}");
+        let offered = want.contains(&Use);
+        assert_eq!(r.ask_use_model.is_some(), offered, "{case}: the question");
+        assert_eq!(r.note_use_model, None, "{case}: no note");
+        if !offered {
+            let m = mark(&c);
+            assert_eq!(
+                c.control(&agent(), Action::UseModel),
+                Err(Cause::State),
+                "{case}"
+            );
+            assert!(sets(&c, m).is_empty(), "{case}: nothing sent");
+        }
     }
 }
 
