@@ -119,3 +119,28 @@ test("P30: the release draws the kept replies in the order of the views", async 
   await page.click("cancel-delete");
   assert.deepEqual(order, ["status", "onboarding", "inventory"]);
 });
+
+test("U3.36 armed: a reply to the Status view's own ask of the rows that arrives while Delete everything is armed draws nothing until the disarm, and is drawn after it", async () => {
+  const says = 'Halvo records nothing until you press Resume. "Quit Halvo" pauses it too, and it stays paused when Halvo starts again.';
+  let answer = null;
+  let hold = false;
+  const page = await armedPage({
+    capture_status: () => fixture("capture_status-paused"),
+    onboarding_state: () => {
+      if (!hold) return fixture("onboarding_state-missing");
+      hold = false;
+      return new Promise((resolve) => (answer = resolve));
+    },
+  });
+  assert.equal(page.text("capture-reason"), "", "a step open");
+  hold = true;
+  await page.clock.advance(3000);
+  assert.notEqual(answer, null, "the Status view's next ask, behind the status that it draws, is on its way");
+  await armAtPoint(page);
+  answer(fixture("onboarding_state-granted"));
+  await page.settle();
+  assert.equal(page.text("state"), "Halvo is paused", "armed");
+  assert.equal(page.text("capture-reason"), "", "armed");
+  await page.click("cancel-delete");
+  assert.equal(page.text("capture-reason"), says, "behind the disarm");
+});

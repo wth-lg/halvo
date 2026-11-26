@@ -4,6 +4,7 @@
   var EXIT_FAULT_REPORTS_ON = 6;
   var w = Halvo.words;
   var status = Halvo.feed("status");
+  var stepRows = Halvo.feed("status-rows");
   var dot;
   var state;
   var reason;
@@ -213,14 +214,13 @@
       .call("onboarding_state")
       .then(
         function (o) {
-          rows = { at: at, open: !(o && Array.isArray(o.walkback) && o.walkback.length === 0) };
+          stepRows.set({ at: at, open: !(o && Array.isArray(o.walkback) && o.walkback.length === 0) });
         },
         function () {},
       )
       .then(function () {
         rowsAskedAt = null;
         if (at !== drawnState) askRows(last);
-        drawReason(last);
       });
   }
 
@@ -529,6 +529,10 @@
         last = s;
       });
       status.on(render);
+      stepRows.on(function (r) {
+        rows = r;
+        drawReason(last);
+      });
       status.source(refresh);
       refresh();
       setInterval(refresh, 3000);
