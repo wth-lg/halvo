@@ -1,5 +1,5 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use halvo_control::model::CaptureState;
@@ -629,7 +629,23 @@ impl FirstStatus {
 /// paused `capture` reads paused or pausing alone (contracts.md C2.3, line 144), so the one field
 /// decides, and a first status that reads pausing shows the window too.
 pub fn shows_by_itself(first: &FirstStatus, view: &StatusView) -> bool {
-    false
+    let StatusView::Running(view) = view else {
+        return false;
+    };
+    first.0.swap(false, Ordering::SeqCst) && view.desired == CaptureState::Paused
+}
+
+/// The draw's ask of `shows_by_itself` with the app's `FirstStatus`, where the app manages one:
+/// where it says so, the window main shows as the tray's Open shows it, posted to the main thread
+/// with no wait, since a draw runs off the main thread and holds the draw lock.
+pub fn show_by_itself<R: Runtime>(app: &AppHandle<R>, view: &StatusView) {
+    if app
+        .try_state::<FirstStatus>()
+        .is_some_and(|first| shows_by_itself(&first, view))
+    {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || show_main_window(&handle));
+    }
 }
 
 #[cfg(test)]
