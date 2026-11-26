@@ -167,7 +167,8 @@ pub trait SourceFactory {
 /// writes the app in front again. It keeps one handle of what its foreground
 /// sources have told of the processes of Chrome and Edge and gives each of
 /// them a share of it too, so that a source started after a stop finds the
-/// decisions of the sources before it.
+/// decisions of the sources before it. A delete of everything empties that
+/// handle.
 #[cfg(target_os = "macos")]
 pub struct ServiceSources {
     foreground_writer: crate::macos::foreground::ForegroundWriter,
@@ -272,6 +273,10 @@ impl super::supervisor::SystemSources for ServiceSources {
 
     fn refuse_keys(&mut self, refused: bool) {
         self.keys_refused = refused;
+    }
+
+    fn forget_browsers(&mut self) {
+        self.browsers_told.forget();
     }
 }
 

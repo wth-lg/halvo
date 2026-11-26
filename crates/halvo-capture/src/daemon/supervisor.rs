@@ -244,6 +244,10 @@ pub trait SystemSources: SourceFactory {
     fn refuse_keys(&mut self, refused: bool) {
         let _ = refused;
     }
+
+    /// Forgets what the factory's sources have told of the processes of a
+    /// browser: the supervisor's word at the slot of a delete of everything.
+    fn forget_browsers(&mut self) {}
 }
 
 /// The answer of a client's request for the system's question about one
@@ -1483,8 +1487,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
     /// stop. The slot of a delete takes the loss of the last life back, so
-    /// that no status prints it behind a delete of everything, and has the
-    /// floor forget the last stretch that it left out by doubt.
+    /// that no status prints it behind a delete of everything, has the floor
+    /// forget the last stretch that it left out by doubt, and has the factory
+    /// forget what its sources have told of a browser's processes.
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn set_slot_answering(
         &mut self,
@@ -1497,6 +1502,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if let Some(floor) = self.floor_held() {
                 floor.forget_doubt_before();
             }
+            self.factory.forget_browsers();
         }
         self.slot = slot;
         if let Some(ending) = self.follow_the_run_condition(owner, reply) {

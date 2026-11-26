@@ -659,8 +659,10 @@ struct Told {
 
 /// What title rules have told of the processes of Chrome and of Edge: one
 /// decision for each process, at most [`DECISIONS_KEPT`] of each browser, in
-/// the order in which they were taken or found last; the first of a browser
-/// leaves for a new one of that browser, and its process is then decided
+/// the order in which they were taken or found last. Where a new decision of
+/// a browser finds that many kept, the rules first let those of its
+/// processes that no longer run leave; only where that many still run does
+/// the first of them leave for the new one, and its process is then decided
 /// anew. Beside the decisions stands, for at most [`UNTOLD_KEPT`] processes
 /// of each browser, the count of the reads that gave no answer: a count stays
 /// while its process runs, also behind the decision that its last read
@@ -670,7 +672,8 @@ struct Told {
 /// that both outlive the source that took them. It holds no name of a file:
 /// a decision is the answer of one read of the files that a process holds
 /// open, and a process that has no decision here and no count that is spent
-/// is read when its first title is asked for.
+/// is read when its first title is asked for. A delete of everything empties
+/// it.
 #[derive(Clone, Default)]
 pub(crate) struct BrowsersTold(Arc<Mutex<Told>>);
 
@@ -709,6 +712,31 @@ impl BrowsersTold {
             }
         }
         decisions.push(decided);
+    }
+
+    /// The processes of `browser` that have a decision, each by its pid and
+    /// its start.
+    fn decided(&self, browser: &str) -> Vec<(libc::pid_t, u64)> {
+        let told = self.told();
+        told.decisions
+            .iter()
+            .filter(|decided| decided.browser == browser)
+            .map(|decided| (decided.pid, decided.started))
+            .collect()
+    }
+
+    /// Gives up the decision of the process `pid` of `browser` that started
+    /// at the tick `started`.
+    fn undecide(&self, browser: &str, pid: libc::pid_t, started: u64) {
+        self.told().decisions.retain(|decided| {
+            decided.browser != browser || decided.pid != pid || decided.started != started
+        });
+    }
+
+    /// Forgets every decision and every count: the word of a delete of
+    /// everything.
+    pub(crate) fn forget(&self) {
+        *self.told() = Told::default();
     }
 
     /// The reads with no answer that are counted for the process `pid` of
@@ -899,6 +927,7 @@ impl TitleRules {
                 },
             }
         };
+        self.make_room(browser);
         self.told.keep(Decided {
             browser,
             pid,
@@ -906,6 +935,21 @@ impl TitleRules {
             english,
         });
         english
+    }
+
+    /// Before a new decision of `browser` is kept: where [`DECISIONS_KEPT`]
+    /// of that browser are kept, the decisions of its processes that no
+    /// longer run leave, those whose start no longer reads as it is kept.
+    fn make_room(&mut self, browser: &str) {
+        let decided = self.told.decided(browser);
+        if decided.len() < DECISIONS_KEPT {
+            return;
+        }
+        for (pid, started) in decided {
+            if self.languages.started(pid) != Some(started) {
+                self.told.undecide(browser, pid, started);
+            }
+        }
     }
 
     /// Counts one read more with no answer for the process `pid` of
