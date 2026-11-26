@@ -7375,6 +7375,17 @@ mod tests {
         titles: bool,
         screen: bool,
     ) -> Option<String> {
+        list_written(counters, record_typing, titles, screen, "left_out")
+    }
+
+    /// The list `list` of the same line, over the same status.
+    fn list_written(
+        counters: &InputCounters,
+        record_typing: bool,
+        titles: bool,
+        screen: bool,
+        list: &str,
+    ) -> Option<String> {
         use crate::daemon::board::Board;
         use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
         use crate::daemon::slot::Slot;
@@ -7413,7 +7424,7 @@ mod tests {
             last_stop: LastStop::None,
             rss_peak_bytes: 0,
         };
-        written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+        written_list(&status_of(&parts, &facts).unwrap(), list)
     }
 
     #[test]
@@ -7501,6 +7512,90 @@ mod tests {
             written(&held, false, false, false),
             None,
             "nothing that a hold leaves out is on"
+        );
+    }
+
+    #[test]
+    fn a_hold_of_a_minute_or_more_that_has_ended_stands_in_left_out_before_with_the_cause_secure_input_its_parts_by_the_switches_and_its_two_times_one_under_a_minute_does_not_a_delete_of_everything_empties_it(
+    ) {
+        use halvo_control::model::UtcSecond;
+        use halvo_control::proto::{LeftOutBefore, LeftOutCause, LeftOutPart};
+
+        static NOW: AtomicU64 = AtomicU64::new(0);
+        fn wall() -> u64 {
+            NOW.load(Ordering::Relaxed) + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
+        }
+        let before = |held: &Held| -> Vec<LeftOutBefore> {
+            list_written(&held.counters, true, true, false, "left_out_before")
+                .map_or_else(Vec::new, |list| {
+                    serde_json::from_str(&list).expect("the list reads")
+                })
+        };
+        let second = |at: u64| UtcSecond::from_unix_seconds(i64::try_from(at).unwrap()).unwrap();
+        let hold = |what: &[LeftOutPart], (from, until): (u64, u64)| LeftOutBefore {
+            cause: LeftOutCause::SecureInput,
+            what: what.to_vec(),
+            from: second(from),
+            until: second(until),
+        };
+
+        NOW.store(crate::floor::exclude::unix_seconds_now(), Ordering::Relaxed);
+        let mut held = held(100);
+        held.ctx.wall = wall;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        let row = |ms: u64| {
+            answer(Reading::On);
+            fire();
+            let from = wall();
+            advance(ms);
+            fire();
+            answer(Reading::Off);
+            fire();
+            (from, wall())
+        };
+
+        row(59_999);
+        assert_eq!(before(&held), [], "a hold of 59.999 s that has ended");
+        let first = hold(
+            &[LeftOutPart::Typing, LeftOutPart::WindowTitles],
+            row(60_000),
+        );
+        assert_eq!(
+            before(&held),
+            std::slice::from_ref(&first),
+            "a hold of 60 s that has ended, typing and window titles on"
+        );
+        row(59_999);
+        assert_eq!(
+            before(&held),
+            [first],
+            "behind it a hold under a minute ends, and the first stays"
+        );
+        let mut screen_alone = Switches::default();
+        screen_alone.set(Switch::TitleText, false);
+        screen_alone.set(Switch::ScreenActivity, true);
+        held.ctx.floor = FloorHandle::default().with_switches(screen_alone);
+        held.ctx.keys_asked = false;
+        let later = hold(&[LeftOutPart::ScreenActivity], row(90_000));
+        assert_eq!(
+            before(&held),
+            [later],
+            "a later hold of a minute or more takes its place, with the parts by its switches"
+        );
+        held.counters.forget_the_last_hold();
+        assert_eq!(before(&held), [], "a delete of everything");
+        answer(Reading::On);
+        fire();
+        held.counters.forget_the_last_hold();
+        advance(60_000);
+        fire();
+        answer(Reading::Off);
+        fire();
+        assert_eq!(
+            before(&held),
+            [],
+            "a hold that began before a delete of everything is not kept behind it"
         );
     }
 
