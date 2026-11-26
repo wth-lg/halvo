@@ -388,6 +388,7 @@ impl InputCounters {
             secure_window_pointer: read(&f.secure_window_pointer),
             secure_window_keys_typed: f.secure_window_keys_typed.load(Ordering::Relaxed),
             typing_gate: None,
+            secure_hold_keys: f.kept_private.load(Ordering::Relaxed),
             secure_hold_since: Some(read(&f.secure_hold_since)).filter(|since| *since > 0),
         }
     }

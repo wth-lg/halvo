@@ -930,7 +930,7 @@ fn left_out_of(parts: &StatusParts) -> Vec<proto::LeftOut> {
         let on = |switch| parts.switches.is_on(switch);
         let what: Vec<proto::LeftOutPart> = [
             (
-                parts.input_keys && on(Switch::KeyClass),
+                parts.board.figures.secure_hold_keys && on(Switch::KeyClass),
                 proto::LeftOutPart::Typing,
             ),
             (on(Switch::TitleText), proto::LeftOutPart::WindowTitles),
