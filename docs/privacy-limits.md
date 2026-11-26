@@ -226,7 +226,8 @@ Where a sentence names a unit, that unit makes it true.
   recording, until the hold ends; it does not say so while that line shows another
   reason, while the page says that the app in front has stopped, or while capture
   or the Mac's input source does not run; the first 30 seconds of a hold show
-  nothing, and behind
+  nothing, nor do the first 30 seconds after the Mac's input source starts during
+  a hold, and behind
   its end nothing tells of it.
 - On a Mac, while Halvo records typing, it asks macOS how long ago a key was last pressed on the whole computer: at most once a second, and only in a second in which no key reached Halvo. The answer is a length of time alone: it names no key, no text and no app, and it is no number of keys. Halvo stores it nowhere. Halvo does not ask while a password field or another app keeps typing private, nor at its first reading behind that; behind such a hold the answer can be the time since the last key of a password, and Halvo only compares it with one second. It uses the answer for one thing: where through 30 seconds a key was pressed in ten or more of them and no key reached Halvo, the Status page says that Halvo is not recording typing.
 - On a Mac and on Windows, Halvo's search for repeated tasks asks the system how long ago the last input was: on a Mac the last input of any kind on the whole computer, on Windows the last input of your session. It asks at most once a second while Halvo's capture service runs and the search is switched on, also while a password is typed. The answer is a length of time alone: it names no key, no text and no app, and it is no number of inputs. Halvo stores it nowhere and only compares it with four minutes: the search runs only after four minutes with no input. In the same turn it reads whether the computer is on mains power and whether its low-power mode is on.
