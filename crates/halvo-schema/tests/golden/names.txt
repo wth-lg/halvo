@@ -17,6 +17,7 @@ agent_history
 agent_log
 agent_playbook
 agent_reply
+agent_reply_body
 agent_run
 agent_session
 agent_start
@@ -216,6 +217,7 @@ list_refinements
 list_replies
 load
 load_replies
+load_reply_body
 load_session
 load_steps
 local_edit

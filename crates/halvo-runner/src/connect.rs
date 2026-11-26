@@ -18,10 +18,10 @@ use halvo_connect::{
     reply_senders, Answered, Calendar, CallError, DraftStop, Drafting, EventCounts, Graph,
     ListStop, Mail, MailCounts, Message, Messages, ReplyRule, Route, RunDay, Token,
 };
-use halvo_schema::executable::body::{LoadReplies, LoadReply, PutReplyRow, Stored};
+use halvo_schema::executable::body::{LoadReplies, LoadReply, LoadReplyBody, PutReplyRow, Stored};
 use halvo_schema::executable::day::day_of;
-use halvo_schema::executable::names::{ApiOp, LogEvent};
-use halvo_schema::executable::text::{SecretText, V1};
+use halvo_schema::executable::names::{ApiOp, LogEvent, Source};
+use halvo_schema::executable::text::{OwnValue, SecretText, V1};
 use halvo_schema::executable::{
     AgentReply, AgentRun, Cause, EffectId, ExecutableStep, Outcome, ProviderId, ReplyState,
     RunnerCall, RunnerReply, WebOrigin,
@@ -53,6 +53,23 @@ fn waiting_draft(row: &AgentReply) -> Option<&str> {
         return None;
     }
     row.draft.as_ref().map(|draft| draft.as_str())
+}
+
+/// The message and the draft of `row` where its draft waits (`waiting_draft`), for the read of its kept text
+/// (r3 U7.9).
+fn waiting(row: &AgentReply) -> Option<(ProviderId, ProviderId)> {
+    waiting_draft(row)?;
+    Some((row.message.clone(), row.draft.clone()?))
+}
+
+/// The text that the store keeps beside the first `drafted` row of the draft of the message `id` (r3 U7.9): the body
+/// that the draft step wrote for it where its source is `model`, the writer model's text as cut; none for the const
+/// text, which is the build's own.
+fn kept_text<'b>(bodies: &'b HashMap<String, Body>, id: &str) -> Option<&'b str> {
+    bodies
+        .get(id)
+        .filter(|body| body.source == Source::Model)
+        .map(|body| body.text.as_str())
 }
 
 /// How many times a row of a reply is sent when the store answers it with a fault (`store` or `internal`), each
@@ -312,12 +329,16 @@ impl Runner {
         Ok(words)
     }
 
-    /// `mail_draft_reply_each` of the messages that the list kept, each with the body that the writer gives it
-    /// (crate::model::write): the writer model's text cut at `reply_body`, or the const text. The rows of each draft
-    /// are stored as the adapter hands it over, before it drafts the next message, so that a run cut in this step
-    /// leaves at most one draft with no row: `drafted` for a new draft, then `withheld` for one that the adapter held
-    /// back, and `lost` for a draft of an earlier run that the adapter found lost; a draft of an earlier run that
-    /// passed gets no row. A failed call leaves the row of the draft whose PATCH gave no answer that passed.
+    /// `mail_draft_reply_each` of the messages that the list kept, each with its body, all of them before the first
+    /// draft: for a message whose draft of an earlier run waits, the text that the store keeps for that draft
+    /// (`load_reply_body`, r3 U7.9) with the source `model`, else the const text, and no request to a model; for
+    /// every other message the body that the writer gives it (crate::model::write): the writer model's text cut at
+    /// `reply_body`, or the const text. The rows of each draft are stored as the adapter hands it over, before it
+    /// drafts the next message, so that a run cut in this step leaves at most one draft with no row: `drafted` for a
+    /// new draft, with the writer model's text beside it where the body is one (r3 U7.9), then `withheld` for one
+    /// that the adapter held back, and `lost` for a draft of an earlier run that the adapter found lost; a draft of an
+    /// earlier run that passed gets no row. A failed call leaves the row of the draft whose PATCH gave no answer that
+    /// passed.
     fn draft_replies(
         &mut self,
         step: &ExecutableStep,
@@ -340,17 +361,15 @@ impl Runner {
         let mut writer = Writer::default();
         let mut bodies = HashMap::new();
         for message in messages.iter() {
-            let waits = self
-                .lists
-                .rows
-                .get(message.id())
-                .and_then(waiting_draft)
-                .is_some();
-            let body = self.reply_body(&mut writer, loaded, message, waits)?;
+            let body = match self.lists.rows.get(message.id()).and_then(waiting) {
+                Some((id, draft)) => self.kept_body(id, draft)?.unwrap_or_else(Body::constant),
+                None => self.reply_body(&mut writer, loaded, message)?,
+            };
             bodies.insert(message.id().to_owned(), body);
         }
         let text_of = |message: &Message| body_of(&bodies, message.id()).text;
-        match graph.mail_draft_reply_each(token, messages, text_of, |made| self.rows_of(made)) {
+        let rows_of = |made: Drafting<'_>| self.rows_of(made, &bodies);
+        match graph.mail_draft_reply_each(token, messages, text_of, rows_of) {
             Ok(drafted) => {
                 self.lists.held_recipient = Some(drafted.held_recipient());
                 #[cfg(feature = "loopback")]
@@ -363,20 +382,27 @@ impl Runner {
             Err(DraftStop::Each(stop)) => Err(Failure::Stop(stop)),
             Err(DraftStop::Call(failure)) => {
                 if let Some(unfinished) = failure.unfinished() {
-                    self.new_draft(unfinished.message(), unfinished.draft())?;
+                    let kept = kept_text(&bodies, unfinished.message());
+                    self.new_draft(unfinished.message(), unfinished.draft(), kept)?;
                 }
                 Err(self.call_failed(step, failure.error()))
             }
         }
     }
 
-    /// The rows of one draft that `mail_draft_reply_each` handed over.
-    fn rows_of(&mut self, made: Drafting<'_>) -> Result<(), Stop> {
+    /// The rows of one draft that `mail_draft_reply_each` handed over, with the kept text of its body (`kept_text`)
+    /// beside a new `drafted` row, but for a draft that the adapter held back (r3 U7.9).
+    fn rows_of(&mut self, made: Drafting<'_>, bodies: &HashMap<String, Body>) -> Result<(), Stop> {
         match made {
-            Drafting::Kept(draft) => self.new_draft(draft.message(), draft.id()),
+            Drafting::Kept(draft) => {
+                let kept = kept_text(bodies, draft.message());
+                self.new_draft(draft.message(), draft.id(), kept)
+            }
             Drafting::Unsent(unsent) => {
-                self.new_draft(unsent.message(), unsent.draft())?;
-                if unsent.why().is_held() {
+                let held = unsent.why().is_held();
+                let kept = kept_text(bodies, unsent.message()).filter(|_| !held);
+                self.new_draft(unsent.message(), unsent.draft(), kept)?;
+                if held {
                     let draft = Some(unsent.draft());
                     self.reply_row(unsent.message(), ReplyState::Withheld, draft, None)?;
                 }
@@ -386,9 +412,10 @@ impl Runner {
         }
     }
 
-    /// The row `drafted` of the draft `draft` of `message`, unless the agent's own newest row of the message is
-    /// already `drafted` with that draft, which the PATCH reused.
-    fn new_draft(&mut self, message: &str, draft: &str) -> Result<(), Stop> {
+    /// The row `drafted` of the draft `draft` of `message`, with `kept`, the writer model's text, for the store to keep
+    /// beside it (r3 U7.9), unless the agent's own newest row of the message is already `drafted` with that draft,
+    /// which the PATCH reused.
+    fn new_draft(&mut self, message: &str, draft: &str, kept: Option<&str>) -> Result<(), Stop> {
         let reused = self.lists.rows.get(message).is_some_and(|row| {
             row.state == ReplyState::Drafted
                 && row.draft.as_ref().is_some_and(|d| d.as_str() == draft)
@@ -396,7 +423,29 @@ impl Runner {
         if reused {
             return Ok(());
         }
-        self.reply_row(message, ReplyState::Drafted, Some(draft), None)
+        self.row(message, ReplyState::Drafted, Some(draft), None, kept)
+    }
+
+    /// The kept text of the draft `draft` of the message `message`, a draft of an earlier run that waits (r3 U7.9):
+    /// the writer model's text that the store keeps beside that draft's first `drafted` row, asked by
+    /// `load_reply_body`, with the source `model`; none where the store hands none out. A refusal of the store ends
+    /// the run as one of `load_replies` does.
+    fn kept_body(&mut self, message: ProviderId, draft: ProviderId) -> Result<Option<Body>, Stop> {
+        let call = RunnerCall::LoadReplyBody(LoadReplyBody {
+            agent: self.args.agent.clone(),
+            run: self.args.run.clone(),
+            message,
+            draft,
+        });
+        let reply = match self.store(call)? {
+            Ok(RunnerReply::Kept(reply)) => reply,
+            Ok(_) => return Err(Broken::Frame("not_the_answer").into()),
+            Err(error) => return Err(Stop::End(Outcome::Failed, Some(cause_of(error)))),
+        };
+        Ok(reply.kept.map(|text| Body {
+            text: text.joined(),
+            source: Source::Model,
+        }))
     }
 
     /// Stores one row of the reply to `message` by `reply_row`, numbered after the agent's own newest row of it, with
@@ -409,6 +458,19 @@ impl Runner {
         state: ReplyState,
         draft: Option<&str>,
         effect: Option<&EffectId>,
+    ) -> Result<(), Stop> {
+        self.row(message, state, draft, effect, None)
+    }
+
+    /// `reply_row`, with `kept`, a writer model's text, under the body's key `body` beside a `drafted` row that names
+    /// no effect (r3 U7.9).
+    fn row(
+        &mut self,
+        message: &str,
+        state: ReplyState,
+        draft: Option<&str>,
+        effect: Option<&EffectId>,
+        kept: Option<&str>,
     ) -> Result<(), Stop> {
         let failed = |cause| Stop::End(Outcome::Failed, Some(cause));
         let seq = self
@@ -439,6 +501,7 @@ impl Runner {
             agent: self.args.agent.clone(),
             run: self.args.run.clone(),
             record: record.clone(),
+            body: kept.map(OwnValue::new),
         });
         let request = RunnerRequest::new(self.role(), RequestId::from_random(random16()), call);
         let mut sends = 0;

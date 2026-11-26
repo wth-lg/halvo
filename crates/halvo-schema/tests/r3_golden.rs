@@ -6,14 +6,15 @@ use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, AgentHistory, AgentsReply, CapReply, CheckpointsReply, CoordinatorCall,
     CoordinatorReply, CreateAgent, DropModelKey, DropSession, DropSessions, EndRun, Finish,
-    HistoryReply, HistoryRun, KeyReply, ListAgents, ListCheckpoints, ListOverlaps, ListReplies,
-    ListedAgent, ListedAgreement, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
-    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
-    ModelHold, ModelKeyState, ModelRoom, ModelSettle, ModelUsage, NewModelCount, Overlap,
-    OverlapsReply, PastCheckpoint, PastEffect, PutCheckpoint, PutEffect, PutLog, PutModelKey,
-    PutPlaybook, PutReplyRow, PutSession, ReadModelKey, RevReply, RoomReply, RunnerCall,
-    RunnerReply, SessionReply, SetBindings, SetModel, SetModelCap, SetState, SheetAnswers,
-    SheetAnswersReply, StandsReply, StartRun, StateReply, StepsReply, Stored, UnknownEffect,
+    HistoryReply, HistoryRun, KeptReply, KeyReply, ListAgents, ListCheckpoints, ListOverlaps,
+    ListReplies, ListedAgent, ListedAgreement, ListedCheckpoint, Load, LoadReplies,
+    LoadRepliesReply, LoadReply, LoadReplyBody, LoadSession, LoadSteps, LoadedBindings,
+    LoadedPlaybook, LoadedSession, MarkCheckpoint, ModelHold, ModelKeyState, ModelRoom,
+    ModelSettle, ModelUsage, NewModelCount, Overlap, OverlapsReply, PastCheckpoint, PastEffect,
+    PutCheckpoint, PutEffect, PutLog, PutModelKey, PutPlaybook, PutReplyRow, PutSession,
+    ReadModelKey, RevReply, RoomReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
+    SetModel, SetModelCap, SetState, SheetAnswers, SheetAnswersReply, StandsReply, StartRun,
+    StateReply, StepsReply, Stored, UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -830,6 +831,7 @@ fn runner_bodies() -> Vec<RunnerCall> {
             agent: agent(),
             run: run(),
             record: replies().remove(1),
+            body: None,
         }),
         RunnerCall::LoadReplies(LoadReplies {
             agent: agent(),
@@ -860,6 +862,12 @@ fn runner_bodies() -> Vec<RunnerCall> {
                 tokens_in: 5_000,
                 tokens_out: 300,
             }),
+        }),
+        RunnerCall::LoadReplyBody(LoadReplyBody {
+            agent: agent(),
+            run: run(),
+            message: ProviderId::parse("msg-0003").unwrap(),
+            draft: ProviderId::parse("draft-0003").unwrap(),
         }),
     ]
 }
@@ -1176,6 +1184,9 @@ fn runner_replies() -> Vec<RunnerReply> {
             ],
             blocked: vec![ProviderId::parse("msg-0002").unwrap()],
             blocked_withheld: vec![ProviderId::parse("msg-0004").unwrap()],
+        }),
+        RunnerReply::Kept(KeptReply {
+            kept: Some(OwnValue::new("Thank you, the bill is paid.")),
         }),
     ]
 }
@@ -1611,7 +1622,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 14);
+    assert_eq!(executable::KINDS.len(), 15);
 }
 
 #[test]

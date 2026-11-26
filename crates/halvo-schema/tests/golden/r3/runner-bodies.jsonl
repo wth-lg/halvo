@@ -13,3 +13,4 @@
 {"op":"drop_session","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","origin":"http://utility.test:18090"}
 {"op":"model_hold","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","request":"c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1","tier":"frontier","body_bytes":10000,"output_limit":1000}
 {"op":"model_settle","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","request":"c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1","usage":{"tokens_in":5000,"tokens_out":300}}
+{"op":"load_reply_body","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","message":"msg-0003","draft":"draft-0003"}

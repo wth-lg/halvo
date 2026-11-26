@@ -391,6 +391,48 @@ object_type! {
     }
 }
 
+/// The most bytes of the JSON text of a kept reply text, its pieces of `OwnValue` as a list (r3 U7.9): the bound of a
+/// body that the writer model's text may give (crates/halvo-runner/src/model/write.rs, `BODY_JSON_MAX`).
+pub const REPLY_BODY_JSON_MAX: usize = 3_072;
+
+/// Refuses a kept reply text that is empty or whose JSON text passes `REPLY_BODY_JSON_MAX` bytes (r3 U7.9).
+pub(in crate::executable) fn reply_body_fits(
+    type_name: &'static str,
+    body: &OwnValue,
+) -> Result<(), Refusal> {
+    if body.is_empty() {
+        return Err(Refusal::malformed(type_name, "body_empty").at("body"));
+    }
+    let bytes = serde_json::to_string(body).map_or(usize::MAX, |text| text.len());
+    if bytes > REPLY_BODY_JSON_MAX {
+        return Err(Refusal::length(type_name, "body_json_max").at("body"));
+    }
+    Ok(())
+}
+
+object_type! {
+    /// The text of a reply that a writer model wrote, kept beside its reply row while the draft waits (r3 U7.9), kind
+    /// `agent_reply_body`: ids, the day and the instant of the first `drafted` row of the draft, the message's id, the
+    /// draft's id, and under `body` the text as the draft step cut it and wrote it into the draft, in the pieces of
+    /// `OwnValue`, never empty and its JSON at most `REPLY_BODY_JSON_MAX` bytes. No address, no subject and no text of
+    /// a message. The handler of `reply_row` stores it in the commit of that `drafted` row, and the handler of
+    /// `load_reply_body` hands it to the agent's own run alone while the agent's newest row of the message is
+    /// `drafted` with that draft.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentReplyBody {
+        pub v: V1 = "v" => from_json,
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub day: u32 = "day" => from_json,
+        pub at: Instant = "at" => json::instant,
+        pub message: ProviderId = "message" => from_json,
+        pub draft: ProviderId = "draft" => from_json,
+        pub body: OwnValue = "body" => from_json,
+    }
+    rules(r) { reply_body_fits("AgentReplyBody", &r.body) }
+}
+
 object_type! {
     /// The instant at which an agent was set up, kind `agent_start`: ids, the day and the instant, one row for an
     /// agent, which A7.4 gives the handler of `create_agent` to store once.

@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use halvo_schema::executable::{
     AgentAgreement, AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentFinished,
-    AgentLog, AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, ModelKey, ModelTier,
-    Refusal,
+    AgentLog, AgentPlaybook, AgentReply, AgentReplyBody, AgentRun, AgentSession, AgentStart,
+    ModelKey, ModelTier, Refusal,
 };
 use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
 
@@ -18,6 +18,7 @@ pub(crate) const AGENT_LOG: &str = "agent_log";
 pub(crate) const AGENT_SESSION: &str = "agent_session";
 pub(crate) const AGENT_CHECKPOINT: &str = "agent_checkpoint";
 pub(crate) const AGENT_REPLY: &str = "agent_reply";
+pub(crate) const AGENT_REPLY_BODY: &str = "agent_reply_body";
 pub(crate) const AGENT_START: &str = "agent_start";
 pub(crate) const AGENT_FINISHED: &str = "agent_finished";
 pub(crate) const MODEL_KEY: &str = "model_key";
@@ -85,6 +86,11 @@ pub(crate) fn checkpoints(rows: &dyn RowRead) -> Result<Vec<AgentCheckpoint>, Er
 
 pub(crate) fn replies(rows: &dyn RowRead) -> Result<Vec<AgentReply>, ErrorName> {
     parsed(rows, AGENT_REPLY, AgentReply::parse)
+}
+
+/// The kept texts of replies that a writer model wrote (r3 U7.9), one row for a draft.
+pub(crate) fn reply_bodies(rows: &dyn RowRead) -> Result<Vec<AgentReplyBody>, ErrorName> {
+    parsed(rows, AGENT_REPLY_BODY, AgentReplyBody::parse)
 }
 
 pub(crate) fn finished(rows: &dyn RowRead) -> Result<Vec<AgentFinished>, ErrorName> {

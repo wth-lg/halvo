@@ -561,9 +561,10 @@ fn a_start_run_of_a_held_run_under_another_agent_at_runs_held_max_drops_no_other
     assert_eq!(held_42.agent.as_str(), agent(2));
 }
 
-/// The kinds of the families `agent` and `learn` whose rows a runner body may answer (docs/privacy-limits.md): seven
-/// of the family `agent`, and of a `learn_edit` row its target, which `load_steps` lays on a step.
-const ANSWERED: [&str; 8] = [
+/// The kinds of the families `agent` and `learn` whose rows a runner body may answer (docs/privacy-limits.md): eight
+/// of the family `agent`, `agent_reply_body` among them since r3 U7.9, and of a `learn_edit` row its target, which
+/// `load_steps` lays on a step.
+const ANSWERED: [&str; 9] = [
     "agent_config",
     "agent_finished",
     "agent_playbook",
@@ -571,6 +572,7 @@ const ANSWERED: [&str; 8] = [
     "agent_session",
     "agent_start",
     "agent_reply",
+    "agent_reply_body",
     "learn_edit",
 ];
 
@@ -700,7 +702,7 @@ fn put_bodies(w: &mut World, r: u32, replies: &mut Vec<(String, String)>) {
         json!({"op": "effect", "agent": a, "run": run(r), "record": effect_row(w, r)}),
         json!({"op": "log", "agent": a, "run": run(r), "records": [log_line(w, r)]}),
         json!({"op": "checkpoint", "agent": a, "run": run(r), "record": checkpoint_row(w, r)}),
-        json!({"op": "reply_row", "agent": a, "run": run(r), "record": reply_row(w, r)}),
+        json!({"op": "reply_row", "agent": a, "run": run(r), "record": reply_row(w, r), "body": [format!("{REPLY_MARK} body {r}")]}),
     ];
     for body in bodies {
         let op = body["op"].as_str().expect("an op").to_owned();
@@ -788,7 +790,7 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
         .chain(halvo_schema::learning::KINDS)
         .map(|k| k.name)
         .collect();
-    assert_eq!(kinds.len(), 17);
+    assert_eq!(kinds.len(), 18);
     for kind in &kinds {
         assert!(!every_row(&w, kind).is_empty(), "no row of the kind {kind}");
         assert!(
@@ -839,13 +841,15 @@ fn a_runner_body_answers_no_kind_outside_the_closed_list() {
     answer(&mut w, "drop_session", body, &mut replies);
     let body = json!({"op": "load_replies", "agent": a, "run": run(4), "message_ids": [message(3), message(4)]});
     answer(&mut w, "load_replies", body, &mut replies);
+    let body = json!({"op": "load_reply_body", "agent": a, "run": run(4), "message": message(4), "draft": format!("draft-{REPLY_MARK}-4")});
+    answer(&mut w, "load_reply_body", body, &mut replies);
     let body = json!({"op": "finish", "agent": a, "run": run(4), "record": failed_record(&w, 4)});
     answer(&mut w, "finish", body, &mut replies);
 
     let mut ops: Vec<&str> = replies.iter().map(|(op, _)| op.as_str()).collect();
     ops.sort_unstable();
     ops.dedup();
-    assert_eq!(ops.len(), 14, "the bodies of run 4: {ops:?}");
+    assert_eq!(ops.len(), 15, "the bodies of run 4: {ops:?}");
     for (op, text) in planting.iter().chain(&replies) {
         for (kind, marker) in &outside {
             assert!(
@@ -940,7 +944,7 @@ fn no_runner_body_changes_an_agreement() {
 
 /// r7 8.1L, sentence (7) (the coordinator's log line 17277): no body of a runner but `model_hold` and `model_settle`
 /// changes the person's count. The person's set of the cap stores the count's row; then a replay sends each of the
-/// fourteen runner bodies once through the real handlers, and the rows of the kind `model_count` are read before and
+/// fifteen runner bodies once through the real handlers, and the rows of the kind `model_count` are read before and
 /// after each body: they change at the hold and at the settle alone.
 #[test]
 fn no_runner_body_but_the_hold_and_the_settle_changes_the_count() {
@@ -988,6 +992,7 @@ fn no_runner_body_but_the_hold_and_the_settle_changes_the_count() {
         json!({"op": "model_settle", "agent": a, "run": r, "request": id('c', 3), "usage": {"tokens_in": 1_000, "tokens_out": 100}}),
         json!({"op": "drop_session", "agent": a, "run": r, "origin": ORIGIN}),
         json!({"op": "load_replies", "agent": a, "run": r, "message_ids": [message(3)]}),
+        json!({"op": "load_reply_body", "agent": a, "run": r, "message": message(3), "draft": format!("draft-{REPLY_MARK}-3")}),
         json!({"op": "finish", "agent": a, "run": r, "record": failed_record(&w, 3)}),
     ];
     for body in bodies {
@@ -996,6 +1001,6 @@ fn no_runner_body_but_the_hold_and_the_settle_changes_the_count() {
     let mut ops: Vec<&str> = replies.iter().map(|(op, _)| op.as_str()).collect();
     ops.sort_unstable();
     ops.dedup();
-    assert_eq!(ops.len(), 14, "the bodies of the replay: {ops:?}");
+    assert_eq!(ops.len(), 15, "the bodies of the replay: {ops:?}");
     assert_eq!(changed, ["model_hold", "model_settle"]);
 }
