@@ -666,10 +666,13 @@ struct Column {
 /// Whether `cell` tells a file read by commas that its decimal sign is the comma (r3 U11.10, the
 /// coordinator's way (d) of Q2): `amount` gives it the decimal comma, and it carries a sign of
 /// money or a thousands sign (`1.250,00`, `12,50 €`, `€ 12,50`, `-1.234,56`, `1 234,56` with
-/// U+00A0), which a list of values in one field (`38,40`) does not.
+/// U+00A0), which a list of values in one field (`38,40`) does not. A sign of the yen or of the
+/// yuan beside a decimal comma tells no comma (`¥1,2345`, the coordinator's way (b) of log line
+/// 23854): the crate's lists of money signs hold that sign in its one form U+00A5.
 fn tells_comma(cell: &str) -> bool {
     amount(cell).is_some_and(|(_, decimal)| decimal == Some(','))
         && (cell.contains(MONEY) || cell.contains('.') || cell.contains(GROUPS))
+        && !cell.contains('¥')
 }
 
 /// Whether `cell` tells a file read by commas that its decimal sign is the point (r3 U11.10): a
@@ -2512,8 +2515,17 @@ mod tests {
                     vec![t("Strom"), t("63,05 €")],
                 ],
             ),
+            (
+                "way (b) of line 23854: a yen or yuan sign beside a decimal comma tells no comma",
+                "Gehalt,\"¥1,2345\",\"1,2345\"\n",
+                vec![vec![t("Gehalt"), t("¥1,2345"), t("1,2345")]],
+            ),
         ];
-        let wrong = files_read_to(&cases);
+        let mut wrong = files_read_to(&cases);
+        let yen = parse("Gehalt,\"¥1,2345\",\"1,2345\"\n".as_bytes()).expect("the file reads");
+        if number_texts(&yen) != vec![0, 1, 1] {
+            wrong.push(format!("the yen row counts {:?}", number_texts(&yen)));
+        }
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
 
@@ -2592,6 +2604,15 @@ mod tests {
         let rows = parse(shown.as_bytes()).expect("the file reads");
         if number_texts(&rows) != vec![0, 0, 2] {
             wrong.push(format!("Q7 (c), way (A): {:?}", number_texts(&rows)));
+        }
+        let paged = data(b"Miete;12,50 \x80\r\n", Some(1252))
+            .expect("the file reads")
+            .rows;
+        if paged != vec![vec![t("Miete"), t("12,50 €")]] || number_texts(&paged) != vec![0, 1] {
+            wrong.push(format!(
+                "a page-read amount with a euro sign: {paged:?}, counts {:?}",
+                number_texts(&paged)
+            ));
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
