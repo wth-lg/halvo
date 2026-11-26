@@ -745,7 +745,8 @@ fn u322a_a_set_up_put_up_again_offers_no_start_now_and_its_start_ends_no_hold() 
         ),
     ] {
         let c = sheet_world_holding(&SHEET_SLOTS, true, Some(hold.clone()));
-        let said = words::text(line, &[]).unwrap();
+        let close = words::text("line.note.close_first", &[]).unwrap();
+        let said = format!("{} {close}", words::text(line, &[]).unwrap());
         assert_eq!(sheet_row(&c).line, said, "{hold:?}: the hold stands");
         assert_eq!(
             c.control(&sheet_agent(), Action::ChangeAnswers),
@@ -828,9 +829,13 @@ fn u322a_behind_new_answers_after_a_failed_run_the_row_says_they_are_saved_until
         },
     ];
     let c = sheet_world_from(&SHEET_SLOTS, failed.clone(), Some(LastCause::NoWorkbook));
+    let close = words::text("line.note.close_first", &[]).unwrap();
     assert_eq!(
         sheet_row(&c).line,
-        words::text("line.problem.no_workbook", &[]).unwrap()
+        format!(
+            "{} {close}",
+            words::text("line.problem.no_workbook", &[]).unwrap()
+        )
     );
     assert_eq!(c.control(&sheet_agent(), Action::ChangeAnswers), Ok(()));
     let item = sheet_setup(&c).expect("the set-up item is up again");
@@ -842,7 +847,7 @@ fn u322a_behind_new_answers_after_a_failed_run_the_row_says_they_are_saved_until
     let row = sheet_row(&c);
     assert_eq!(
         row.line,
-        "Its answers are saved. Choose Start now to try again."
+        format!("Its answers are saved. Choose Start now to try again. {close}")
     );
     assert!(sheet_offers(&c, Control::RunNow), "Start now beside it");
     let answered = c
@@ -879,7 +884,7 @@ fn u322a_behind_new_answers_after_a_failed_run_the_row_says_they_are_saved_until
     let after = sheet_world_from(&SHEET_SLOTS, next, None);
     assert_eq!(
         sheet_row(&after).line,
-        words::text("line.all_set.done", &[]).unwrap()
+        format!("{} {close}", words::text("line.all_set.done", &[]).unwrap())
     );
 }
 

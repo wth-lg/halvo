@@ -692,6 +692,13 @@ fn row(b: &Built) -> Row {
     let ask_stop_sign_in = b.spec.controls.contains(&Control::StopSignIn).then(|| {
         crate::roster::stop_sign_in_ask(&name).expect("the question of a state's stop_sign_in")
     });
+    let mut line = t(&b.spec.line.key());
+    if b.facts.config.runtime() == Runtime::File
+        && b.spec.controls.contains(&Control::RunNow)
+        && b.spec.line != StatusLine::LastCause(super::LastCause::NotReplaced)
+    {
+        line = format!("{line} {}", t("line.note.close_first"));
+    }
     Row {
         agent: b.facts.agent.clone(),
         workflow: b.facts.workflow.id.clone(),
@@ -699,7 +706,7 @@ fn row(b: &Built) -> Row {
         name,
         status,
         word: t(&format!("status.{}", status.name())),
-        line: t(&b.spec.line.key()),
+        line,
         level: t(&format!("line.level.{}", b.facts.config.reasoning().name())),
         next: b.spec.next.map(words::day),
         controls: b

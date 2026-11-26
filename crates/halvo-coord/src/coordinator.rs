@@ -4045,7 +4045,7 @@ where
                     && open.as_ref().map(|o| &o.item) == item.as_ref()
             });
             if asks_again && !quit_line && line == StatusLine::NeedsYou(ItemKind::Ready) {
-                if let Ok(text) = words::text("line.needs_you.asks_again", &[]) {
+                if let Ok(text) = roster::line_offering(*facts, &row, "line.needs_you.asks_again") {
                     row.line = text;
                 }
             }
