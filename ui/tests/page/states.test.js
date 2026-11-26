@@ -453,7 +453,7 @@ test("the page says the stretch in the past tense, today and across days", async
   assert.equal(line(await open(both, UNTIL + 3600000)), `Today from 08:30 to 09:00, Halvo recorded no window titles, ${because} Today from 09:30 to 10:01, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.`, "beside a stretch of doubt that began later, the earlier first");
 });
 
-test("no-key-arrives:where the status's left_out holds no_key_arrives with typing in its what, the line under the heading says the ruled sentence with the heading and the dot as they are; the doubt and a hold win; with a failed row of the app in front, without typing in its what, by the row's reason alone, paused or held it does not show", async () => {
+test("no-key-arrives: where the status's left_out holds no_key_arrives with typing in its what, the line under the heading says the ruled sentence with the heading and the dot as they are; the doubt and a hold win; with a failed row of the app in front, without typing in its what, by the row's reason alone, paused or held it does not show", async () => {
   const said = "Keys are being pressed on this Mac and none of them reaches Halvo, so Halvo is not recording typing right now. It records typing again by itself as soon as keys reach it.";
   const doubt = "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.";
   const hold = "Halvo is not recording typing or window titles right now, because a password field or another app has asked your Mac to keep typing private. It records typing and window titles again by itself when that ends.";
