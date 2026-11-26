@@ -31,6 +31,7 @@
   var sent = 0;
   var last = {};
   var readsSentBeforeTheLastMutation = 0;
+  var ran = null;
 
   var SERVICE = {
     connecting: w.CONNECTING,
@@ -288,6 +289,12 @@
       });
   }
 
+  function learned(s, pressed) {
+    var runs = s.service === "running";
+    if (runs && (pressed || ran === false) && Halvo.modelSection) Halvo.modelSection.serviceBack();
+    ran = runs;
+  }
+
   function refresh() {
     var mine = ++sent;
     return Halvo.ipc
@@ -296,6 +303,7 @@
         Halvo.showConnection("");
         if (mine <= readsSentBeforeTheLastMutation) return;
         status.set(s);
+        learned(s, false);
       })
       .catch(function () {
         Halvo.showConnection(w.READ_FAILED);
@@ -317,6 +325,7 @@
       .then(function (reply) {
         pending = null;
         Halvo.takeMutationReply(reply);
+        learned(reply, asked === "running");
         if (reply.reached === true) return;
         if (asked === "paused") Halvo.showError(w.PAUSE_NOT_REACHED);
         else if (reply.service === "running") Halvo.showError(w.RESUME_NOT_REACHED);
@@ -334,6 +343,7 @@
       .then(function (reply) {
         pending = null;
         Halvo.takeMutationReply(reply);
+        learned(reply, true);
         if (reply.service === "running" && reply.desired !== "running") Halvo.showError(w.START_STEPS_OPEN);
       })
       .catch(function (e) {
