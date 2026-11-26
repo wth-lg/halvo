@@ -717,6 +717,10 @@ fn u711_an_agent_that_was_never_allowed_a_model_rests_by_its_configuration() {
     }
 }
 
+/// One row of the table of the test of the row's sentences below (r3 U7.11): its label, the facts,
+/// the line, the status word and the texts of the controls that the row offers.
+type U711Row<'a> = (&'a str, Facts<Config>, &'a str, &'a str, &'a [&'a str]);
+
 /// r3 U7.11, THE ROW'S SENTENCES, sign for sign (the coordinator's log line 23346): the row of a
 /// resting agent with no stored playbook says S1 while the app hands that every compile, recover
 /// and write row of the router's table hands back, for an agent that was never allowed a model and
@@ -748,7 +752,7 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
         "Use this computer only",
         "Delete",
     ];
-    let rows: [(&str, Facts<Config>, &str, &str, &[&str]); 10] = [
+    let rows: [U711Row<'_>; 10] = [
         (
             "on_device, every compile, recover and write row hands back, no run",
             u711_agent(
