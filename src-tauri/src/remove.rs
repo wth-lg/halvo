@@ -1317,6 +1317,7 @@ mod tests {
                 }
                 account_hook()
             };
+            *clock.after_a_read.lock().unwrap() = Some(crate::daemon_child::STOP_POLL);
             let removal = remove_halvo(
                 Places::new(&home, ID, &data, false),
                 Some(&supervisor),
