@@ -8,7 +8,9 @@
 //!   a UPS is not); low-power mode is off (Low Power Mode on macOS, the battery saver on Windows); and the app gave
 //!   its first liveness signal in this life ([`app_seen`]). A reading that fails or gives an unknown value is a no.
 //! - THE DRIVER. [`Driver::turn`] reads the system at most once in 1 s of the loop's time ([`PERIOD`]), however
-//!   often it is turned. After each reading it asks its [`Source`] for the origin and the watermark, and calls the
+//!   often it is turned, and only while the person's switch of the search is on ([`Slot::searching`]): with the
+//!   switch off a turn reads nothing of the system and its answer is a no. After each such turn it asks its
+//!   [`Source`] for the origin and the watermark, and calls the
 //!   slot's `pass` once with the loop's time: a yes carries the watermark, and the call names the origin that the
 //!   source gave at that reading. Before the source has given any origin no worker can live, and a no makes no pass.
 //! - THE THREAD. [`Driver::run`] moves the driver onto a thread of its own. The supervisor's tick hands that thread
@@ -92,7 +94,8 @@ pub trait Slot: Send {
     /// One pass of the slot, as [`WorkerSlot::pass`] has it.
     fn pass(&mut self, now: Instant, may_run: MayRun, origin: &Origin) -> Answer;
 
-    /// Whether the person's switch of the search for repeated tasks is on; a slot with no switch is on.
+    /// Whether the person's switch of the search for repeated tasks is on; a slot with no switch is on. A turn of
+    /// the driver reads the system only while it is.
     fn searching(&self) -> bool {
         true
     }
@@ -184,9 +187,10 @@ impl<R: Readings, S: Source, P: Slot> Driver<R, S, P> {
     }
 
     /// One turn at the loop's time `now`. At the first turn, and once 1 s of the loop's time has passed since the
-    /// last reading, it reads the system, asks the source and passes the slot once: a yes with the source's
-    /// watermark, or a no. The slot's answer; none where the turn read nothing, or where the source has given no
-    /// origin yet.
+    /// last one that went on, it reads the system while the slot's switch of the search is on, and reads nothing
+    /// of it while the switch is off; then it asks the source and passes the slot once: a yes with the source's
+    /// watermark, or a no, which a turn with the switch off always gives. The slot's answer; none where the turn
+    /// came inside that second, or where the source has given no origin yet.
     pub fn turn(&mut self, now: Duration) -> Option<Answer> {
         if self
             .read_at
@@ -195,7 +199,8 @@ impl<R: Readings, S: Source, P: Slot> Driver<R, S, P> {
             return None;
         }
         self.read_at = Some(now);
-        let yes = self.readings.read().may_run(now, self.app.seen());
+        let yes =
+            self.slot.searching() && self.readings.read().may_run(now, self.app.seen());
         let given = self.source.origin();
         let may_run = match &given {
             Some((_, watermark)) if yes => MayRun::Yes {

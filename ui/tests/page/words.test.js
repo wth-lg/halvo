@@ -32,6 +32,7 @@ const WORDS = {
   PARTS_THEN: ", ",
   PARTS_OR: " or ",
   PARTS_AND: " and ",
+  NO_KEY_ARRIVES: "Keys are being pressed on this Mac and none of them reaches Halvo, so Halvo is not recording typing right now. It records typing again by itself as soon as keys reach it.",
   LEFT_OUT_BEFORE_TODAY: "Today from {from} to {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
   LEFT_OUT_BEFORE: "From {from_date} at {from} to {until_date} at {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
   FAULT_STORE: "Its store is not open.",

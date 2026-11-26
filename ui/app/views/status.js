@@ -208,7 +208,13 @@
   function leftOutNow(s) {
     if (leftOutInDoubt(s)) return w.LEFT_OUT_IN_DOUBT;
     if (!runs(s) || frontStopped(s)) return "";
-    return heldPrivate(s) || (keptPrivate(s) ? w.TYPING_KEPT_PRIVATE : "");
+    return heldPrivate(s) || noKeyArrives(s) || (keptPrivate(s) ? w.TYPING_KEPT_PRIVATE : "");
+  }
+
+  function noKeyArrives(s) {
+    var entry = leftOutBy(s.left_out, "no_key_arrives");
+    var what = entry && Array.isArray(entry.what) ? entry.what : [];
+    return what.indexOf("typing") !== -1 ? w.NO_KEY_ARRIVES : "";
   }
 
   function leftOutInDoubt(s) {

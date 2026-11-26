@@ -88,6 +88,29 @@ pub const HELD_SAMPLE_STEP: Duration = Duration::from_millis(250);
 /// before the input source reads impaired with the reason secure_input_elsewhere.
 pub const KEPT_PRIVATE_AFTER: Duration = Duration::from_secs(30);
 
+/// At how many fires of the fold timer within [`KEPT_PRIVATE_AFTER`] a key must have been
+/// pressed on the computer, with none at the tap, before the input source reads impaired
+/// with the reason no_key_events.
+pub const NO_KEY_FIRES: u32 = 10;
+
+/// What a tap context holds of keys that are pressed and do not arrive: the window of
+/// readings that it counts in, and whether the rule stands. It holds no answer of the
+/// system and no number of keys.
+#[derive(Default)]
+struct NoKey {
+    window: Option<NoKeyWindow>,
+    stands: bool,
+}
+
+/// A window of the fold timer's readings that all read off, with no key-down at the tap: the
+/// stamp of its first reading, that reading's second, and at how many of its fires a key had
+/// been pressed on the computer since the fire before.
+struct NoKeyWindow {
+    first: Monotonic,
+    second: u64,
+    fires_with_a_key: u32,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct TapInformation {
@@ -375,6 +398,10 @@ impl InputCounters {
             .store(since.unwrap_or(0), Ordering::Relaxed);
     }
 
+    fn no_key(&self) -> bool {
+        self.0.no_key_since.load(Ordering::Relaxed) > 0
+    }
+
     /// Key downs that came in time and were read while secure input was on; each
     /// was suppressed and never emitted. A modifier press after a reading of on is
     /// a reading alone and is not counted, and a late or untimed press under
@@ -410,6 +437,7 @@ impl InputCounters {
             secure_window_keys_typed: f.secure_window_keys_typed.load(Ordering::Relaxed),
             typing_gate: None,
             secure_hold_since: Some(read(&f.secure_hold_since)).filter(|since| *since > 0),
+            no_key_since: Some(read(&f.no_key_since)).filter(|since| *since > 0),
         }
     }
 }
@@ -931,6 +959,11 @@ struct TapContext {
     wall: fn() -> u64,
     /// The question of how long ago a key was last pressed on the whole computer.
     last_key: fn() -> Option<Duration>,
+    /// Whether a key-down reached the callback since the fold timer's last fire.
+    key_arrived: AtomicBool,
+    /// What the fold timer's fires hold of keys that are pressed and do not arrive
+    /// ([`TapContext::read_no_key`]).
+    no_key: Mutex<NoKey>,
     held_phase: Arc<AtomicBool>,
     /// Whether the start of this context asked its tap for key types: a key
     /// event that reaches a context whose start asked for none makes no record,
@@ -1544,6 +1577,7 @@ impl Drop for TapContext {
             .take();
         self.counters.count_folds_dropped_at_stop(&left);
         self.counters.set_secure_hold(None);
+        self.counters.set_no_key(None);
     }
 }
 
@@ -1586,7 +1620,8 @@ impl TapContext {
     /// reads; a reading of off or unknown takes both back. It runs on the tap thread, whose
     /// stop a shutdown waits for [`INPUT_STOP_DEADLINE`] at most.
     fn read_kept_private(&self) {
-        let on = (self.secure)((self.session)()) == Reading::On;
+        let reading = (self.secure)((self.session)());
+        let on = reading == Reading::On;
         let now = (self.clocks.stamps)();
         let mut since = self
             .private_since
@@ -1604,6 +1639,61 @@ impl TapContext {
             .set_kept_private(kept.is_some() && self.keys_asked);
         self.counters
             .set_secure_hold(kept.map(|(_, second)| second));
+        drop(since);
+        self.read_no_key(reading, now);
+    }
+
+    /// One step, at a fire of the fold timer, of the rule on keys that are pressed on the
+    /// computer and do not reach the tap, for a context whose start asked for the key types.
+    /// A reading of secure input that is not off, and a key-down at the callback since the
+    /// fire before, end the window and take the mark back, and such a fire asks the system
+    /// nothing. The first reading of off behind either only opens a window. At each later
+    /// fire of the window the system is asked how long ago a key was last pressed
+    /// (`last_key`); the answer is compared with the timer's interval and kept nowhere. A
+    /// window that has stood for [`KEPT_PRIVATE_AFTER`] with [`NO_KEY_FIRES`] or more such
+    /// fires marks the input figures with the second of its first reading, and from then on
+    /// nothing is asked; one with fewer begins anew.
+    fn read_no_key(&self, reading: Reading, now: Monotonic) {
+        if !self.keys_asked {
+            return;
+        }
+        let arrived = self.key_arrived.swap(false, Ordering::Relaxed);
+        let mut guard = self.no_key.lock().unwrap_or_else(PoisonError::into_inner);
+        let held = &mut *guard;
+        if reading != Reading::Off || arrived {
+            held.stands = false;
+            held.window = (reading == Reading::Off).then(|| self.no_key_window(now));
+            self.counters.set_no_key(None);
+            return;
+        }
+        if held.stands {
+            return;
+        }
+        let Some(window) = held.window.as_mut() else {
+            held.window = Some(self.no_key_window(now));
+            return;
+        };
+        if (self.last_key)().is_some_and(|ago| ago < POINTER_FOLD_INTERVAL) {
+            window.fires_with_a_key += 1;
+        }
+        let stood = Duration::from_nanos(now.nanos().saturating_sub(window.first.nanos()));
+        if stood < KEPT_PRIVATE_AFTER {
+            return;
+        }
+        if window.fires_with_a_key >= NO_KEY_FIRES {
+            held.stands = true;
+            self.counters.set_no_key(Some(window.second));
+        } else {
+            held.window = Some(self.no_key_window(now));
+        }
+    }
+
+    fn no_key_window(&self, now: Monotonic) -> NoKeyWindow {
+        NoKeyWindow {
+            first: now,
+            second: (self.wall)(),
+            fires_with_a_key: 0,
+        }
     }
 }
 
@@ -1696,6 +1786,9 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             ctx.port.reenable();
         }
         return;
+    }
+    if matches!(event.etype, CGEventType::KeyDown) {
+        ctx.key_arrived.store(true, Ordering::Relaxed);
     }
     let kind = match kind_of(event.etype, key_code, event.flags, autorepeat) {
         Kind::Key(_) if !ctx.keys_asked || !ctx.floor.switches().is_on(Switch::KeyClass) => {
@@ -1856,6 +1949,8 @@ fn tap_context(
         private_since: Mutex::new(None),
         wall: crate::floor::exclude::unix_seconds_now,
         last_key: since_the_last_key_down,
+        key_arrived: AtomicBool::new(false),
+        no_key: Mutex::new(NoKey::default()),
         held_phase: Arc::new(AtomicBool::new(false)),
         keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -2479,6 +2574,7 @@ impl InputSource {
         self.counters.set_stalled(false);
         self.counters.set_kept_private(false);
         self.counters.set_secure_hold(None);
+        self.counters.set_no_key(None);
         self.keys_missing.store(false, Ordering::SeqCst);
         let events = self.start_events();
         self.off = events.is_empty();
@@ -2701,7 +2797,10 @@ impl CaptureSource for InputSource {
     /// read on, reads impaired with the reason secure_input_elsewhere, after
     /// the reasons thread_ended, permission and run_loop_stalled; the next
     /// reading of off or unknown, and a new begin, take it back. Health reads
-    /// that mark alone and calls the system for nothing.
+    /// that mark alone and calls the system for nothing. A running tap whose
+    /// figures hold that keys were pressed on the computer through
+    /// [`KEPT_PRIVATE_AFTER`] and none of them reached it reads impaired with
+    /// the reason no_key_events, after every other reason.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
@@ -2713,6 +2812,9 @@ impl CaptureSource for InputSource {
             },
             (Some(_), _) if self.counters.kept_private() => SourceState::Impaired {
                 reason: HealthReason::SecureInputElsewhere,
+            },
+            (Some(_), _) if self.counters.no_key() => SourceState::Impaired {
+                reason: HealthReason::NoKeyEvents,
             },
             (Some(_), _) => SourceState::Running,
             (None, Some(error)) => source_failure(error.clone()),

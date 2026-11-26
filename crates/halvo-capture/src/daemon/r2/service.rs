@@ -126,6 +126,11 @@ impl Searching {
         self.0.store(on, Ordering::SeqCst);
     }
 
+    /// Whether the switch is on.
+    pub fn is_on(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+
     /// The caller's answer `may_run` under the switch: a no while it is off, and `may_run` itself while it is on.
     pub fn may_run(&self, may_run: MayRun) -> MayRun {
         if self.0.load(Ordering::SeqCst) {
@@ -223,6 +228,10 @@ impl Slot for &'static Form {
             }
             None => Answer::Idle,
         }
+    }
+
+    fn searching(&self) -> bool {
+        self.searching.is_on()
     }
 }
 
