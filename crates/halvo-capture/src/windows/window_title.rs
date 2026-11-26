@@ -16,6 +16,7 @@ use crate::source::{
 };
 
 use super::exclusion::{chrome_window_is_private, private_window, Browser};
+use super::foreground::FrontChanges;
 use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
@@ -374,9 +375,18 @@ pub(crate) fn read_window_title(hwnd: HWND) -> ReadTitle {
     }
 }
 
+/// The title source's memory of its last decision: the window and the text
+/// that it decided last, written or left out. A decision for the same window
+/// and text writes nothing while the memory holds. The memory ends where the
+/// foreground source of the same set has seen another program come in front
+/// since that decision, so that the title of a window is decided anew at the
+/// return to it, behind the `foreground_app` record of the return, also where
+/// no title was decided for the window that was in front in between.
 #[derive(Debug, Default)]
 pub(crate) struct LastTitle {
     emitted: Option<Seen>,
+    front: FrontChanges,
+    front_seen: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -398,7 +408,22 @@ impl TitleDigest {
 }
 
 impl LastTitle {
+    /// The memory of a title source whose set counts the changes of the
+    /// program in front in `front`.
+    pub(crate) fn behind(front: FrontChanges) -> LastTitle {
+        LastTitle {
+            emitted: None,
+            front,
+            front_seen: 0,
+        }
+    }
+
     pub(crate) fn is_new(&mut self, window: usize, title: &str) -> bool {
+        let front = self.front.seen();
+        if self.front_seen != front {
+            self.front_seen = front;
+            self.emitted = None;
+        }
         let seen = Some(Seen {
             window,
             digest: TitleDigest::of(title),
@@ -526,6 +551,7 @@ pub struct WindowTitleSource {
     drops: Arc<DropCounts>,
     waits: Arc<WaitCounts>,
     gate: Option<Arc<PasswordGate>>,
+    front: FrontChanges,
     installer: HookInstaller,
     remover: HookRemover,
 }
@@ -537,9 +563,19 @@ impl WindowTitleSource {
             drops: Arc::default(),
             waits: Arc::default(),
             gate: None,
+            front: FrontChanges::default(),
             installer: set_win_event_hook,
             remover: unhook_win_event,
         }
+    }
+
+    /// A title source of a service set, which hands it `front`, the count
+    /// that the set's foreground source adds each change of the program in
+    /// front to: the source's memory of the last title ends where that count
+    /// has moved.
+    pub(crate) fn with_front_changes(mut self, front: FrontChanges) -> Self {
+        self.front = front;
+        self
     }
 
     /// A title source that reads a password gate, the one of the service
@@ -788,13 +824,14 @@ impl CaptureSource for WindowTitleSource {
         }
         let gate = self.gate.clone();
         let counts = Arc::clone(&self.waits);
+        let front = self.front.clone();
         self.life
             .begin(&ctx, "halvo-window-title-forward", move |producer| {
                 let state = TitleState {
                     producer,
                     floor,
                     gate,
-                    last: LastTitle::default(),
+                    last: LastTitle::behind(front),
                     waiting: Waiting::default(),
                     counts,
                     timer: None,
@@ -2123,6 +2160,89 @@ mod tests {
         assert!(!last.shows_new(2, "   "));
         assert!(last.shows_new(1, "Inbox"));
         assert!(!last.shows_new(1, "Inbox"));
+    }
+
+    /// A foreground tracker on the count `front`: whether the program `pid`
+    /// that comes in front gives a `foreground_app` record.
+    fn programs_in_front(front: &FrontChanges) -> impl FnMut(u32) -> bool {
+        use super::super::foreground::FrontTracker;
+        let cell = std::sync::Mutex::new(None);
+        let mut tracker = FrontTracker::counting(front.clone());
+        move |pid| {
+            let app = |pid| {
+                Some(FrontApp {
+                    pid,
+                    path: Some(format!("C:\\Apps\\{pid}.exe")),
+                })
+            };
+            tracker.on_window(&cell, pid, app).emit.is_some()
+        }
+    }
+
+    #[test]
+    fn a_return_behind_a_foreground_app_record_writes_the_same_title_once_more() {
+        const BOOK: &str = "Budget.xlsx - Excel";
+        let front = FrontChanges::default();
+        let mut in_front = programs_in_front(&front);
+        let mut last = LastTitle::behind(front);
+        let book = in_front(10);
+        let first = last.shows_new(A, BOOK);
+        let with_no_other_program_between = last.shows_new(A, BOOK);
+        let other = in_front(20);
+        let back = in_front(10);
+        let at_the_return = last.shows_new(A, BOOK);
+        let once_more = last.shows_new(A, BOOK);
+        assert_eq!(
+            (
+                [book, other, back],
+                first,
+                with_no_other_program_between,
+                at_the_return,
+                once_more
+            ),
+            ([true, true, true], true, false, true, false),
+            "the records of the workbook's program, of another program whose title was never \
+             decided and of the return; then the workbook's title at first, with no other \
+             program between, at the return and once more"
+        );
+    }
+
+    #[test]
+    fn a_title_that_the_gate_leaves_out_stays_left_out_at_a_return_behind_a_foreground_app_record()
+    {
+        let front = FrontChanges::default();
+        let mut in_front = programs_in_front(&front);
+        let mut last = LastTitle::behind(front);
+        let mut bench = Bench::new();
+        let vault = in_front(9);
+        bench.ask(B, AskBy::Front, 500);
+        bench.gate.focus_read_in(Some(B), 510, answered(false));
+        let first_visit = last.shows_new(B, "Vault") && bench.look(B, 516) == Some(true);
+        let other = in_front(7);
+        bench.ask(A, AskBy::Front, 800);
+        let in_a_window_that_gave_no_read = bench.look(A, 900);
+        let back = in_front(9);
+        bench.ask(B, AskBy::Front, 1_000);
+        let before_the_read_at_the_return = bench.look(B, 1_000);
+        bench.gate.focus_read_in(Some(B), 1_010, answered(true));
+        let decided_anew = last.shows_new(B, "Vault");
+        let written_at_a_password_field = bench.look(B, 1_016);
+        assert_eq!(
+            (
+                [vault, other, back],
+                first_visit,
+                (in_a_window_that_gave_no_read, before_the_read_at_the_return),
+                decided_anew,
+                written_at_a_password_field,
+                bench.drops.read().secure_input
+            ),
+            ([true, true, true], true, (None, None), true, Some(false), 1),
+            "the records of the vault's program, of another program whose title was never \
+             decided and of the return; the vault's title written at a clear field; nothing \
+             decided in the other window or before the read at the return; the return decided \
+             anew, its title not written at a password field, and one event left out under \
+             secure input"
+        );
     }
 
     fn title_facts(units: usize) -> (String, usize, usize, bool) {
