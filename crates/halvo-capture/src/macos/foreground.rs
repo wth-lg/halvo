@@ -889,6 +889,9 @@ impl TitleRules {
             fn localization(&mut self, _place: &str, _languages: &[String]) -> Option<String> {
                 None
             }
+            fn held_language(&mut self, _pid: libc::pid_t, _place: &str) -> Option<String> {
+                None
+            }
         }
         Self::new(Box::new(|| None), Box::new(Unread))
     }
@@ -2269,6 +2272,9 @@ mod tests {
         started: Vec<(libc::pid_t, u64)>,
         places: Vec<(libc::pid_t, String)>,
         asked: Vec<String>,
+        holds: Option<String>,
+        answers: Vec<(libc::pid_t, Vec<Option<String>>)>,
+        reads: Vec<libc::pid_t>,
     }
 
     impl SaidLanguage {
@@ -2279,7 +2285,34 @@ mod tests {
                 started: Vec::new(),
                 places: Vec::new(),
                 asked: Vec::new(),
+                holds: None,
+                answers: Vec::new(),
+                reads: Vec::new(),
             })))
+        }
+
+        /// A stand-in under which the read of a process's open files answers
+        /// the language file `code`, unless the test sets other answers.
+        fn holding(code: &str) -> Self {
+            let said = Self::new(list_of(code));
+            said.said().holds = Some(code.to_string());
+            said
+        }
+
+        /// The answers of the reads of `pid`'s open files, in their order;
+        /// the last one answers every later read.
+        fn answers(&self, pid: libc::pid_t, answers: &[Option<&str>]) {
+            let answers = answers
+                .iter()
+                .map(|answer| answer.map(str::to_string))
+                .collect();
+            self.said().answers.push((pid, answers));
+        }
+
+        /// How many reads of `pid`'s open files were made.
+        fn reads_of(&self, pid: libc::pid_t) -> usize {
+            let said = self.said();
+            said.reads.iter().filter(|read| **read == pid).count()
         }
 
         fn said(&self) -> std::sync::MutexGuard<'_, Said> {
@@ -2335,6 +2368,17 @@ mod tests {
         fn localization(&mut self, place: &str, languages: &[String]) -> Option<String> {
             self.said().asked.push(place.to_string());
             Some(languages.first()?.split('-').next()?.to_string())
+        }
+
+        fn held_language(&mut self, pid: libc::pid_t, place: &str) -> Option<String> {
+            let mut said = self.said();
+            said.asked.push(place.to_string());
+            said.reads.push(pid);
+            let read = said.reads.iter().filter(|read| **read == pid).count();
+            match said.answers.iter().find(|(process, _)| *process == pid) {
+                Some((_, answers)) => answers.get(read - 1).or(answers.last())?.clone(),
+                None => said.holds.clone(),
+            }
         }
     }
 
@@ -2762,6 +2806,70 @@ mod tests {
         assert_eq!(
             (before, after, reads, dropped),
             (vec![normal.to_string()], Vec::new(), 0, 0)
+        );
+    }
+
+    #[test]
+    fn a_browser_that_was_open_before_the_source_started_keeps_its_titles_where_its_process_holds_the_english_language_file(
+    ) {
+        let normal = "Quarterly plan - Google Docs - Google Chrome";
+        let private = "New Tab - Google Chrome (Incognito)";
+        let chrome = app("com.google.Chrome", 40);
+        let mut made = Vec::new();
+        for code in ["en", "de"] {
+            let said = SaidLanguage::holding(code);
+            said.started(40, at(5));
+            let mut through = Through::new(None, &said, at(10));
+            for title in [normal, private] {
+                through.shows(&chrome, title, at(20));
+            }
+            let (_, titles, reads, left_out) = through.made();
+            made.push((code, titles, reads, left_out));
+        }
+        assert_eq!(
+            made,
+            [
+                ("en", vec![normal.to_string()], 2, 1),
+                ("de", Vec::new(), 0, 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_browser_whose_process_gives_no_answer_is_read_again_and_at_most_25_times() {
+        let normal = "Quarterly plan - Google Docs - Google Chrome";
+
+        // An answer at the third read: no title at the first two title
+        // requests, the title at the third.
+        let said = SaidLanguage::holding("en");
+        said.started(40, at(5));
+        said.answers(40, &[None, None, Some("en")]);
+        let chrome = app("com.google.Chrome", 40);
+        let mut through = Through::new(None, &said, at(10));
+        through.shows(&chrome, normal, at(20));
+        through.shows(&chrome, normal, at(21));
+        let (_, early, _, _) = through.made();
+        through.shows(&chrome, normal, at(22));
+        let (_, third, _, _) = through.made();
+
+        // No answer at any read: 25 reads, then no read more and no title.
+        let never = SaidLanguage::holding("en");
+        never.started(41, at(5));
+        never.answers(41, &[None]);
+        let chrome = app("com.google.Chrome", 41);
+        let mut through = Through::new(None, &never, at(10));
+        for step in 0..40 {
+            through.shows(&chrome, normal, at(20 + step));
+        }
+        let (_, none, _, _) = through.made();
+        assert_eq!(
+            (early, third, none, never.reads_of(41)),
+            (
+                Vec::<String>::new(),
+                vec![normal.to_string()],
+                Vec::<String>::new(),
+                25
+            )
         );
     }
 

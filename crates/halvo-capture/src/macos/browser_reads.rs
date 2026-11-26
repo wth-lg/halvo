@@ -93,6 +93,13 @@ pub(crate) trait LanguageReads: Send {
     /// function picks under `languages`; it reads that bundle. `None` when it
     /// cannot be read.
     fn localization(&mut self, place: &str, languages: &[String]) -> Option<String>;
+
+    /// The code of the one language file of the bundle at `place` that the
+    /// process `pid` holds open: the `<code>` of its `<code>.lproj`. `None`
+    /// when the read gives no answer: the bundle or the process cannot be
+    /// read, or the process holds none of the bundle's language files open,
+    /// or more than one.
+    fn held_language(&mut self, pid: libc::pid_t, place: &str) -> Option<String>;
 }
 
 /// The reads of the system itself.
@@ -182,6 +189,10 @@ impl LanguageReads for SystemLanguages {
     fn localization(&mut self, place: &str, languages: &[String]) -> Option<String> {
         let bundle = CFURL::from_path(place, true)?;
         first_localization(&bundle, languages)
+    }
+
+    fn held_language(&mut self, _pid: libc::pid_t, _place: &str) -> Option<String> {
+        None
     }
 }
 
@@ -288,4 +299,46 @@ fn first_localization(bundle: &CFURL, languages: &[String]) -> Option<String> {
     // SAFETY: the item is a live CF object that the array holds.
     let first = unsafe { CFType::wrap_under_get_rule(*first as CFTypeRef) };
     first.downcast::<CFString>().map(|text| text.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The read of `pid` at `place`, made again while it gives no answer, at
+    /// most 25 times: another test of this process can close a file between
+    /// the read's two calls.
+    fn held(pid: libc::pid_t, place: &str) -> Option<String> {
+        (0..25).find_map(|_| SystemLanguages.held_language(pid, place))
+    }
+
+    #[test]
+    fn the_read_finds_the_one_language_file_that_a_process_holds_open() {
+        let me = libc::pid_t::try_from(std::process::id()).expect("a pid");
+        let app = std::env::temp_dir()
+            .join(format!("halvo-held-language-{me}"))
+            .join("Made Browser.app");
+        let resources = app
+            .join("Contents/Frameworks/Made Browser Framework.framework/Versions/1.2.3/Resources");
+        for code in ["de", "en"] {
+            let folder = resources.join(format!("{code}.lproj"));
+            std::fs::create_dir_all(&folder).expect("the folder");
+            std::fs::write(folder.join("locale.pak"), code).expect("the file");
+        }
+        let place = app.to_str().expect("a path of plain text");
+        let none = SystemLanguages.held_language(me, place);
+        let german =
+            std::fs::File::open(resources.join("de.lproj/locale.pak")).expect("the German file");
+        let one = held(me, place);
+        let english =
+            std::fs::File::open(resources.join("en.lproj/locale.pak")).expect("the English file");
+        let two = SystemLanguages.held_language(me, place);
+        drop(german);
+        let other = held(me, place);
+        drop(english);
+        assert_eq!(
+            (none, one, two, other),
+            (None, Some("de".to_string()), None, Some("en".to_string()))
+        );
+    }
 }
