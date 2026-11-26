@@ -16,6 +16,8 @@ settle_s=15
 search_s=300
 search_poll_s=5
 commit_s=30
+second_s=30
+early_s=200
 step_s=40
 row_s=40
 poll_s=2
@@ -23,10 +25,43 @@ tries=3
 # The carriage return that ends a line of a program of Windows; measure reads it.
 cr=
 
+# The run's state first, the FAIL line last: the driver reads the last line as the verdict.
 fail() {
-  printf 'FAIL %s (%s)\n' "$name" "$1"
+  show_state
   end_all
+  printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
+}
+
+# Writes standard input to standard output with no carriage return and with the name behind a
+# home directory masked.
+mask() {
+  tr -d '\r' | sed -e 's/\([A-Za-z]:[\\/]\{1,2\}[U]sers[\\/]\{1,2\}\)[^\\/ "]*/\1<user>/g' \
+    -e 's/\([/][U]sers[/]\)[^/ "]*/\1<user>/g' -e 's/\([/][h]ome[/]\)[^/ "]*/\1<user>/g'
+}
+
+# The daemon's own lines and the last ctl status, each whole and as it stands but for the mask
+# of a home path: printed, and saved among the job's artifacts where the run has them.
+show_state() {
+  [ -n "${err:-}" ] || return 0
+  ctl status
+  printf 'exit=%s\n%s\n' "$ctl_code" "$ctl_out" | mask >"$work/ctl-status.txt"
+  if [ -f "$err" ]; then
+    mask <"$err" >"$work/daemon.err.txt"
+  else
+    printf 'the file does not stand\n' >"$work/daemon.err.txt"
+  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf 'daemon.err: %s\n' "$line"
+  done <"$work/daemon.err.txt"
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf 'ctl status: %s\n' "$line"
+  done <"$work/ctl-status.txt"
+  [ -n "${artifacts:-}" ] || return 0
+  cp "$work/daemon.err.txt" "$work/ctl-status.txt" "$artifacts/" || printf 'noticing: the state files could not be saved among the artifacts\n'
+  for file in walk.out passer.out app.err; do
+    [ ! -f "$work/$file" ] || mask <"$work/$file" >"$artifacts/$file.txt"
+  done
 }
 
 # Sets native to the path $1 as the programs of the system read it.
@@ -252,32 +287,54 @@ EOF
   [ -n "$s_shown" ] || s_shown=none
 }
 
-# Reads logs/daemon.err of the data directory: its batch lines into n_batch, the last of them
-# into last_batch, its lines analysis end=committed into n_commit, its lines into n_lines, and
-# each analysis line behind the line err_mark into analysis_since.
+# Reads logs/daemon.err of the data directory, its lines into n_lines. Each batch line and each
+# analysis line that no read has shown yet is printed with the second of the walk at which this
+# read first saw it. Behind the line err_base, the occasion's baseline: own_batch is the FIRST
+# batch line, the occasion's own; own_commit says whether a line analysis end=committed stands
+# behind it; later_batches and later_commits count the batch lines behind the first and the
+# commit lines behind its commit, which are those of the second worker that the service starts
+# at once from the new position and that reads nothing; analysis_since holds every analysis line.
 read_err() {
-  n_batch=0
-  n_commit=0
   n_lines=0
-  last_batch=
+  own_batch=
+  own_commit=no
+  later_batches=0
+  later_commits=0
   analysis_since=
   [ -f "$err" ] || return 0
+  seen_at=
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%"$cr"}
     n_lines=$((n_lines + 1))
     case $line in
-      *'batch end='*)
-        n_batch=$((n_batch + 1))
-        last_batch="end=${line#*batch end=}"
-        ;;
-      *'analysis end=committed'*) n_commit=$((n_commit + 1)) ;;
+      *'batch end='*) kind=worker ;;
+      *'halvo-capture: analysis '*) kind=service ;;
+      *) continue ;;
     esac
-    case $line in
-      *'halvo-capture: analysis '*)
-        [ "$n_lines" -le "$err_mark" ] || analysis_since="$analysis_since | ${line#*halvo-capture: }"
-        ;;
+    if [ "$n_lines" -gt "$err_shown" ]; then
+      if [ -z "$seen_at" ]; then
+        now
+        seen_at=$((stamp - walk_began))
+      fi
+      printf 'daemon.err line %s, first seen at second %s: %s\n' "$n_lines" "$seen_at" "$line"
+    fi
+    [ "$n_lines" -gt "$err_base" ] || continue
+    if [ "$kind" = worker ]; then
+      if [ -z "$own_batch" ]; then
+        own_batch="end=${line#*batch end=}"
+      else
+        later_batches=$((later_batches + 1))
+      fi
+      continue
+    fi
+    analysis_since="$analysis_since | ${line#*halvo-capture: }"
+    case $own_batch:$own_commit:$line in
+      :*) ;;
+      *:no:*'analysis end=committed'*) own_commit=yes ;;
+      *:yes:*'analysis end=committed'*) later_commits=$((later_commits + 1)) ;;
     esac
   done <"$err"
+  err_shown=$n_lines
 }
 
 # Reads the counts every poll_s until the count $1 (pointer, titles or fa) is $2 or more, at
@@ -342,15 +399,15 @@ need_own() {
 clicks_stage() {
   stage=clicks
   read_err
-  q_batch=$n_batch
-  q_commit=$n_commit
-  err_mark=$n_lines
+  err_base=$n_lines
   read_status
   k_lost=$s_lost
   read_counts
   k_pointer=$c_pointer
   walk_do clicks "$step_s"
   need_own
+  now
+  input_at=$stamp
   field sent "$walk_line"
   sent=$value
   wait_count pointer $((k_pointer + 12)) "$clicks_s"
@@ -360,12 +417,13 @@ clicks_stage() {
   stage_ok "clicks occasion=$occasion ok pointer=+$((c_pointer - k_pointer)) sent=$sent events_lost=$s_lost"
 }
 
-# The search behind the occasion's last input: one more batch line of the worker, read into
-# b_end, b_records and b_episodes.
+# The search behind the occasion's last input: the occasion's OWN batch line, the first batch
+# line behind the occasion's baseline, read into b_end, b_records and b_episodes. A batch line
+# that stands less than early_s behind the occasion's last input is no line of this occasion,
+# since no worker starts before 240 s with no input: it is printed, and the baseline moves
+# behind it.
 search_stage() {
   stage=search
-  read_err
-  [ "$n_batch" -le "$q_batch" ] || printf 'note: a batch line stood before the wait of occasion %s began\n' "$occasion"
   read_counts
   q_pointer=$c_pointer
   q_titles=$c_titles
@@ -373,7 +431,12 @@ search_stage() {
   waited=0
   while :; do
     read_err
-    [ "$n_batch" -gt "$q_batch" ] && break
+    if [ -n "$own_batch" ]; then
+      now
+      [ $((stamp - input_at)) -lt "$early_s" ] || break
+      printf 'note: a batch line stands %s s behind the last input of occasion %s, before a worker of this occasion can have started: the baseline moves behind it\n' "$((stamp - input_at))" "$occasion"
+      err_base=$n_lines
+    fi
     if [ "$waited" -ge "$search_s" ]; then
       walk_do look "$step_s"
       field idle_ms "$walk_line"
@@ -384,13 +447,13 @@ search_stage() {
     pause "$search_poll_s"
     waited=$((waited + search_poll_s))
   done
-  field end "$last_batch"
+  field end "$own_batch"
   b_end=$value
-  field records "$last_batch"
+  field records "$own_batch"
   b_records=$value
-  field episodes "$last_batch"
+  field episodes "$own_batch"
   b_episodes=$value
-  stage_ok "search occasion=$occasion ok batch end=$b_end records=$b_records episodes=$b_episodes"
+  stage_ok "search occasion=$occasion ok batch $own_batch"
 }
 
 # Whether the batch line of the occasion reads end=newest, episodes=1 and $1 records or more.
@@ -401,21 +464,41 @@ episode_holds() {
   [ "$b_end" = newest ] && [ "$b_episodes" = 1 ] && [ "$b_records" -ge "$1" ]
 }
 
-# The commit behind the batch line: one more line analysis end=committed of the service, and
-# what the store gained of foreground_app and of titles in the pause.
+# The commit of the occasion's own batch: a line analysis end=committed of the service behind
+# that batch line. Then the lines of the second worker, which the service starts at once from
+# the new position and which reads nothing: its batch line, with no record, and its commit line
+# are waited for, second_s at most, printed as every line is, and never read as the occasion's;
+# the next occasion's baseline stands behind both. Last, what the store gained of
+# foreground_app and of titles in the pause.
 commit_stage() {
   stage=commit
   waited=0
   while :; do
     read_err
-    [ "$n_commit" -gt "$q_commit" ] && break
-    [ "$waited" -lt "$commit_s" ] || fail "occasion $occasion, stage commit: no analysis end=committed line within $commit_s s of the batch line; analysis lines:${analysis_since:- none}"
+    [ "$own_commit" = yes ] && break
+    [ "$waited" -lt "$commit_s" ] || fail "occasion $occasion, stage commit: no analysis end=committed line within $commit_s s of the occasion's batch line; analysis lines:${analysis_since:- none}"
     pause "$poll_s"
     waited=$((waited + poll_s))
   done
+  waited=0
+  while [ "$later_batches:$later_commits" = 0:0 ] || [ "$later_batches" -ne "$later_commits" ]; do
+    [ "$waited" -lt "$second_s" ] || break
+    pause "$poll_s"
+    waited=$((waited + poll_s))
+    read_err
+  done
+  printf 'second worker occasion=%s: %s batch lines behind the own one, %s commit lines behind its commit, waited %s s\n' "$occasion" "$later_batches" "$later_commits" "$waited"
   read_counts
   printf 'pause %s foreground_app=+%s window_title=+%s\n' "$occasion" "$((c_fa - q_fa))" "$((c_titles - q_titles))"
   stage_ok "commit occasion=$occasion ok"
+}
+
+# Ends the run where the occasion's own batch line holds no record, no other batch line stands
+# in the pause, and the store counted the occasion's clicks: the search read none of what the
+# store holds, and that is the product's fault.
+one_empty_batch_is_the_products() {
+  [ "$b_records:$later_batches" = 0:0 ] || return 0
+  fail "occasion $occasion, stage episode: the product's fault: the pause shows one batch line with records=0 and the records counted in the store: pointer=+$((c_pointer - k_pointer)) behind the occasion's baseline; batch $own_batch"
 }
 
 # Before the clicks of a carry: the walk's window is in front, and the store gained no
@@ -558,7 +641,9 @@ cases() {
   occasion=0
   stage=service
   step_n=0
-  err_mark=0
+  err_base=0
+  err_shown=0
+  input_at=0
   first_red=
   laps=
   c_pointer=0
@@ -637,9 +722,10 @@ cases() {
   t_hold=$c_titles
   f_hold=$c_fa
   search_stage
+  commit_stage
+  one_empty_batch_is_the_products
   episode_holds 13 || fail "occasion 1, stage episode: form=new-title batch end=$b_end records=$b_records episodes=$b_episodes, wanted end=newest episodes=1 records>=13; in the occasion window_title=+$((c_titles - o_titles)) foreground_app=+$((c_fa - o_fa)) pointer=+$((c_pointer - o_pointer))"
   stage_ok "episode occasion=1 ok form=new-title batch end=$b_end records=$b_records episodes=$b_episodes"
-  commit_stage
   lap occasion1
 
   occasion=2
@@ -671,6 +757,8 @@ cases() {
   fi
   lap returns
   search_stage
+  commit_stage
+  one_empty_batch_is_the_products
   again=no
   if episode_holds 12; then
     stage_ok "episode occasion=2 ok form=$clicks_form carry=$carry batch end=$b_end records=$b_records episodes=$b_episodes"
@@ -680,14 +768,14 @@ cases() {
   else
     fail "occasion 2, stage episode: form=$clicks_form carry=$carry batch end=$b_end records=$b_records episodes=$b_episodes, wanted end=newest episodes=1 records>=12"
   fi
-  commit_stage
   if [ "$again" = yes ]; then
     walk_on
     clicks_stage
     search_stage
+    commit_stage
+    one_empty_batch_is_the_products
     episode_holds 13 || fail "occasion 2, stage episode: form=walk-on batch end=$b_end records=$b_records episodes=$b_episodes, wanted end=newest episodes=1 records>=13"
     stage_ok "episode occasion=2 ok form=walk-on batch end=$b_end records=$b_records episodes=$b_episodes"
-    commit_stage
   fi
   lap search2
 
@@ -703,6 +791,8 @@ cases() {
   fi
   clicks_stage
   search_stage
+  commit_stage
+  one_empty_batch_is_the_products
   if episode_holds 12; then
     stage_ok "episode occasion=3 ok form=$form carry=$carry batch end=$b_end records=$b_records episodes=$b_episodes"
   elif [ "$b_end:$b_episodes:$carry:$own:$short" = newest:0:walked:green:green ]; then
@@ -712,7 +802,6 @@ cases() {
   else
     fail "occasion 3, stage episode: form=$form carry=$carry batch end=$b_end records=$b_records episodes=$b_episodes, wanted end=newest episodes=1 records>=12"
   fi
-  commit_stage
   lap occasion3
 
   stage=row
@@ -739,6 +828,7 @@ cases() {
   lap row
   printf 'orders: O4=not-met O5=not-met\n'
   printf 'seconds:%s walk=%s\n' "$laps" "$((stamp - walk_began))"
+  show_state
   end_all
 }
 
@@ -790,6 +880,8 @@ fixture() {
   search_s=80
   search_poll_s=5
   commit_s=4
+  second_s=4
+  early_s=30
   step_s=5
   row_s=5
   w_clock=1000
@@ -806,6 +898,11 @@ fixture() {
   w_last_title=none
   to_native() {
     native=$1
+  }
+  mask() {
+    while IFS= read -r line || [ -n "$line" ]; do
+      printf '%s\n' "$line"
+    done
   }
   now() {
     stamp=$w_clock
@@ -824,7 +921,9 @@ fixture() {
     :
   }
   # The world's search: behind w_idle s with no input it writes the worker's batch line and
-  # the service's commit line for the records that no batch has read.
+  # the service's commit line for the records that no batch has read. Then, as the service
+  # does, it starts a second worker at once from the new position: that one reads nothing and
+  # writes a second batch line, with no record, and a second commit line.
   world_search() {
     [ "$w_unsearched" = yes ] || return 0
     [ $((w_clock - w_last_input)) -ge "$w_idle" ] || return 0
@@ -836,7 +935,7 @@ fixture() {
       carry-not-walked:1) w_fa=$((w_fa + 1)) ;;
       episodes-zero-at-occasion-one:1 | plain-carry-fails:2 | order-O5:3) episodes=0 ;;
     esac
-    printf 'halvo-analysis: batch end=newest run_open=no start_first=no records=%s episodes=%s\n' "$w_records" "$episodes" >>"$err"
+    printf 'batch end=newest run_open=no start_first=no records=%s episodes=%s\n' "$w_records" "$episodes" >>"$err"
     w_records=0
     case $mode:$w_batches in
       no-commit-line:1)
@@ -844,7 +943,11 @@ fixture() {
         return 0
         ;;
     esac
-    printf 'halvo-capture: analysis end=committed code=0 peak_bytes=1048576\n' >>"$err"
+    {
+      printf 'halvo-capture: analysis end=committed code=0 peak_bytes=1048576\n'
+      printf 'batch end=newest run_open=no start_first=no records=0 episodes=0\n'
+      printf 'halvo-capture: analysis end=committed code=0 peak_bytes=524288\n'
+    } >>"$err"
   }
   # The world records $2 events of the kind $1; a title adds the bytes $3.
   world_adds() {
@@ -1016,7 +1119,7 @@ self_test() {
   run_case eleven-clicks FAIL '(occasion 1, stage clicks: pointer=+11 of 12 within 4 s; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at='
   run_case no-batch-line FAIL '(occasion 1, stage search: no batch line within 80 s of the last input; walk idle_ms=250000;'
   run_case episodes-zero-at-occasion-one FAIL '(occasion 1, stage episode: form=new-title batch end=newest records=15 episodes=0, wanted end=newest episodes=1 records>=13'
-  run_case no-commit-line FAIL '(occasion 1, stage commit: no analysis end=committed line within 4 s of the batch line; analysis lines: | analysis end=cap code=- peak_bytes=268435456)'
+  run_case no-commit-line FAIL '(occasion 1, stage commit: no analysis end=committed line within 4 s of the occasion'"'"'s batch line; analysis lines: | analysis end=cap code=- peak_bytes=268435456)'
   run_case return-own-no-title FAIL '(occasion 2, stage return-own: foreground_app=+1 window_title=+0 title_bytes=+0, wanted +1 and +1; walk away=call fg_events=2 stay_ms=3004;'
   run_case return-short-no-title FAIL '(occasion 2, stage return-short: foreground_app=+2 window_title=+0 title_bytes=+0, wanted +2 and +1; walk fg_events=2 stay_ms=1 try=1;'
   run_case return-short-not-met-in-three-tries FAIL '(occasion 2, stage return-short: return-short=not-met in 3 tries: foreground_app=+2 window_title=+2'
