@@ -1164,6 +1164,47 @@ fn the_view_hands_left_out_in_doubt_to_the_page_only_while_the_status_carries_it
 }
 
 #[test]
+fn the_view_hands_the_two_lists_of_what_is_left_out_to_the_page_as_a_status_line_of_the_service_writes_them(
+) {
+    let left_out = concat!(
+        r#"[{"cause":"doubt","what":["everything"],"since":"2027-01-15T08:00:00Z"},"#,
+        r#"{"cause":"secure_input","what":["typing","window_titles","screen_activity"],"since":"2027-01-15T08:00:30Z"}]"#,
+    );
+    let left_out_before = concat!(
+        r#"[{"cause":"doubt","what":["everything"],"#,
+        r#""from":"2027-01-15T08:01:00Z","until":"2027-01-15T08:02:00Z"}]"#,
+    );
+    let plain = status_with(Platform::Macos, |_| {});
+    let written = serde_json::to_string(&plain).expect("JSON");
+    let line = |lists: &str| format!("{}{lists}}}", written.strip_suffix('}').expect("an object"));
+    let view = |line: String| {
+        let status: DaemonStatus = serde_json::from_str(&line).expect("the line reads");
+        serde_json::to_value(StatusView::of(&status)).expect("JSON")
+    };
+    let both = view(line(&format!(
+        r#","left_out":{left_out},"left_out_before":{left_out_before}"#
+    )));
+    let list = |text: &str| serde_json::from_str::<Value>(text).expect("JSON");
+    assert_eq!(both.get("left_out"), Some(&list(left_out)));
+    assert_eq!(both.get("left_out_before"), Some(&list(left_out_before)));
+    let none = view(line(""));
+    assert_eq!(
+        (none.get("left_out"), none.get("left_out_before")),
+        (None, None)
+    );
+    let later = view(line(
+        r#","left_out":[{"cause":"a_later_cause","what":["typing","a_later_part"],"since":"2027-01-15T08:00:00Z"}]"#,
+    ));
+    assert_eq!(
+        later.get("left_out"),
+        Some(&list(
+            r#"[{"cause":"other","what":["typing","other"],"since":"2027-01-15T08:00:00Z"}]"#
+        )),
+        "a word that this build does not know reads as other"
+    );
+}
+
+#[test]
 #[ignore = "prints the view of each state for a review of the fixtures"]
 fn print_the_views_of_the_states() {
     for (name, view) in states() {

@@ -223,6 +223,7 @@ struct InputFigures {
     keys_withheld: AtomicBool,
     stalled: AtomicBool,
     kept_private: AtomicBool,
+    secure_hold_since: AtomicU64,
     secure_released_keystrokes: AtomicU64,
     secure_held_keystrokes: AtomicU64,
     secure_held_suppressed_down: AtomicU64,
@@ -344,6 +345,15 @@ impl InputCounters {
         self.0.kept_private.load(Ordering::Relaxed)
     }
 
+    /// Marks the second, counted from 1970, of the first reading of a row that has read on
+    /// for [`KEPT_PRIVATE_AFTER`] or more, whatever types the tap asked for, or takes the
+    /// mark back.
+    fn set_secure_hold(&self, since: Option<u64>) {
+        self.0
+            .secure_hold_since
+            .store(since.unwrap_or(0), Ordering::Relaxed);
+    }
+
     /// Key downs that came in time and were read while secure input was on; each
     /// was suppressed and never emitted. A modifier press after a reading of on is
     /// a reading alone and is not counted, and a late or untimed press under
@@ -378,6 +388,8 @@ impl InputCounters {
             secure_window_pointer: read(&f.secure_window_pointer),
             secure_window_keys_typed: f.secure_window_keys_typed.load(Ordering::Relaxed),
             typing_gate: None,
+            secure_hold_keys: f.kept_private.load(Ordering::Relaxed),
+            secure_hold_since: Some(read(&f.secure_hold_since)).filter(|since| *since > 0),
         }
     }
 }
@@ -891,8 +903,12 @@ struct TapContext {
     folds: Mutex<Folds>,
     fold_timer: Mutex<Option<ReadingTimer>>,
     /// The stamp of the first reading of a row that read on at the fold timer's fires
-    /// ([`TapContext::read_kept_private`]); none after a reading of off or unknown.
-    private_since: Mutex<Option<Monotonic>>,
+    /// ([`TapContext::read_kept_private`]), with that reading's second by the clock `wall`;
+    /// none after a reading of off or unknown.
+    private_since: Mutex<Option<(Monotonic, u64)>>,
+    /// The clock of the second that a status names for a hold of secure input: whole
+    /// seconds since 1970.
+    wall: fn() -> u64,
     held_phase: Arc<AtomicBool>,
     /// Whether the start of this context asked its tap for key types: a key
     /// event that reaches a context whose start asked for none makes no record,
@@ -1505,6 +1521,7 @@ impl Drop for TapContext {
             .unwrap_or_else(PoisonError::into_inner)
             .take();
         self.counters.count_folds_dropped_at_stop(&left);
+        self.counters.set_secure_hold(None);
     }
 }
 
@@ -1540,26 +1557,31 @@ impl TapContext {
     }
 
     /// One reading of the secure-input state at a fire of the fold timer, once a second
-    /// ([`POINTER_FOLD_INTERVAL`]), for a context whose start asked for the key types: the
-    /// input figures are marked once every reading since the first of a row that read on has
-    /// read on for [`KEPT_PRIVATE_AFTER`] or more, and a reading of off or unknown takes the
-    /// mark back. It runs on the tap thread, whose stop a shutdown waits for
-    /// [`INPUT_STOP_DEADLINE`] at most.
+    /// ([`POINTER_FOLD_INTERVAL`]), whatever types the context's start asked for. Once every
+    /// reading since the first of a row that read on has read on for [`KEPT_PRIVATE_AFTER`]
+    /// or more, the input figures carry the second of that first reading, and for a context
+    /// whose start asked for the key types they carry the mark that the source's health
+    /// reads; a reading of off or unknown takes both back. It runs on the tap thread, whose
+    /// stop a shutdown waits for [`INPUT_STOP_DEADLINE`] at most.
     fn read_kept_private(&self) {
-        if !self.keys_asked {
-            return;
-        }
         let on = (self.secure)((self.session)()) == Reading::On;
         let now = (self.clocks.stamps)();
         let mut since = self
             .private_since
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        *since = if on { Some(since.unwrap_or(now)) } else { None };
-        let kept = since.is_some_and(|first| {
+        *since = match (on, *since) {
+            (false, _) => None,
+            (true, None) => Some((now, (self.wall)())),
+            (true, first) => first,
+        };
+        let kept = since.filter(|(first, _)| {
             Duration::from_nanos(now.nanos().saturating_sub(first.nanos())) >= KEPT_PRIVATE_AFTER
         });
-        self.counters.set_kept_private(kept);
+        self.counters
+            .set_kept_private(kept.is_some() && self.keys_asked);
+        self.counters
+            .set_secure_hold(kept.map(|(_, second)| second));
     }
 }
 
@@ -1810,6 +1832,7 @@ fn tap_context(
         folds: Mutex::new(Folds::default()),
         fold_timer: Mutex::new(None),
         private_since: Mutex::new(None),
+        wall: crate::floor::exclude::unix_seconds_now,
         held_phase: Arc::new(AtomicBool::new(false)),
         keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -2432,6 +2455,7 @@ impl InputSource {
         *self.released.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
         self.counters.set_kept_private(false);
+        self.counters.set_secure_hold(None);
         self.keys_missing.store(false, Ordering::SeqCst);
         let events = self.start_events();
         self.off = events.is_empty();
@@ -7182,7 +7206,6 @@ mod tests {
         fire();
         assert!(!held.counters.kept_private(), "a reading of unknown");
         held.ctx.keys_asked = false;
-        let before = asked();
         answer(Reading::On);
         fire();
         advance(30_000);
@@ -7190,11 +7213,6 @@ mod tests {
         assert!(
             !held.counters.kept_private(),
             "a tap that asked no key type"
-        );
-        assert_eq!(
-            asked(),
-            before,
-            "a tap that asked no key type reads nothing"
         );
 
         let (handle, _writer) = sink::channel(8);
@@ -7215,6 +7233,149 @@ mod tests {
         source.counters.set_kept_private(false);
         assert_eq!(source.health().state, SourceState::Running);
         source.shutdown().expect("the source stops");
+    }
+
+    /// The second, counted from 1970, that the stand-in clocks stand at, for the `since` of a status.
+    fn stand_in_wall() -> u64 {
+        1_800_000_000 + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
+    }
+
+    /// The list `left_out` of the line that a service writes for a status over the input figures of
+    /// `counters`: with "Record typing" on or off as the supervisor hands it on, which is the setting and
+    /// the switch key_class together, and with the switches of window titles and of screen activity.
+    fn left_out_written(
+        counters: &InputCounters,
+        record_typing: bool,
+        titles: bool,
+        screen: bool,
+    ) -> Option<String> {
+        use crate::daemon::board::Board;
+        use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::state::{Cap, Desired, StateHealth};
+        use crate::floor::Switches;
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{LastStop, Lease, Parent, Platform};
+
+        let mut switches = Switches::default();
+        switches.set(Switch::KeyClass, record_typing);
+        switches.set(Switch::TitleText, titles);
+        switches.set(Switch::ScreenActivity, screen);
+        let mut board = Board::new(Platform::Macos);
+        board.figures = counters.figures();
+        let parts = StatusParts {
+            board,
+            desired: Desired::Running,
+            lease: Lease::Fresh,
+            slot: Slot::Opening,
+            obstructed: None,
+            health: StateHealth::Ok,
+            cap: Cap::Known(StorageCap::DEFAULT),
+            switches,
+            once_granted: Vec::new(),
+            asked: Vec::new(),
+            input_keys: record_typing,
+            held: false,
+            typing_off_unsaved: None,
+            search: None,
+            left_out_in_doubt: false,
+            doubt_told: crate::floor::exclude::DoubtTold::default(),
+        };
+        let facts = RunFacts {
+            started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: Parent::None,
+            last_stop: LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+    }
+
+    #[test]
+    fn a_hold_read_by_a_tap_of_the_pointer_types_alone_names_no_typing_while_record_typing_is_on() {
+        let mut held = held(100);
+        held.ctx.wall = stand_in_wall;
+        held.ctx.keys_asked = false;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        fire();
+        assert_eq!(
+            left_out_written(&held.counters, true, true, false),
+            Some(
+                r#"[{"cause":"secure_input","what":["window_titles"],"since":"2027-01-15T08:00:00Z"}]"#
+                    .to_string()
+            ),
+            "Record typing on and a tap that asked no key type: window titles alone"
+        );
+        assert_eq!(
+            left_out_written(&held.counters, true, false, false),
+            None,
+            "and no entry where that leaves nothing"
+        );
+    }
+
+    #[test]
+    fn a_hold_of_thirty_seconds_stands_in_the_status_with_what_it_leaves_out_with_typing_on_and_off_and_marks_the_row_with_the_key_types_alone(
+    ) {
+        let written = |held: &Held, typing: bool, titles: bool, screen: bool| {
+            left_out_written(&held.counters, typing, titles, screen)
+        };
+        let entry = |what: &str, since: &str| {
+            Some(format!(
+                r#"[{{"cause":"secure_input","what":[{what}],"since":"{since}"}}]"#
+            ))
+        };
+
+        let mut held = held(100);
+        held.ctx.wall = stand_in_wall;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        answer(Reading::On);
+        fire();
+        advance(29_999);
+        fire();
+        assert_eq!(written(&held, true, true, false), None, "29.999 s of on");
+        advance(1);
+        fire();
+        assert!(held.counters.kept_private(), "the row's mark at 30 s of on");
+        assert_eq!(
+            written(&held, true, true, false),
+            entry(r#""typing","window_titles""#, "2027-01-15T08:00:00Z"),
+            "typing and window titles on"
+        );
+        assert_eq!(
+            written(&held, true, true, true),
+            entry(
+                r#""typing","window_titles","screen_activity""#,
+                "2027-01-15T08:00:00Z"
+            ),
+            "all three on"
+        );
+        answer(Reading::Off);
+        fire();
+        assert_eq!(written(&held, true, true, true), None, "a reading of off");
+
+        held.ctx.keys_asked = false;
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        fire();
+        assert!(
+            !held.counters.kept_private(),
+            "the row's mark for a tap that asked no key type"
+        );
+        assert_eq!(
+            written(&held, false, true, false),
+            entry(r#""window_titles""#, "2027-01-15T08:00:30Z"),
+            "typing off: window titles alone"
+        );
+        assert_eq!(
+            written(&held, false, false, false),
+            None,
+            "nothing that a hold leaves out is on"
+        );
     }
 
     #[test]

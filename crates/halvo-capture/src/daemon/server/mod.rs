@@ -22,6 +22,7 @@ use std::time::Duration;
 use halvo_control::model::{CaptureState, Modality, UtcSecond};
 use halvo_control::onboarding::{
     self, AssessInput, GrantState, Grants, OnboardingState, Permission, PermissionSet,
+    WalkbackAction, WalkbackStep,
 };
 use halvo_control::proto::{
     self, Admission, CaptureReason, Custody, DaemonStatus, DaemonVersion, Decoded, DrainError,
@@ -569,6 +570,28 @@ pub struct StatusParts {
     /// Whether the floor left out events by doubt in a row since the last record built
     /// ([`crate::floor::exclude::FloorHandle::left_out_in_doubt`]).
     pub left_out_in_doubt: bool,
+    /// What the floor tells of its drops by doubt
+    /// ([`crate::floor::exclude::FloorHandle::doubt_told`]).
+    pub doubt_told: crate::floor::exclude::DoubtTold,
+}
+
+/// The text of the list `name` in the line that a service writes for `status`, for a test
+/// that reads a list as it stands on the wire; none where the line holds no such list.
+#[cfg(test)]
+pub(crate) fn written_list(status: &DaemonStatus, name: &str) -> Option<String> {
+    let line = serde_json::to_string(status).expect("a status is written as JSON");
+    let key = format!("\"{name}\":[");
+    let start = line.find(&key)? + key.len() - 1;
+    let mut depth = 0_usize;
+    for (at, sign) in line[start..].char_indices() {
+        match sign {
+            '[' => depth += 1,
+            ']' if depth == 1 => return Some(line[start..=start + at].to_string()),
+            ']' => depth -= 1,
+            _ => {}
+        }
+    }
+    None
 }
 
 /// The status of a service run (contracts.md C2.1, C2.3) on the system of
@@ -630,6 +653,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         &board.permissions,
         parts.switches,
         parts.input_keys,
+        board.keys_restart_did_not_help,
     );
     DaemonStatus::new(StatusFields {
         daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
@@ -683,6 +707,8 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         keys_withheld: figures.keys_withheld,
         typing_gate: figures.typing_gate,
         left_out_in_doubt: parts.left_out_in_doubt,
+        left_out: left_out_of(parts),
+        left_out_before: left_out_before_of(parts),
         title_read_errors: figures.title_read_errors,
         last_flush_at: snapshot.and_then(|snapshot| second_of(snapshot.last_flush_at)),
         expiry: Health::Healthy,
@@ -840,6 +866,7 @@ fn onboarding_of(
     answered: &[(Permission, GrantState)],
     switches: Switches,
     input_keys: bool,
+    keys_restart_did_not_help: bool,
 ) -> OnboardingState {
     let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
         lines
@@ -851,7 +878,7 @@ fn onboarding_of(
     let now = lines.iter().fold(Grants::default(), |grants, line| {
         grants.with(line.name, line.grant)
     });
-    onboarding::assess(&AssessInput {
+    let mut state = onboarding::assess(&AssessInput {
         required: &required_of(platform)
             .iter()
             .copied()
@@ -873,7 +900,17 @@ fn onboarding_of(
         macos_major: None,
         settings_entry_name: "Halvo",
         screen_activity: switches.is_on(Switch::ScreenActivity),
-    })
+    });
+    if keys_restart_did_not_help {
+        let permission = Permission::InputMonitoring;
+        state.walkback.push(WalkbackStep {
+            permission,
+            action: WalkbackAction::RestartCapture,
+            settings_url: permission.settings_url().to_string(),
+            text: onboarding::KEYS_RESTART_DID_NOT_HELP.to_string(),
+        });
+    }
+    state
 }
 
 fn switch_of(name: SwitchName) -> Switch {
@@ -884,6 +921,71 @@ fn switch_of(name: SwitchName) -> Switch {
         SwitchName::ScreenActivity => Switch::ScreenActivity,
         SwitchName::SiteRead => Switch::SiteRead,
     }
+}
+
+/// What the status says is left out now. Every record, while the floor's row of drops by
+/// doubt stands, since the row's first drop. And under a hold of secure input that the Mac's
+/// input source has read for 30 seconds or more, since its first reading, the parts that
+/// the floor drops under it and whose switch is on: typing only where the tap asked for the
+/// key types, window titles and screen activity; no entry where none of them is on.
+fn left_out_of(parts: &StatusParts) -> Vec<proto::LeftOut> {
+    let mut left_out = Vec::new();
+    let doubt = parts.doubt_told.since.filter(|_| parts.left_out_in_doubt);
+    if let Some(since) = doubt.and_then(utc_second) {
+        left_out.push(proto::LeftOut {
+            cause: proto::LeftOutCause::Doubt,
+            what: vec![proto::LeftOutPart::Everything],
+            since,
+        });
+    }
+    let hold = parts.board.figures.secure_hold_since;
+    if let Some(since) = hold.and_then(utc_second) {
+        let on = |switch| parts.switches.is_on(switch);
+        let what: Vec<proto::LeftOutPart> = [
+            (
+                parts.board.figures.secure_hold_keys && on(Switch::KeyClass),
+                proto::LeftOutPart::Typing,
+            ),
+            (on(Switch::TitleText), proto::LeftOutPart::WindowTitles),
+            (
+                on(Switch::ScreenActivity),
+                proto::LeftOutPart::ScreenActivity,
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(left, part)| left.then_some(part))
+        .collect();
+        if !what.is_empty() {
+            left_out.push(proto::LeftOut {
+                cause: proto::LeftOutCause::SecureInput,
+                what,
+                since,
+            });
+        }
+    }
+    left_out
+}
+
+/// What the status says was left out before: the last row of drops by doubt that the floor
+/// tells of behind its end, as every record from the row's first drop to its end.
+fn left_out_before_of(parts: &StatusParts) -> Vec<proto::LeftOutBefore> {
+    let times = parts
+        .doubt_told
+        .before
+        .and_then(|(from, until)| Some((utc_second(from)?, utc_second(until)?)));
+    times
+        .map(|(from, until)| proto::LeftOutBefore {
+            cause: proto::LeftOutCause::Doubt,
+            what: vec![proto::LeftOutPart::Everything],
+            from,
+            until,
+        })
+        .into_iter()
+        .collect()
+}
+
+fn utc_second(unix_seconds: u64) -> Option<UtcSecond> {
+    UtcSecond::from_unix_seconds(i64::try_from(unix_seconds).ok()?).ok()
 }
 
 fn second_of(at: Option<std::time::SystemTime>) -> Option<UtcSecond> {
@@ -968,6 +1070,7 @@ mod tests {
                 typing_off_unsaved: None,
                 search: None,
                 left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1063,6 +1166,7 @@ mod tests {
             typing_off_unsaved: None,
             search: None,
             left_out_in_doubt: false,
+            doubt_told: crate::floor::exclude::DoubtTold::default(),
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1185,6 +1289,7 @@ mod tests {
                 typing_off_unsaved: None,
                 search: None,
                 left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1374,6 +1479,7 @@ mod tests {
                 typing_off_unsaved: None,
                 search: None,
                 left_out_in_doubt: floor.left_out_in_doubt(),
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
             };
             let status = status_of(&parts, &facts).unwrap();
             serde_json::to_value(&status)

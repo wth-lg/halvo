@@ -390,6 +390,7 @@ mod tests {
             typing_off_unsaved: None,
             search: None,
             left_out_in_doubt: false,
+            doubt_told: crate::floor::exclude::DoubtTold::default(),
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
