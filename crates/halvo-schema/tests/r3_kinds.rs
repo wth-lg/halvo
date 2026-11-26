@@ -123,7 +123,7 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
     expected.push(("model", Name));
     assert_eq!(run[..expected.len()], expected);
     let list: Vec<&str> = run[expected.len()..].iter().map(|(key, _)| *key).collect();
-    assert_eq!(list, RUN_LIST_KEYS);
+    assert_eq!(list, [RUN_LIST_KEYS, &["letters_guessed"]].concat());
     let own_fields: [(&str, &[(&str, FieldType)]); 11] = [
         (
             "agent_playbook",
@@ -346,7 +346,7 @@ fn each_example_is_one_record_that_the_store_and_the_strict_reader_take_alike() 
             .unwrap(),
         run.example
     );
-    assert_eq!(keys(run).len(), 19 + RUN_LIST_KEYS.len());
+    assert_eq!(keys(run).len(), 19 + RUN_LIST_KEYS.len() + 1);
 }
 
 #[test]

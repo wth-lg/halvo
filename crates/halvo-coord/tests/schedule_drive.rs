@@ -159,6 +159,7 @@ fn world_with(spec: &[A], limits: Limits) -> World {
                 day: DAY - 2,
                 outcome: Outcome::Completed,
                 unknown: 0,
+                notes: halvo_coord::types::Notes::default(),
             }),
             unknown: vec![],
             refused_run: None,
@@ -251,6 +252,7 @@ impl World {
                 day: self.board.day,
                 outcome: o,
                 unknown: u32::from(o == Outcome::EffectUnknown),
+                notes: halvo_coord::types::Notes::default(),
             },
         );
     }
@@ -1315,6 +1317,7 @@ fn with_check(w: &mut World, n: usize) -> RunId {
             day: DAY - 2,
             outcome: Outcome::EffectUnknown,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     run

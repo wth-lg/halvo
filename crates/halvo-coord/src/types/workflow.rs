@@ -179,6 +179,18 @@ pub struct PastRun {
     pub outcome: Outcome,
     /// `unknown`: the count of effects of an unknown outcome.
     pub unknown: u32,
+    /// What the record says beside its end for the note behind the row's line (r3 U11.10).
+    pub notes: Notes,
+}
+
+/// What a run record `agent_run` says beside its end for the note that stands behind the row's
+/// line of the agent's newest ended run, whatever its end (r3 U11.10, the coordinator's way (b));
+/// a record of a build before a key stood reads as none.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Notes {
+    /// `letters_guessed` `yes`: the run read its data file by the computer's code page, and its
+    /// write of the workbook answered well.
+    pub letters_guessed: bool,
 }
 
 /// An effect of an unknown outcome in the reply of I6.1.

@@ -568,7 +568,30 @@ fn row_offering<C: ConfigView>(
     name: &str,
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
-    row_with(facts, line.status(), &line.key_on(system), name, offered)
+    let mut row = row_with(facts, line.status(), &line.key_on(system), name, offered)?;
+    if let Some(note) = note(facts, line)? {
+        row.line = format!("{} {note}", row.line);
+    }
+    Ok(row)
+}
+
+/// The note behind the row's line of the agent's newest ended run, whatever its end (r3 U11.10,
+/// the coordinator's way (b)): where `line` is that run's own line, the done sentence
+/// (`StatusLine::Done`), the line of a failed run (`StatusLine::Problem`) or the sentence of its
+/// last cause (`StatusLine::LastCause`), and the agent's newest run record, which names that run
+/// since the store has ended it, holds `letters_guessed`: the sentence of
+/// `line.note.letters_guessed`. Every other line, and a record without the key, gives none.
+fn note<C>(facts: &Facts<C>, line: StatusLine) -> Result<Option<String>, Cause> {
+    let own = matches!(
+        line,
+        StatusLine::Done | StatusLine::Problem(_) | StatusLine::LastCause(_)
+    );
+    let guessed = facts.runs.first().is_some_and(|r| r.notes.letters_guessed);
+    if own && guessed {
+        text("line.note.letters_guessed", &[]).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 fn row_with<C: ConfigView>(

@@ -269,6 +269,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.all_set.stopped_early",
         "Last time, it stopped before the task was done, and it needs nothing from you now.",
     ),
+    (
+        "line.note.letters_guessed",
+        "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. In such a file Halvo writes a value with a sign such as € as text, not as a number. If a letter looks wrong in the spreadsheet or a sum leaves values out, save the data file as CSV UTF-8 and choose Start now.",
+    ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
     ("line.run.declined", "You said no, so it stopped."),

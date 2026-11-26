@@ -26,7 +26,7 @@ pub use error::{Cause, Error, Kept, PathRefusal, Refusal, SourceRefusal};
 pub use halvo_checkpoint::{LockError, Locks, RunId, Sha256};
 pub use parts::Kind;
 pub use range::Range;
-pub use source::Value;
+pub use source::{Data, Letters, Value};
 pub use write::Prepared;
 
 /// The directory that the permission `user_files` names, as the runner gives it. Every path
@@ -118,7 +118,15 @@ impl Folder {
     /// Returns the rows of the source file at `source`: a CSV file as RFC 4180 (its section 2)
     /// has it, with one separator, the comma, the semicolon or the tab, and no header row; an
     /// empty file has no row. One UTF-8 byte-order mark at the file's first byte is skipped (a
-    /// mark at another place is text), a line ends with LF or CRLF, and the last line reads the
+    /// mark at another place is text). A file that begins with the mark of UTF-16, FF FE or FE FF,
+    /// is read as UTF-16 in that byte order behind its mark, as Excel's file type Unicode Text
+    /// saves it; the mark alone reads no row (r3 U11.10). On Windows a file with no mark that is
+    /// not UTF-8 is read by the code page that the system gives as the computer's own (`GetACP`),
+    /// the one by which Excel's file type CSV (Comma delimited) writes its letters, where that page
+    /// reads each of its bytes as a letter that is no control sign; in such a file a cell that holds
+    /// a sign beyond ASCII is a text, the numbers are those of the file with every such sign a plain
+    /// letter, and the file is refused where its separator hangs on what such a sign is (the
+    /// coordinator's rule of log line 23819); [`Folder::read_data`] says so. A line ends with LF or CRLF, and the last line reads the
     /// same with its line end and without it. A sign holds where every line that is not empty,
     /// read as a row of that sign (a double quote at the line's start or right behind the sign
     /// opens a quoted field, two double quotes in it are one, and the signs inside it are not
@@ -166,8 +174,14 @@ impl Folder {
     /// thousands sign repeated with no decimal sign (`1,234,567`), letters (`500 EUR`), a
     /// percent, brackets with no sign of money, a minus and brackets both (`(-$12.50)`), a minus
     /// behind and a dash that is no minus.
-    /// Refused with [`Error::Source`], in this order where two hold: the file is not UTF-8, whose
-    /// cause by [`Error::source_cause`] is `data_encoding`; then, with the cause `data_form`: the
+    /// Refused with [`Error::Source`], in this order where two hold: the file is not UTF-8, not
+    /// UTF-16 by its mark and not, on Windows, text of the computer's page: a file of the mark of
+    /// UTF-16 with an odd count of bytes or a lone surrogate behind it, a file that begins
+    /// FF FE 00 00 (the mark of UTF-32LE), and on Windows a file that the page cannot read or reads
+    /// with a control sign (below U+0020 but the tab, CR and LF, or U+007F to U+009F), a page
+    /// outside the ANSI pages, a file of the page 936 with a four-byte letter, and a file whose
+    /// separator hangs on what a sign beyond ASCII is; its cause
+    /// by [`Error::source_cause`] is `data_encoding`; then, with the cause `data_form`: the
     /// semicolon and the tab both hold as its separator; or, read by the separator that is told,
     /// it holds a carriage return that no line feed follows, a line break inside a quoted field,
     /// text behind a closing quote or a quote that is never closed, the first of them in the file
@@ -179,8 +193,15 @@ impl Folder {
     /// first such line named; a field of the first row that is one `#` alone is a title and passes
     /// (r3 U11.9).
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
+        self.read_data(source).map(|data| data.rows)
+    }
+
+    /// The rows of the source file at `source`, as [`Folder::read_source`] gives them, and how
+    /// its letters were read: [`Letters::Page`] where Halvo read them by the computer's page, a
+    /// guess that the run's record keeps (r3 U11.10).
+    pub fn read_data(&self, source: &Path) -> Result<Data, Error> {
         let full = self.file(source)?;
-        source::parse(&std::fs::read(full)?)
+        source::data(&std::fs::read(full)?, source::system_page())
     }
 
     /// The first half of a file edit (contracts.md A11.3, A5.2), which changes nothing of the
