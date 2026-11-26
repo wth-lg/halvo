@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use halvo_control::client::{ClientError, Connector, DeleteOutcome, NoTransport};
 use halvo_control::model::{StorageCap, StoreId};
@@ -106,6 +106,74 @@ fn a_tray_that_fails_to_install_is_no_set_up_error_and_the_state_records_no_tray
     let test = test_app_from(parts, app::context(), connector);
     let state = test.app.state::<AppState>();
     assert!(!state.tray_installed.load(Ordering::SeqCst));
+}
+
+/// The connector that the stand-in install of the case of the tray's tries reads.
+static TRIED: OnceLock<ScriptedConnector> = OnceLock::new();
+
+/// The calls of that stand-in install.
+static TRIES: AtomicUsize = AtomicUsize::new(0);
+
+/// How many Status requests the connector held when that stand-in's try stood.
+static STOOD_AT: OnceLock<usize> = OnceLock::new();
+
+/// Whether each Status request of `connector`, in its order, claimed the indicator.
+fn claims(connector: &ScriptedConnector) -> Vec<bool> {
+    connector
+        .requests()
+        .iter()
+        .filter_map(|request| match request {
+            Request::Status { indicator } => Some(*indicator),
+            _ => None,
+        })
+        .collect()
+}
+
+/// An install of the tray that fails at its first two tries and stands at its third.
+fn tray_that_stands_at_its_third_try(
+    _: &tauri::AppHandle<tauri::test::MockRuntime>,
+) -> tauri::Result<tray::TrayInstalled> {
+    if TRIES.fetch_add(1, Ordering::SeqCst) < 2 {
+        return Err(tauri::Error::WindowNotFound);
+    }
+    let _ = STOOD_AT.set(TRIED.get().map_or(0, |connector| claims(connector).len()));
+    Ok(tray::installed_for_tests())
+}
+
+/// Test 1 of indicator-again: where the tray's install fails at its first two tries and stands at
+/// its third, no Status claims the indicator before that try, and the first pass behind it claims:
+/// the first Status after it, or the second where a pass was on its way at the try.
+#[test]
+fn an_install_that_fails_twice_and_then_stands_is_claimed_at_the_first_pass_behind_it_and_at_no_pass_before_it(
+) {
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    TRIED
+        .set(connector.clone())
+        .expect("no other case sets the connector");
+    let mut parts = test_parts(scratch_dir("tray-tries"), super::state_of(&connector));
+    parts.tray = Some(tray_that_stands_at_its_third_try);
+    parts.poll = true;
+    let _test = test_app_from(parts, app::context(), connector.clone());
+    let until = Instant::now() + Duration::from_secs(20);
+    while !claims(&connector).contains(&true) && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let seen = claims(&connector);
+    let tries = TRIES.load(Ordering::SeqCst);
+    let first = seen.iter().position(|claim| *claim);
+    assert!(
+        first.is_some(),
+        "no Status claimed the indicator within 20 s: {tries} tries, Status claims {seen:?}"
+    );
+    let stood_at = STOOD_AT.get().copied().expect("the try that claims stood");
+    assert!(
+        seen[..stood_at].iter().all(|claim| !claim),
+        "a Status claimed before the try that stood: {seen:?}, stood at {stood_at}"
+    );
+    assert!(
+        first.is_some_and(|first| first == stood_at || first == stood_at + 1),
+        "the first claim is not the first pass behind the try that stood: {seen:?}, stood at {stood_at}"
+    );
 }
 
 #[test]
