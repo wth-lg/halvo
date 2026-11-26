@@ -37,10 +37,10 @@ the paid round adds" bind as they stand.
 
 The harness's own loop reads each page, with the trial's own browser library, and builds each request. That
 library walks the browser's accessibility tree as the runner's does, but for its reading of a credential field;
-and the harness's count of the refs takes no number for the runner's other readings of a page between two
-requests, so the numbers of a request's refs are not the runner's. So a round of this form reads the runner's
-mask and the door, and it does not read the runner's own reading of a credential field, its loop, its pick, its
-holds or its start of the door.
+and the harness's count of the refs takes no number for the runner's other readings of a page, before a run's
+first request and between two requests, so the numbers of a request's refs are not the runner's. So a round of
+this form reads the runner's mask and the door, and it does not read the runner's own reading of a credential
+field, its loop, its pick, its holds or its start of the door.
 
 ## The lines of this form
 

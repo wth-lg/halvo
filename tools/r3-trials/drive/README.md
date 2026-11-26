@@ -388,10 +388,10 @@ sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR [--pa
   line, and the model's action on it is refused as one that names no line of the page.
 - The harness's own loop still reads each page, with the trial's own browser library, and builds each request.
   That library walks the browser's accessibility tree as the runner's does, but for its reading of a credential
-  field; and the harness's count of the refs takes no number for the runner's other readings of a page between
-  two requests, so the numbers of a request's refs are not the runner's. The form reads the runner's mask and
-  the door, and not the runner's own reading of a credential field, its loop, its pick, its holds or its start
-  of the door.
+  field; and the harness's count of the refs takes no number for the runner's other readings of a page, before
+  a run's first request and between two requests, so the numbers of a request's refs are not the runner's. The
+  form reads the runner's mask and the door, and not the runner's own reading of a credential field, its loop,
+  its pick, its holds or its start of the door.
 - One call runs the tier `frontier` and then the tier `low_cost_hosted`, each `--passes` passes over the nine
   cells (1 or 2; 1 without the argument), under one ceiling: one count of `crates/halvo-route`, turned to the second
   tier with what the first spent (`Spend::turn_to`). A cell runs no recovery. The compile and the write of the
