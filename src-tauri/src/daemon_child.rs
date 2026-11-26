@@ -598,11 +598,12 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
     }
 
     fn hold_for_a_run<T>(&self, owed: bool, run: impl FnOnce() -> T) -> T {
-        let until = self.clock.now() + STOP_WAIT;
         let _lifted = HeldForARun::mark(&self.shared, self.views.hold(), owed);
         let mut state = self.shared.lock();
+        let mut deadline = None;
         while let Some(child) = state.child.as_mut() {
             child.close_lifeline();
+            let until = *deadline.get_or_insert_with(|| self.clock.now() + STOP_WAIT);
             if let Ok(Some(_)) = child.ended() {
                 break;
             }
@@ -1017,12 +1018,12 @@ fn stop_and_start<C: Watched, K: Clock>(
     before: Restarts,
 ) -> Option<(Ending, Next, Restarts)> {
     let mut stop = stop;
-    let until = clock.now() + STOP_WAIT;
     let mut state = shared.lock();
     if matches!(stop, Stop::Restart | Stop::NoReply | Stop::Renew) {
         state.owe_a_start();
     }
     state.child.as_mut()?.close_lifeline();
+    let until = clock.now() + STOP_WAIT;
     let ended = loop {
         if state.quitting {
             return None;
@@ -1076,15 +1077,19 @@ pub mod stand_in {
             .push(line.into());
     }
 
-    /// A clock whose time moves only by its waits, which it records. While `long_waits_held`
-    /// reads true, a wait longer than CHILD_POLL, the backoff's or the attach's first, holds in
-    /// real time with the lock given back, until the test sets it false.
+    /// A clock whose time moves only by its waits, which it records, and once by `after_a_read`
+    /// right after a read of its time. While `long_waits_held` reads true, a wait longer than
+    /// CHILD_POLL, the backoff's or the attach's first, holds in real time with the lock given
+    /// back, until the test sets it false.
     #[derive(Debug)]
     pub struct StandInClock {
         base: Instant,
         at: Mutex<Duration>,
         pub waits: Mutex<Vec<Duration>>,
         pub long_waits_held: Mutex<bool>,
+        /// A move that the clock makes once, right after the next read of its time, where a test
+        /// arms it: the time that a slow machine lets pass between that read and the next step.
+        pub after_a_read: Mutex<Option<Duration>>,
     }
 
     impl Default for StandInClock {
@@ -1094,6 +1099,7 @@ pub mod stand_in {
                 at: Mutex::new(Duration::ZERO),
                 waits: Mutex::new(Vec::new()),
                 long_waits_held: Mutex::new(false),
+                after_a_read: Mutex::new(None),
             }
         }
     }
@@ -1113,7 +1119,16 @@ pub mod stand_in {
 
     impl Clock for StandInClock {
         fn now(&self) -> Instant {
-            self.base + *self.at.lock().unwrap_or_else(PoisonError::into_inner)
+            let read = self.base + *self.at.lock().unwrap_or_else(PoisonError::into_inner);
+            let armed = self
+                .after_a_read
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take();
+            if let Some(by) = armed {
+                self.advance(by);
+            }
+            read
         }
 
         fn sleep(&self, period: Duration) {
@@ -3315,6 +3330,7 @@ mod tests {
                         && (line.is_empty()
                             || record.lock().unwrap().iter().any(|seen| seen == line))
                 });
+                *clock.after_a_read.lock().unwrap() = Some(STOP_POLL);
                 pass(control.as_ref(), &views, Some(&tray));
             }
             until(name, || record.lock().unwrap().len() >= expected.len());
