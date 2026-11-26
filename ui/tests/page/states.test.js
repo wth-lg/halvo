@@ -284,7 +284,7 @@ test("status-honest: where Halvo left out every record by doubt, the line under 
     const plain = await page(running);
     assert.equal(plain.text("capture-reason"), "", name);
     const paused = await page({ ...running, desired: "paused", capture: "paused", left_out_in_doubt: true });
-    assert.equal(paused.text("capture-reason"), "", name);
+    assert.notEqual(paused.text("capture-reason"), said, name);
     const held = await page({ ...running, hold: { press: "resume" }, left_out_in_doubt: true });
     assert.notEqual(held.text("capture-reason"), said, name);
   }
@@ -308,7 +308,7 @@ test("typing-says: where the Mac's input row reads impaired by secure_input_else
   assert.equal((await page(turned(kept, "input", { name: "pointer" }))).text("capture-reason"), "", "as the pointer");
   const windows = fixture("capture_status-running-windows");
   assert.equal((await page(turned(windows, "keyboard", elsewhere))).text("capture-reason"), "", "windows");
-  assert.equal((await page({ ...kept, desired: "paused", capture: "paused" })).text("capture-reason"), "", "paused");
+  assert.notEqual((await page({ ...kept, desired: "paused", capture: "paused" })).text("capture-reason"), said, "paused");
   assert.notEqual((await page({ ...kept, hold: { press: "resume" } })).text("capture-reason"), said, "held");
   assert.equal((await page({ ...kept, left_out_in_doubt: true })).text("capture-reason"), doubt, "beside the doubt");
 });
@@ -383,7 +383,7 @@ test("says-left-out: where the status's left_out holds secure_input, the line un
   assert.equal((await page(kept)).text("capture-reason"), old, "a status without left_out");
   assert.equal((await page({ ...running, left_out: [entry("a_later_cause", ["typing"])] })).text("capture-reason"), "", "a cause that the page does not know");
   assert.equal((await page({ ...running, left_out: hold(["a_later_part"]) })).text("capture-reason"), "", "no part that the page knows");
-  assert.equal((await page({ ...kept, desired: "paused", capture: "paused", left_out: hold(["typing"]) })).text("capture-reason"), "", "paused");
+  assert.notEqual((await page({ ...kept, desired: "paused", capture: "paused", left_out: hold(["typing"]) })).text("capture-reason"), old, "paused");
   assert.notEqual((await page({ ...kept, hold: { press: "resume" }, left_out: hold(["window_titles"]) })).text("capture-reason"), said("window titles", "window titles"), "held");
 });
 
@@ -452,6 +452,29 @@ test("no-key-arrives: where the status's left_out holds no_key_arrives with typi
   assert.equal((await page(turned({ ...none, capture: "partial" }, "foreground", { state: "failed", reason: "thread_ended" }))).text("capture-reason"), "", "the app in front has stopped");
   assert.equal((await page({ ...impaired, left_out: [entry("no_key_arrives", ["a_later_part"])] })).text("capture-reason"), "", "no typing in its what");
   assert.equal((await page(impaired)).text("capture-reason"), "", "the row's reason alone");
-  assert.equal((await page({ ...none, desired: "paused", capture: "paused" })).text("capture-reason"), "", "paused");
+  assert.notEqual((await page({ ...none, desired: "paused", capture: "paused" })).text("capture-reason"), said, "paused");
   assert.notEqual((await page({ ...none, hold: { press: "resume" } })).text("capture-reason"), said, "held");
+});
+
+test("U3.36: under the heading Halvo is paused, the line says what a pause is where the service runs, capture reads paused, the onboarding rows hold no step and no press of the page is under way; with a step open, with a press under way and where capture runs, it does not show", async () => {
+  const says = 'Halvo records nothing until you press Resume. "Quit Halvo" pauses it too, and it stays paused when Halvo starts again.';
+  const paused = fixture("capture_status-paused");
+  const shown = await page(paused);
+  assert.equal(shown.text("state"), "Halvo is paused");
+  assert.equal(shown.text("capture-reason"), says);
+  const stepOpen = await page(paused, { onboarding_state: () => fixture("onboarding_state-missing") });
+  assert.equal(stepOpen.text("state"), "Halvo is paused", "a step open");
+  assert.equal(stepOpen.text("capture-reason"), "", "a step open");
+  const pressed = await page(paused, { set_capture_state: () => new Promise(() => {}) });
+  pressed.byId("toggle").click();
+  await pressed.settle();
+  assert.equal(pressed.text("toggle"), "Starting", "a press under way");
+  assert.equal(pressed.text("capture-reason"), "", "a press under way");
+  await pressed.clock.advance(3000);
+  assert.equal(pressed.calls("capture_status").length, 2, "a read drawn while the press is under way");
+  assert.equal(pressed.text("state"), "Halvo is paused", "a read drawn while the press is under way");
+  assert.equal(pressed.text("capture-reason"), "", "a read drawn while the press is under way");
+  const runs = await page(fixture("capture_status-running"));
+  assert.equal(runs.text("state"), "Halvo is capturing", "capture runs");
+  assert.doesNotMatch(visibleText(runs.document.body), /records nothing until you press Resume/, "capture runs");
 });

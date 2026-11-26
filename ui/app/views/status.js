@@ -33,6 +33,7 @@
   var last = {};
   var readsSentBeforeTheLastMutation = 0;
   var ran = null;
+  var stepsOpen = null;
 
   var SERVICE = {
     connecting: w.CONNECTING,
@@ -172,10 +173,7 @@
     shownService = s.service;
     dot.classList.toggle("on", !s.hold && s.service === "running" && (s.capture === "running" || s.capture === "partial"));
     state.textContent = heading(s);
-    if (s.hold) reason.textContent = heldReason(s);
-    else if (s.service !== "running") reason.textContent = "";
-    else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
-    else reason.textContent = leftOutNow(s);
+    drawReason(s);
     beforeLine.textContent = leftOutBefore(s);
     renderToggle(s);
     renderSources(s);
@@ -192,6 +190,14 @@
     settingsReset.classList.toggle("hidden", !resetOffered(s));
     settingsDelete.classList.toggle("hidden", s.state_file !== "newer_version");
     renderFirstRun(s);
+  }
+
+  function drawReason(s) {
+    if (s.hold) reason.textContent = heldReason(s);
+    else if (s.service !== "running") reason.textContent = "";
+    else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
+    else if (s.capture === "paused") reason.textContent = pending === null && stepsOpen === false ? w.PAUSED_UNTIL_RESUME : "";
+    else reason.textContent = leftOutNow(s);
   }
 
   function runs(s) {
@@ -399,6 +405,7 @@
     if (performance.now() < heldUntil) return Promise.resolve();
     var asked = action;
     pending = asked;
+    drawReason(last);
     toggle.disabled = true;
     toggle.textContent = asked === "paused" ? w.PAUSING : w.STARTING;
     Halvo.showError("");
@@ -417,6 +424,7 @@
         pending = null;
         Halvo.showError(asked === "paused" ? w.PAUSE_NOT_REACHED : e);
         renderToggle(last);
+        drawReason(last);
       });
   }
 
@@ -433,6 +441,7 @@
         pending = null;
         Halvo.showError(e && e.error === "deadline" ? w.START_NO_ANSWER.replace("{seconds}", String(Number(e.seconds) || 0)) : e);
         renderToggle(last);
+        drawReason(last);
       });
   }
 
@@ -496,6 +505,10 @@
         last = s;
       });
       status.on(render);
+      Halvo.feed("onboarding").on(function (o) {
+        stepsOpen = !(o && Array.isArray(o.walkback) && o.walkback.length === 0);
+        drawReason(last);
+      });
       status.source(refresh);
       refresh();
       setInterval(refresh, 3000);
