@@ -76,9 +76,9 @@ fn stand_in_person(_: &OsString, _: &mut bool) -> Result<bool, Usage> {
 }
 
 /// The argument of the tests' builds alone (r3 U7.10; the coordinator's ruling of 2026-11-26, P6): a file in the form
-/// of the router's table (crates/halvo-route/data/policy.tsv) that the runner reads in the place of the release table
-/// (crate::route), so that a test of the whole runner reaches a compile. It is compiled only with the feature `loopback`, which no shipped program turns on (the
-/// crate's unit tests are built with it); every other build refuses it as an unknown argument.
+/// of the router's table that the runner reads in the place of the release table (crate::route), so that a test of
+/// the whole runner reaches a compile. It is compiled only with the feature `loopback`, which no shipped program turns
+/// on (the crate's unit tests are built with it); every other build refuses it as an unknown argument.
 #[cfg(feature = "loopback")]
 pub(crate) const STAND_IN_POLICY: &str = "--stand-in-policy";
 

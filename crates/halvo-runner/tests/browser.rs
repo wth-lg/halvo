@@ -1991,19 +1991,15 @@ fn u710_compile(
         .join("\n"),
     )
     .expect("the door's answers");
-    let release = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../halvo-route/data/policy.tsv"),
+    // The test's own table (tests/support/compile-cell-open.tsv): the bill's compile cell open at `frontier`, and
+    // every other cell handing back (`none` for a replay); a line end that a checkout wrote as CR LF is read as LF,
+    // since the parser refuses a CR.
+    let open = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/support/compile-cell-open.tsv"),
     )
-    .expect("the release table");
-    let row = release
-        .lines()
-        .find(|line| line.starts_with("utility_bill_payment\tcompile\t"))
-        .expect("the bill's compile row");
-    let open = release.replacen(
-        &format!("{row}\n"),
-        "utility_bill_payment\tcompile\tfrontier\thigh\tline_met\t4\t4\n",
-        1,
-    );
+    .expect("the test's table")
+    .replace('\r', "");
     let policy = dir.join("policy.tsv");
     std::fs::write(&policy, open).expect("the stand-in policy");
     let fixture = Fixture::start(&[("/pay", U710_PAY), ("/charge", CHARGED)]);
