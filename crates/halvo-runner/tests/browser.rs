@@ -2048,34 +2048,71 @@ fn u710_compile(
     (seen, fixture, dir)
 }
 
-/// r3 U7.10, THE PROOF ON A REAL BROWSER (the coordinator's rulings of 2026-11-26, P1, P6, P8, M3 and M5), on the
-/// hosted macos job alone: a COMPILE of the bill, whose model is the stand-in door, carries out its paying click on
-/// the fixture's form, a POST navigation of the top document. The rule holds that request at the click's own act; the
-/// card is asked; after the test's `allow_once` ONE `POST /charge` reaches the fixture, with the form's token and
-/// amount, the run ends `completed` with the effect `committed`, and the stored playbook's last step is the effect
-/// step. After a `reject_once` no POST reaches it and the run ends `declined`. It prints the browser's product and
-/// version as the browser gives it, and the first request that the door received, whole.
+/// The browser's product and version as the browser gives it by its own protocol: the product's executor started
+/// as a run starts it (its relay of the system's names, which reaches nothing here, the built runner as the relay's
+/// guard, the product's flags), then `Browser.getVersion` (`Executor::version`), then the executor stopped.
+fn u710_version_by_the_protocol(browser: &std::path::Path) -> String {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("a runtime");
+    runtime.block_on(async {
+        let relay = halvo_web::relay::Relay::start(halvo_web::relay::Names::System)
+            .await
+            .expect("a relay");
+        let opts = halvo_web::cdp::StartOptions {
+            browser: browser.to_path_buf(),
+            profile: support::scratch("u710-version").join("profile"),
+            headless: true,
+            relay: relay.handle(),
+            guard: halvo_web::guard::GuardProgram {
+                program: std::path::PathBuf::from(support::RUNNER),
+                prefix: Vec::new(),
+            },
+            crash_means: halvo_web::cdp::CrashMeans::Product,
+        };
+        let executor = match halvo_web::cdp::Executor::start(&opts).await {
+            Ok(executor) => executor,
+            Err(failure) => return format!("no start: {}", failure.cause),
+        };
+        let version = executor
+            .version()
+            .await
+            .unwrap_or_else(|fault| format!("no reply: {}", fault.0));
+        let _ = executor.stop().await;
+        version
+    })
+}
+
+/// r3 U7.10, THE PROOF ON A REAL BROWSER (the coordinator's rulings of 2026-11-26, P1, P6, P8, M3 and M5, and of
+/// 07:30Z: both systems), on a hosted runner, in both jobs: a COMPILE of the bill, whose model is the stand-in door,
+/// carries out its paying click on the fixture's form, a POST navigation of the top document. The rule holds that
+/// request at the click's own act; the card is asked; after the test's `allow_once` ONE `POST /charge` reaches the
+/// fixture, with the form's token and amount, the run ends `completed` with the effect `committed`, and the stored
+/// playbook's last step is the effect step. After a `reject_once` no POST reaches it and the run ends `declined`. It
+/// prints the browser's product and version as the browser gives it (on macOS by the program's own `--version`, on
+/// Windows, where that argument prints nothing, by the browser's protocol), and the first request that the door
+/// received, whole.
 #[test]
 fn u710_a_compile_pays_once_at_a_forms_navigation_after_the_yes() {
     let test = "u710_a_compile_pays_once_at_a_forms_navigation_after_the_yes";
-    if cfg!(windows) {
-        say(
-            test,
-            "not run: it starts a real browser, on the hosted macos job alone",
-        );
-        return;
-    }
     let Some(browser) = hosted(test) else {
         return;
     };
-    let version = std::process::Command::new(&browser)
-        .arg("--version")
-        .output()
-        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
-        .unwrap_or_default();
+    let (version, by) = if cfg!(windows) {
+        (u710_version_by_the_protocol(&browser), "Browser.getVersion")
+    } else {
+        let printed = std::process::Command::new(&browser)
+            .arg("--version")
+            .output()
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+            .unwrap_or_default();
+        (printed, "--version")
+    };
     say(
         test,
-        &format!("the browser's product and version: {version}"),
+        &format!("the browser's product and version ({by}): {version}"),
     );
 
     let (seen, fixture, dir) = u710_compile(test, 254, &browser, Answer::AllowOnce);
