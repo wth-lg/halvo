@@ -66,9 +66,9 @@ The limits, which docs/privacy-limits.md states with their sources:
   or ` - Microsoft Edge`, in both also with ` - ` and a profile's name behind the
   browser's own name; the titles of their private and Guest windows, of Chrome's
   isolated windows and of a dialog end otherwise; for Edge the last letter, digit or
-  closing square bracket before the name must not be a closing square bracket. On
+  closing square bracket before the name must be a letter or a digit. On
   Windows, a title of Edge is stored only where it ends with Edge's name and the last
-  letter, digit or closing bracket before the name is not a closing bracket, and a title
+  letter, digit or closing square bracket before the name is not a closing square bracket, and a title
   of Chrome only where the name that Chrome gives the inside of the window ends with
   Chrome's own name, alone or followed by a profile's name,
   where the browser's own toolbar outside the page holds a button named Back,

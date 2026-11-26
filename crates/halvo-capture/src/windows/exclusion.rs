@@ -266,11 +266,12 @@ fn is_invisible_mark(c: char) -> bool {
 }
 
 /// Whether an Edge window text is that of a normal window: it ends with the
-/// bare brand name, and the last letter, digit or closing bracket before the
-/// brand is not a closing bracket. So a text is private where nothing but
-/// characters that are neither letters nor digits (a hyphen, an en dash, a
-/// middle dot, a blank of any kind) stands between a closing bracket, where
-/// the InPrivate marker ends, and the brand. Zero-width characters and marks
+/// bare brand name, and the last letter, digit or closing square bracket (`]`
+/// or U+FF3D) before the brand is not a closing square bracket. So a text is
+/// private where nothing but characters that are neither letters nor digits (a
+/// hyphen, an en dash, a middle dot, a blank of any kind) stands between a
+/// closing square bracket, where the InPrivate marker ends, and the brand; a
+/// round bracket does not count. Zero-width characters and marks
 /// of writing direction count as nothing anywhere in the text, so the match
 /// of the brand tolerates them inside, before and after the brand, and
 /// blanks after it; any other character after the brand fails the match.

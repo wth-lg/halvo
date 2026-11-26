@@ -1015,6 +1015,7 @@ mod tests {
                 Some(host.to_owned()),
                 &["test-model-small"],
                 true,
+                false,
             );
             assert!(read.is_some(), "{starts}");
             assert_eq!(rows.ops(), ["model_key_state", "model_room"]);
