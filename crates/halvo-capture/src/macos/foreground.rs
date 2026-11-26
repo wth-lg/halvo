@@ -1694,6 +1694,60 @@ mod tests {
     }
 
     #[test]
+    fn a_run_end_writes_the_title_of_the_window_in_front_once_more() {
+        use crate::sink::CarryEnd;
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &handle);
+        poller.step(front.clone(), answer(1, read("Budget")), &handle);
+        poller.step(front.clone(), answer(1, read("Budget")), &handle);
+        let at_first = titles(&writer);
+        writer.carry_ended(CarryEnd::Front);
+        poller.step(front.clone(), answer(1, read("Budget")), &handle);
+        let behind_a_foreground_app_record = titles(&writer);
+        writer.carry_ended(CarryEnd::RunEnd);
+        poller.step(front.clone(), answer(1, read("Budget")), &handle);
+        poller.step(front, answer(1, read("Budget")), &handle);
+        let behind_a_run_end = titles(&writer);
+        let once = vec![("Budget".to_string(), "app_change", false)];
+        assert_eq!(
+            (at_first, behind_a_foreground_app_record, behind_a_run_end),
+            (once.clone(), Vec::new(), once),
+            "the title of the window in front at first and read twice, behind a counted \
+             foreground_app record, and behind a counted run end and read twice"
+        );
+        drop(poller);
+    }
+
+    #[test]
+    fn a_title_that_is_left_out_stays_left_out_behind_a_run_end() {
+        use crate::sink::CarryEnd;
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let chrome = app("com.google.Chrome", 40);
+        poller.step(chrome.clone(), Vec::new(), &handle);
+        let long = format!("{} - Google Chrome (Incognito)", "a".repeat(1_100));
+        let (_, own) = window_title::NAME_ENDINGS[0];
+        let private = || {
+            Ok(Some(
+                TitleText::for_test(&long).of_a_browser_kept_by_its_name(own),
+            ))
+        };
+        let left_out = |poller: &Poller| poller.health.left_out_by_the_name.load(Ordering::Relaxed);
+        poller.step(chrome.clone(), answer(1, private()), &handle);
+        poller.step(chrome.clone(), answer(1, private()), &handle);
+        let before_the_run_end = left_out(&poller);
+        writer.carry_ended(CarryEnd::RunEnd);
+        poller.step(chrome, answer(1, private()), &handle);
+        assert_eq!(
+            (titles(&writer), before_the_run_end, left_out(&poller)),
+            (Vec::new(), 1, 2),
+            "the titles written, and the count of titles left out by the browser's name before \
+             the counted run end and behind it, where the private window's title is read again"
+        );
+        drop(poller);
+    }
+
+    #[test]
     fn a_title_asked_before_an_active_reading_and_answered_after_it_is_not_emitted() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);

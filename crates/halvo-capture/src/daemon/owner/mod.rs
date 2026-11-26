@@ -2750,6 +2750,44 @@ mod tests {
 
     #[cfg(all(test, feature = "r2"))]
     #[test]
+    fn the_owner_counts_a_run_end_and_a_foreground_app_record_once_it_holds_them() {
+        let mut harness = Harness::new();
+        let ends = harness.sink.carry_ends();
+        let counted = |ends: &sink::CarryEnds| (ends.run_ends(), ends.fronts());
+        resumed(&mut harness);
+        assert!(matches!(harness.ask(Command::OpenPause), Answer::Paused(_)));
+        let refused = harness
+            .owner
+            .append_run_mark(run_mark(noon(), r#"{"edge":"end"}"#));
+        let while_the_owner_discards = (refused, counted(&ends));
+        resumed(&mut harness);
+        let start = harness
+            .owner
+            .append_run_mark(run_mark(noon(), r#"{"edge":"start"}"#));
+        let at_a_start = (start, counted(&ends));
+        let end = harness
+            .owner
+            .append_run_mark(run_mark(noon(), r#"{"edge":"end"}"#));
+        let at_an_end = (end, counted(&ends));
+        harness.emit(foreground_now());
+        harness.pass();
+        let at_a_foreground_app_record = counted(&ends);
+        assert_eq!(
+            (
+                while_the_owner_discards,
+                at_a_start,
+                at_an_end,
+                at_a_foreground_app_record
+            ),
+            ((false, (0, 0)), (true, (0, 0)), (true, (1, 0)), (1, 1)),
+            "whether the owner took the mark, with the run ends and the foreground_app records \
+             counted: an end mark while the owner discards, a start mark, an end mark, and then \
+             a foreground_app record"
+        );
+    }
+
+    #[cfg(all(test, feature = "r2"))]
+    #[test]
     fn the_entry_refuses_a_run_mark_record_past_the_bound_of_a_failing_drain() {
         let mut harness = Harness::new();
         harness
