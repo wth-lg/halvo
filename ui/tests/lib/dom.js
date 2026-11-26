@@ -2,6 +2,48 @@
 
 const VOID = new Set(["meta", "link", "input", "br", "img", "hr", "source", "wbr"]);
 const RAW = new Set(["script", "style"]);
+
+// A read of a member that an object of this stand-in lacks throws, so that a page file which reads a
+// member that a real document has and this file does not fails its test instead of reading undefined.
+// Each kind of object that this file hands out has a Proxy at the bottom of its own prototype chain: a
+// read of a member that the object has, as its own or by a prototype, never reaches the Proxy. Each Proxy
+// stands on an object of this file; no prototype of the language itself is changed. The reads that
+// allowed() names are answered undefined, each for the reason written beside it.
+const POINTER_TYPES = new Set(["click", "dblclick", "auxclick", "contextmenu", "mousedown", "mouseup", "pointerdown", "pointerup"]);
+const ABSENT_IN_A_REAL_DOCUMENT = {
+  // A real text node has neither, and a real document has no classList; the page tests and page.js read
+  // them to tell an element from a text or from the document.
+  Text: new Set(["localName", "classList"]),
+  Document: new Set(["classList"]),
+};
+
+function allowed(kind, prop, object) {
+  // An index past the end of a list: a real NodeList answers undefined there.
+  if (kind === "list") return /^(0|[1-9][0-9]*)$/.test(prop);
+  // This stand-in lays nothing out, so a press that it makes has no point, where a real engine gives a
+  // number; a point of 0,0 for every press would put each press at the place of the press before it.
+  if (kind === "event") return (prop === "clientX" || prop === "clientY") && POINTER_TYPES.has(object.type);
+  return ABSENT_IN_A_REAL_DOCUMENT[kind] !== undefined && ABSENT_IN_A_REAL_DOCUMENT[kind].has(prop);
+}
+
+function guarded(base, kindOf) {
+  return new Proxy(base, {
+    get(target, prop, receiver) {
+      if (typeof prop === "symbol" || prop in target) return Reflect.get(target, prop, receiver);
+      const kind = kindOf(receiver);
+      if (allowed(kind, prop, receiver)) return undefined;
+      const what = kind === "Element" ? `the element <${receiver.localName}>` : `a ${kind}`;
+      throw new Error(
+        `the stand-in document has no member ${prop} of ${what}: give ui/tests/lib/dom.js the member as a real document has it, or name the read in allowed() there with its reason`,
+      );
+    },
+  });
+}
+
+const LIST = guarded(Object.create(Array.prototype), () => "list");
+const asList = (array) => Object.setPrototypeOf(array, LIST);
+const STYLE = guarded({}, () => "style");
+const EVENT = guarded({}, () => "event");
 const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", mdash: "—", ndash: "–" };
 
 function decode(text) {
@@ -18,7 +60,7 @@ class Node {
   constructor(document) {
     this.ownerDocument = document;
     this.parentNode = null;
-    this.childNodes = [];
+    this.childNodes = asList([]);
   }
   get parentElement() {
     return this.parentNode instanceof Element ? this.parentNode : null;
@@ -68,7 +110,7 @@ class Node {
     return false;
   }
   get children() {
-    return this.childNodes.filter((n) => n instanceof Element);
+    return asList(this.childNodes.filter((n) => n instanceof Element));
   }
   get firstElementChild() {
     return this.children[0] ?? null;
@@ -88,7 +130,7 @@ class Node {
   }
   querySelectorAll(selector) {
     const match = compile(selector);
-    return [...this.elements()].filter(match);
+    return asList([...this.elements()].filter(match));
   }
   querySelector(selector) {
     return this.querySelectorAll(selector)[0] ?? null;
@@ -145,12 +187,13 @@ class Element extends Node {
     this.localName = tag.toLowerCase();
     this.attributes = new Map();
     this.listeners = new Map();
-    this.style = {};
+    this.style = Object.create(STYLE);
     this.classList = new ClassList(this);
     this.onclick = null;
     this.oninput = null;
     this.onchange = null;
     this._value = null;
+    this._checked = null;
   }
   getAttribute(name) {
     return this.attributes.has(name) ? this.attributes.get(name) : null;
@@ -180,13 +223,13 @@ class Element extends Node {
     if (i >= 0) list.splice(i, 1);
   }
   dispatchEvent(event) {
-    event.target = event.target || this;
+    event.target = ("target" in event && event.target) || this;
     const results = [];
     for (let node = this; node && !event.stopped; node = node.parentNode) {
       if (!(node instanceof Element)) break;
       event.currentTarget = node;
       for (const fn of [...(node.listeners.get(event.type) || [])]) results.push(fn.call(node, event));
-      const own = node["on" + event.type];
+      const own = "on" + event.type in node ? node["on" + event.type] : undefined;
       if (typeof own === "function") results.push(own.call(node, event));
     }
     return Promise.all(results.map((r) => Promise.resolve(r)));
@@ -201,7 +244,7 @@ class Element extends Node {
     return this.dispatchEvent(makeEvent("click", { detail: 1, ...init }));
   }
   getBoundingClientRect() {
-    const r = this.rect || { left: 0, top: 0, width: 0, height: 0 };
+    const r = ("rect" in this && this.rect) || { left: 0, top: 0, width: 0, height: 0 };
     return { left: r.left, top: r.top, width: r.width, height: r.height, right: r.left + r.width, bottom: r.top + r.height, x: r.left, y: r.top };
   }
   focus() {
@@ -215,6 +258,18 @@ class Element extends Node {
     for (let n = this; n instanceof Element; n = n.parentNode) if (match(n)) return n;
     return null;
   }
+  // The checkedness of an input, as a real one has it: what a write set, else whether the element
+  // has the attribute checked. Unlike a real radio, a write does not uncheck the other radios of
+  // its group.
+  get checked() {
+    if (this.localName !== "input") return undefined;
+    return this._checked ?? this.hasAttribute("checked");
+  }
+  set checked(v) {
+    this._checked = Boolean(v);
+  }
+  // Nothing is laid out here, so there is nothing to scroll.
+  scrollIntoView() {}
   get isConnected() {
     return this.ownerDocument.documentElement.contains(this);
   }
@@ -243,7 +298,7 @@ for (const prop of BOOLEAN) {
 }
 
 function makeEvent(type, init = {}) {
-  return {
+  return Object.assign(Object.create(EVENT), {
     type,
     detail: 0,
     ...init,
@@ -255,7 +310,7 @@ function makeEvent(type, init = {}) {
     preventDefault() {
       this.defaultPrevented = true;
     },
-  };
+  });
 }
 
 function compile(selector) {
@@ -314,10 +369,13 @@ class Document extends Node {
     if (i >= 0) list.splice(i, 1);
   }
   dispatchEvent(event) {
-    event.target = event.target || this;
+    event.target = ("target" in event && event.target) || this;
     for (const fn of [...(this.listeners.get(event.type) || [])]) fn.call(this, event);
   }
 }
+
+Object.setPrototypeOf(Node.prototype, guarded({}, (node) => (node instanceof Document ? "Document" : node instanceof Element ? "Element" : "Text")));
+Object.setPrototypeOf(ClassList.prototype, guarded({}, () => "classList"));
 
 function parse(html) {
   const document = new Document();
