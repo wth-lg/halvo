@@ -262,3 +262,40 @@ test("a_second_press_of_save_behind_the_reply_sends_nothing_until_a_text_is_type
   await page.click("model-key-save");
   assert.deepEqual(page.calls("save_model_key").map((c) => c.args), [{ key: "Zq7Wx9Kp2Vm4Jt8Rb5" }, { key: "Hn3Lc6Yf1Qs0Dg7Ue2" }]);
 });
+
+test("a_key_line_that_cannot_tell_asks_again_by_itself_and_then_no_more", async () => {
+  const asksAt = (page) => page.calls("model_key_state").map((c) => c.at);
+
+  const never = await pageAt("not_known");
+  await never.clock.advance(100000);
+  assert.deepEqual(asksAt(never), [0, 1000, 3000, 7000, 15000, 31000], "the ask of the load, five further asks behind their waits, and none behind the row");
+  assert.equal(never.text("model-key-state"), STATE.not_known);
+
+  const states = ["not_known", "not_known", "saved"];
+  const page = await openPage({ replies: { model_key_state: () => stateOf(states.length > 1 ? states.shift() : states[0]) } });
+  await page.type("model-key-field", "Zq7Wx9Kp2Vm4Jt8Rb5");
+  await page.clock.advance(999);
+  assert.deepEqual(asksAt(page), [0], "no ask before the first wait ends");
+  await page.clock.advance(2001);
+  assert.deepEqual(asksAt(page), [0, 1000, 3000]);
+  assert.equal(page.text("model-key-state"), STATE.saved, "the answer of the third ask is drawn");
+  assert.equal(page.visible("model-key-remove"), true);
+  assert.equal(page.byId("model-key-field").value, "Zq7Wx9Kp2Vm4Jt8Rb5", "the asks leave a typed text in the field");
+  await page.clock.advance(100000);
+  assert.deepEqual(asksAt(page), [0, 1000, 3000], "a line that can tell asks no more by itself");
+
+  const hidden = await pageAt("not_known");
+  await hidden.clock.advance(1000);
+  await hidden.hide();
+  await hidden.clock.advance(100000);
+  assert.deepEqual(asksAt(hidden), [0, 1000], "a hidden window asks nothing");
+  hidden.document.visibilityState = "visible";
+  hidden.window.Halvo.views.window("shown");
+  await hidden.settle();
+  await hidden.clock.advance(100000);
+  assert.deepEqual(asksAt(hidden), [0, 1000, 101000, 102000, 104000, 108000, 116000, 132000], "a showing asks and begins the row anew");
+
+  const loadedHidden = await openPage({ visibility: "hidden", replies: { model_key_state: () => stateOf("not_known") } });
+  await loadedHidden.clock.advance(100000);
+  assert.deepEqual(asksAt(loadedHidden), [0], "a page that loaded while the window was hidden asks at its load alone");
+});

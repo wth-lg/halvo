@@ -197,3 +197,54 @@ test("the_control_sends_nothing_while_the_field_is_empty_or_a_command_is_in_flig
   assert.equal(page.text("model-limit-said"), "Halvo could not finish this. Choose Set the limit again.");
   assert.equal(state.waiting.length, 1, "a failed set reads the state again");
 });
+
+test("a_limit_part_that_cannot_tell_asks_again_by_itself_and_then_no_more", async () => {
+  const asksAt = (page) => page.calls("model_limit_state").map((c) => c.at);
+  const away = stateOf("not_known", { cap: null, spent: null, held: null, period_end_ms: null });
+  const sentence = "Halvo cannot tell just now what it has counted.";
+
+  const never = await pageAt(away);
+  const line = never.byId("model-limit-not-known");
+  await never.clock.advance(100000);
+  assert.deepEqual(asksAt(never), [0, 1000, 3000, 7000, 15000, 31000], "the ask of the mount, five further asks behind their waits, and none behind the row");
+  assert.deepEqual(shownLines(never), [sentence]);
+  assert.equal(never.byId("model-limit-not-known"), line, "an answer that finds the part as it stood builds no line anew");
+
+  const states = [stateOf("ok"), away, away, stateOf("ok", { cap: "25.00 USD" })];
+  const page = await pageAt(() => (states.length > 1 ? states.shift() : states[0]), { set_model_limit: () => ({ error: "failed" }) });
+  await page.type("model-limit-field", "25");
+  await page.click("model-limit-set");
+  assert.deepEqual(shownLines(page), [sentence], "behind a press that failed");
+  await page.clock.advance(999);
+  assert.deepEqual(asksAt(page), [0, 0], "no ask before the first wait ends");
+  await page.clock.advance(2001);
+  assert.deepEqual(asksAt(page), [0, 0, 1000, 3000]);
+  assert.equal(page.text("model-limit-limit"), "Limit: 25.00 USD a month.", "the answer of the second further ask is drawn");
+  assert.equal(page.visible("model-limit-control"), true, "the control is back");
+  assert.equal(page.byId("model-limit-field").value, "25", "the asks leave a typed text in the field");
+  assert.equal(page.byId("model-limit-set").disabled, false);
+  await page.clock.advance(100000);
+  assert.deepEqual(asksAt(page), [0, 0, 1000, 3000], "a part that can tell asks no more by itself");
+  page.window.Halvo.views.window("shown");
+  await page.settle();
+  assert.deepEqual(asksAt(page), [0, 0, 1000, 3000], "a part that can tell asks nothing at a showing");
+
+  const hidden = await pageAt(away);
+  await hidden.clock.advance(1000);
+  await hidden.hide();
+  await hidden.clock.advance(100000);
+  assert.deepEqual(asksAt(hidden), [0, 1000], "a hidden window asks nothing");
+  hidden.document.visibilityState = "visible";
+  hidden.window.Halvo.views.window("shown");
+  await hidden.settle();
+  await hidden.clock.advance(100000);
+  assert.deepEqual(asksAt(hidden), [0, 1000, 101000, 102000, 104000, 108000, 116000, 132000], "a showing asks and begins the row anew");
+
+  const loadedHidden = await openPage({
+    visibility: "hidden",
+    replies: { model_key_state: () => ({ host: HOST, state: "none" }), model_limit_state: () => away },
+    timezoneOffset: OFFSET,
+  });
+  await loadedHidden.clock.advance(100000);
+  assert.deepEqual(asksAt(loadedHidden), [0], "a page that loaded while the window was hidden asks at its mount alone");
+});
