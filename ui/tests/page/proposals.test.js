@@ -289,3 +289,17 @@ test("r4 U3.39: the error line that a list read wrote goes when that read succee
   await page.clock.fire(15000);
   assert.equal(page.text("error"), "The request failed.", "a line that a press wrote stays");
 });
+
+test("r4 U3.39: a success and then a failure of the stored list's read while armed leave the failure's line at the disarm", async () => {
+  let inventory = () => fixture("inventory-empty");
+  const page = await openPage({ replies: { inventory: () => inventory() } });
+  assert.equal(page.text("error"), "");
+  await page.click("delete", { detail: 0 });
+  inventory = () => fixture("inventory-two-rows-one-day");
+  await page.clock.fire(15000);
+  inventory = noAnswer;
+  await page.clock.fire(15000);
+  assert.equal(page.text("error"), "", "armed");
+  await page.click("cancel-delete");
+  assert.equal(page.text("error"), NO_ANSWER, "behind the disarm");
+});
