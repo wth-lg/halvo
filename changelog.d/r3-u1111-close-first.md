@@ -1,0 +1,2 @@
+- Changed: (agents run, U11.11) The row of a spreadsheet agent that offers "Start now" says "Close the spreadsheet file in other programs before this agent starts." Before, Halvo said so only behind a run that could not save the file.
+- Added: (agents run, U11.11) The card of a spreadsheet agent says that Halvo saves a copy of the spreadsheet file as it was before the agent changes it, in the same folder and with halvo-checkpoint in its name.
