@@ -1,0 +1,1 @@
+- Fixed: (interface run, U3.40) When a set-up card that holds the keyboard focus goes, the focus moves to the heading of the next card, or of the nearest card above where none follows.

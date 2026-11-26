@@ -20,6 +20,7 @@
   let choosing = false;
   const underWay = new Set();
   let saidCount = 0;
+  let handed = null;
 
   function fresh() {
     serial += 1;
@@ -733,6 +734,10 @@
       now.set(keys[i], asHeld(item));
       coming.set(keys[i], item);
     });
+    const was = Array.from(cards.values());
+    const left = was.filter(function (card) {
+      return !now.has(card.key) && !card.dialog && card.li.contains(document.activeElement);
+    })[0];
     const carried = new Map();
     Array.from(cards.keys()).forEach(function (key) {
       if (now.get(key) === cards.get(key).json) return;
@@ -758,7 +763,35 @@
       next.set(keys[i], card);
     });
     cards = next;
+    if (left) handOn(was, left);
     openNext();
+  }
+
+  /** The focus of a card that held it and left the list goes on by the chain of I9.2: to the heading of the next card
+   * below the place where the card stood, else of the nearest card above, else to the list, which the view owns. The
+   * place is after the last card that stood above the card and stays; a card with no heading is passed over. A page
+   * confirmation is not handed on here: its dialog gives the focus back when it closes. */
+  function handOn(was, left) {
+    const above = new Set(was.slice(0, was.indexOf(left)).map(function (card) {
+      return card.key;
+    }));
+    const order = Array.from(cards.values());
+    let place = 0;
+    order.forEach(function (card, i) {
+      if (above.has(card.key)) place = i + 1;
+    });
+    const to = order.slice(place).concat(order.slice(0, place).reverse()).filter(function (card) {
+      return card.heading;
+    })[0];
+    handed = to ? to.heading : null;
+    if (to) {
+      to.heading.focus();
+      return;
+    }
+    const named = root.parentNode && root.parentNode.getAttribute('aria-labelledby');
+    if (named) list.setAttribute('aria-labelledby', named);
+    list.setAttribute('tabindex', '-1');
+    list.focus();
   }
 
   function cardsOf(id) {
@@ -771,9 +804,12 @@
       });
   }
 
+  /** Whether the focus stands in a card of the item. A heading that holds the focus because handOn gave it does not
+   * count, so that a card that came in the reply that took a focused card away is still said as new. */
   function holdsFocus(id) {
-    return cardsOf(id).some(function (card) {
-      return card.li.contains(document.activeElement);
+    const at = document.activeElement;
+    return at !== handed && cardsOf(id).some(function (card) {
+      return card.li.contains(at);
     });
   }
 
