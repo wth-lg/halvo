@@ -70,6 +70,7 @@ tool tools/fixture-server/package.json
 tool tools/r2-probes/Cargo.toml
 tool tools/r2-probes/input/package.json
 tool tools/r3-trials/drive/Cargo.toml
+tool tools/r3-trials/forms/Cargo.toml
 tool tools/r3-trials/model/Cargo.toml
 tool tools/r3-trials/profile/Cargo.toml
 tool tools/r3-trials/sheet/Cargo.toml

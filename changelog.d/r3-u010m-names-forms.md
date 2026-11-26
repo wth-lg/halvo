@@ -1,0 +1,1 @@
+- Fixed: (agents run, U0.10) Check 62-build names the manifest tools/r3-trials/forms/Cargo.toml with its reason; since that manifest came onto main, the check stopped before its build.

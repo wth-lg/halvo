@@ -1,0 +1,1 @@
+- Fixed: (capture run, r1 between-lives) Where Halvo's capture service starts again by itself after you give Halvo a permission or turn "Record typing" on, Halvo's page no longer says "Capture service not running" or "Halvo is not recording. Press Start to record." in that moment: it says "Connecting to Halvo's capture service" and offers no press.

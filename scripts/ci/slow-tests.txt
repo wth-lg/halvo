@@ -29,7 +29,8 @@
 # The groups: A the unit tests of halvo-sqlcipher and the seam's target set_reader (the slice mon); B
 # the test targets of halvo-agent-client and halvo-agent-gate, two targets by name and the unit tests
 # of two packages (tue); C the name
-# parts of halvo-capture's unit tests and the doc-tests (fri in the macos job, fri in the windows job);
+# parts of halvo-capture's unit tests, one name part of the unit tests of the app's package halvo,
+# and the doc-tests (fri in the macos job, fri in the windows job);
 # D the test targets of four more packages and eight targets by name (sat); E the one target
 # macos_stall_fixture (wed in the macos job, before 51-macos-stall, which reads from 12-test's list
 # that the launch-path test of that target ran; no windows slice runs it, where every test of it is
@@ -124,6 +125,7 @@ test store::hardening_tests::a_kill_before_each_file_system_call_of_each_operati
 test store::hardening_tests::page_gap_probe C halvo-capture 2 s macos, 26 s windows
 test windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through C halvo-capture 12 s windows
 test windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own C halvo-capture 9 s windows
+test an_install_that_fails_twice_and_then_stands C halvo 6 s macos on a development Mac by hand, the windows job not read; it waits for the tray's tries, 2 s apart (r1 indicator-again)
 test daemon::owner_props H halvo-capture macos 8 s macos in the run 45111386498, 8 tests; the windows gate runs all 8, so no slice runs them on a Mac (r8 cut-2 rule R4)
 test daemon::supervisor::tests::a_turn_of_the_search_is_kept_in_the_state_file_and_while_it_is_off_no_worker_may_run H halvo-capture macos 0.00 s on a Mac by hand, 1 test (r2 search-switch); its code is the same on both systems, so the windows gate runs it
 doc-tests C 12 s macos after a build of 29 s, in the push run 44893237714
