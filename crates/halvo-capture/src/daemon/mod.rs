@@ -2674,6 +2674,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     let mut delete_ends = false;
     let mut delete_written = None;
     let mut reset_written = None;
+    let mut taken_behind_its_end = false;
     #[cfg(test)]
     let mut wrap_store = parts.wrap_store;
     loop {
@@ -2682,7 +2683,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             break;
         }
         let opening = matches!(store, HeldStore::None)
-            && opener.as_ref().is_some_and(owner::open::Opener::is_running);
+            && opener
+                .as_ref()
+                .is_some_and(|opener| opener.is_running() || !taken_behind_its_end);
         let window = match (dir_shut, opening, mark) {
             (Some(shut), _, _) => shut.left().clamp(owner::POLL, SERVICE_WAIT),
             (None, true, _) => owner::POLL,
@@ -2723,6 +2726,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 }
             }
             Waited::Delete(asked) => {
+                taken_behind_its_end = false;
                 match delete_on_request(
                     asked,
                     &mut supervisor,
@@ -2813,6 +2817,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                         opener = open_after_the_check(&mut supervisor, || {
                             start_the_opener(dir, rule, err)
                         });
+                        taken_behind_its_end = false;
                         None
                     }
                     Ok(_) | Err(_) => Some(shut.again()),
@@ -2831,7 +2836,10 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         if let HeldStore::Maintenance(upkeep) = &mut store {
             upkeep.turn();
         }
-        let Some(held) = opener.as_ref().and_then(owner::open::Opener::take) else {
+        let ended = opener.as_ref().is_some_and(|opener| !opener.is_running());
+        let held = opener.as_ref().and_then(owner::open::Opener::take);
+        taken_behind_its_end = ended;
+        let Some(held) = held else {
             if opener.as_ref().is_some_and(made_none) {
                 delete_written = answer_the_delete(&mut deleted, None).or(delete_written);
             }
