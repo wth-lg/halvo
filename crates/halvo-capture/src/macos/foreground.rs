@@ -879,6 +879,7 @@ struct Poller {
     change: u64,
     last_title: Option<String>,
     titled: bool,
+    run_ends: u64,
     health: Arc<TitleHealth>,
     floor: FloorHandle,
     probe: SystemProbe,
@@ -893,6 +894,7 @@ impl Poller {
             change: 0,
             last_title: None,
             titled: false,
+            run_ends: 0,
             health,
             floor: FloorHandle::default(),
             probe: SystemProbe::new(),
@@ -982,12 +984,22 @@ impl Poller {
         ));
     }
 
+    /// One step of the poller. Where the sink has counted the end mark of an
+    /// agent's run since the last step, the memory of the last title ends as
+    /// at a change of the app in front, so that the title of the window in
+    /// front is written once more, behind that mark.
     fn step(
         &mut self,
         reading: Option<Foreground>,
         answers: Vec<TitleAnswer>,
         sink: &SinkHandle,
     ) -> Option<TitleRequest> {
+        let run_ends = sink.carry_ends().run_ends();
+        if self.run_ends != run_ends {
+            self.run_ends = run_ends;
+            self.last_title = None;
+            self.titled = false;
+        }
         for answer in answers {
             self.take_answer(answer, sink);
         }

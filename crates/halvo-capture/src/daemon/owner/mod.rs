@@ -19,7 +19,7 @@ use super::maintenance::{Clocks, Instants, Job, Schedule};
 use super::port::{ByteBound, CaptureStore, EntryKind, MaintFault, WriteFault, PAYLOAD_MAX_BYTES};
 use crate::floor::exclude::FloorHandle;
 use crate::floor::record;
-use crate::sink::{Barrier, Received, SinkWriter};
+use crate::sink::{Barrier, CarryEnd, Received, SinkWriter};
 
 mod commands;
 pub mod open;
@@ -400,11 +400,20 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             return false;
         };
         self.counters.received(EntryKind::RUN_MARK);
-        self.hold(
+        let ends_a_run = matches!(
+            decoded.payload(),
+            record::DecodedPayload::RunMark(p)
+                if p.get("edge").and_then(serde_json::Value::as_str)
+                    == Some(halvo_control::r2::RunEdge::End.as_str())
+        );
+        let placed = self.hold(
             EntryKind::RUN_MARK,
             decoded.at(),
             encoded.as_str().as_bytes(),
         );
+        if placed && ends_a_run {
+            self.writer.carry_ended(CarryEnd::RunEnd);
+        }
         true
     }
 
@@ -568,39 +577,52 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             return;
         };
         let kind = EntryKind::of(received.event().kind());
-        self.hold(kind, received.event().at(), encoded.as_str().as_bytes());
+        let front = received.event().kind() == crate::event::Modality::ForegroundApp;
+        if self.hold(kind, received.event().at(), encoded.as_str().as_bytes()) && front {
+            self.writer.carry_ended(CarryEnd::Front);
+        }
     }
 
-    fn hold(&mut self, kind: EntryKind, at: i64, record: &[u8]) {
+    /// Places `record` in the stream, in the batch that the owner fills or in
+    /// the spill behind it: whether it was placed. A record that neither can
+    /// take is counted as lost.
+    fn hold(&mut self, kind: EntryKind, at: i64, record: &[u8]) -> bool {
         let now = self.clocks.now();
         while !self.frozen && !self.spill.is_empty() {
             self.flush(now);
         }
         if self.frozen || !self.spill.is_empty() {
-            self.spill_or_lose(kind, at, record);
-            return;
+            return self.spill_or_lose(kind, at, record);
         }
         let day = utc_day(at);
         match self.batch.admits(day, record.len()) {
-            Admit::Fits => self.batch.push(kind, at, record, now.monotonic),
-            Admit::TooLarge => self.counters.lost(1, at, at),
+            Admit::Fits => {
+                self.batch.push(kind, at, record, now.monotonic);
+                true
+            }
+            Admit::TooLarge => {
+                self.counters.lost(1, at, at);
+                false
+            }
             Admit::FlushFirst => {
                 self.flush(now);
                 if self.frozen {
-                    self.spill_or_lose(kind, at, record);
+                    self.spill_or_lose(kind, at, record)
                 } else {
-                    self.hold(kind, at, record);
+                    self.hold(kind, at, record)
                 }
             }
         }
     }
 
-    fn spill_or_lose(&mut self, kind: EntryKind, at: i64, record: &[u8]) {
+    /// Places `record` in the spill: whether it was placed. A record past the
+    /// spill's bound is counted as lost.
+    fn spill_or_lose(&mut self, kind: EntryKind, at: i64, record: &[u8]) -> bool {
         let events = self.batch.events() + self.spill.len() + 1;
         let bytes = self.batch.record_bytes() + self.spill_bytes + record.len() + 1;
         if events > HELD_MAX_EVENTS || bytes > HELD_MAX_BYTES {
             self.counters.lost(1, at, at);
-            return;
+            return false;
         }
         let mut copy = SpilledRecord(Vec::with_capacity(record.len()));
         copy.0.extend_from_slice(record);
@@ -610,6 +632,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             at,
             record: copy,
         });
+        true
     }
 
     fn pending(&self) -> u64 {

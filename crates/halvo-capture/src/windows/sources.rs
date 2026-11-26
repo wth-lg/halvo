@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use halvo_control::proto::SourceName;
 
-use super::foreground::{ForegroundAppSource, FrontChanges};
+use super::foreground::ForegroundAppSource;
 use super::input::{GateCounts, RawInputSource};
 use super::screen::ScreenSource;
 use super::window_title::WindowTitleSource;
@@ -33,12 +33,6 @@ use crate::source::{
 /// through it. The set keeps one set of counts for the run, which its
 /// keyboard source writes and its figures read.
 ///
-/// The set holds one count of the changes of the program in front. Its
-/// foreground source adds to it where it hands out a `foreground_app` record,
-/// and its window_title source reads it: behind such a change the memory of
-/// that source's last decision ends, and the next title that it decides is
-/// new, also where the window and its text are those of that decision.
-///
 /// The set makes one screen source, at its first make of the name; every make
 /// behind it gives a spent source that starts nothing, so that a process
 /// holds at most one screen session (form B of contracts.md C14.3). The spent
@@ -47,7 +41,6 @@ use crate::source::{
 #[derive(Default)]
 pub struct ServiceSet {
     last_app: Arc<Mutex<Option<String>>>,
-    front: FrontChanges,
     hold: Arc<GateHold>,
     counts: Arc<GateCounts>,
     typing_holders: Arc<AtomicUsize>,
@@ -373,15 +366,11 @@ impl CaptureSource for SpentScreen {
 impl SourceFactory for ServiceSet {
     fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
         match name {
-            SourceName::Foreground => Some(Box::new(
-                ForegroundAppSource::new().with_front_changes(self.front.clone()),
-            )),
+            SourceName::Foreground => Some(Box::new(ForegroundAppSource::new())),
             SourceName::Pointer => Some(Box::new(RawInputSource::pointer(Arc::clone(
                 &self.last_app,
             )))),
-            SourceName::WindowTitle => Some(Box::new(
-                self.gated_title(WindowTitleSource::new().with_front_changes(self.front.clone())),
-            )),
+            SourceName::WindowTitle => Some(Box::new(self.gated_title(WindowTitleSource::new()))),
             SourceName::Screen => Some(self.screen()),
             SourceName::Keyboard if self.typing_on() => Some(Box::new(self.gated_keyboard())),
             SourceName::Keyboard

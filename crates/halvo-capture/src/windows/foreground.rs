@@ -1,6 +1,5 @@
 //! Foreground-application capture via `SetWinEventHook`.
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::event::{EventClock, FloorEvent};
@@ -119,40 +118,12 @@ pub(crate) struct Change {
     pub(crate) read_title: bool,
 }
 
-/// The count of the changes of the program in front that a foreground
-/// source has seen: its tracker adds one where it hands out a
-/// `foreground_app` record to be written. A service set gives one count to
-/// its foreground source and to its window_title source, whose memory of the
-/// last title ends where the count has moved.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct FrontChanges(Arc<AtomicU64>);
-
-impl FrontChanges {
-    fn add(&self) {
-        self.0.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// The count as it stands.
-    pub(crate) fn seen(&self) -> u64 {
-        self.0.load(Ordering::Relaxed)
-    }
-}
-
 #[derive(Debug, Default)]
 pub(crate) struct FrontTracker {
     last_pid: Option<u32>,
-    changes: FrontChanges,
 }
 
 impl FrontTracker {
-    /// A tracker that adds each change of the program in front to `changes`.
-    pub(crate) fn counting(changes: FrontChanges) -> FrontTracker {
-        FrontTracker {
-            last_pid: None,
-            changes,
-        }
-    }
-
     pub(crate) fn on_window<W>(
         &mut self,
         cell: &Mutex<Option<String>>,
@@ -176,7 +147,6 @@ impl FrontTracker {
             };
         }
         self.last_pid = Some(front.pid);
-        self.changes.add();
         Change {
             emit: Some(front),
             read_title: true,
@@ -256,7 +226,6 @@ pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
     drops: Arc<DropCounts>,
-    changes: FrontChanges,
     installer: HookInstaller,
     remover: HookRemover,
 }
@@ -267,17 +236,9 @@ impl ForegroundAppSource {
             last_app: Arc::new(Mutex::new(None)),
             life: Lifecycle::default(),
             drops: Arc::default(),
-            changes: FrontChanges::default(),
             installer: set_win_event_hook,
             remover: unhook_win_event,
         }
-    }
-
-    /// A foreground source that adds each change of the program in front to
-    /// `changes`, the count of a service set.
-    pub(crate) fn with_front_changes(mut self, changes: FrontChanges) -> Self {
-        self.changes = changes;
-        self
     }
 
     #[cfg(test)]
@@ -531,14 +492,13 @@ impl CaptureSource for ForegroundAppSource {
         let installer = self.installer;
         let remover = self.remover;
         let floor = Floor::new(ctx.floor().clone(), Arc::clone(&self.drops));
-        let changes = self.changes.clone();
         self.life
             .begin(&ctx, "halvo-foreground-forward", move |producer| {
                 let state = ForegroundState {
                     producer,
                     floor,
                     last_app,
-                    tracker: FrontTracker::counting(changes),
+                    tracker: FrontTracker::default(),
                 };
                 super::spawn_pump("halvo-foreground".to_string(), move |ready, signal| {
                     run_foreground_hook(state, (installer, remover), ready, &signal)
