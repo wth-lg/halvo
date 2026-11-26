@@ -2877,6 +2877,167 @@ async function armedAlone(origin, dir) {
 
 const FEATURES = join(ROOT, 'docs', 'r4', 'page-features.txt');
 
+/** The page's own sentences, read from ui/app/words.js as the page reads them. */
+function pageWords() {
+  const context = {};
+  context.window = context;
+  vm.createContext(context);
+  vm.runInContext(readFileSync(join(ROOT, 'ui', 'app', 'words.js'), 'utf8'), context);
+  return context.Halvo.words;
+}
+
+/** r4 U3.35: while the first call of a press of Use these answers waits for its reply, the card shows
+ * the line of CARD_WAITS directly below its row of buttons and the view's status region says it once;
+ * Use these answers, Not now and Choose a file carry aria-disabled="true" with the line as their
+ * description and look dimmed, the choices and the typed line carry no mark, and the focus stays on
+ * the pressed button, pressed as a keyboard presses it (a click of detail 0, which moves no focus);
+ * at the last reply the line and the marks go and the region says nothing more. */
+async function waits(origin, dir) {
+  const faults = [];
+  const setup = JSON.parse(JSON.stringify(stateFile(dir, 'setup_three').snapshot.items[0]));
+  const typed = setup.params.find((p) => p.typed === 'yes');
+  if (!typed) return ['fixture_setup_three'];
+  typed.choose = words()['param_typed.choose'];
+  const text = pageWords().CARD_WAITS;
+  const [first, ...rest] = plan(setup, setup.choices.find((c) => c.choice === 'choose')).calls;
+  const out = outDir();
+  const h = await open({
+    origin,
+    replies: [{ state: snap(1, [setup]) }, { ...first, hold: true }, ...rest.map((c) => ({ ...c, reply: { ok: 'yes' } }))],
+    views: [CONFIRM, VIEW],
+    out,
+  });
+  const look = () =>
+    h.page.evaluate((acts) => {
+      const card = document.querySelector('#views .hn-item');
+      const next = card.querySelector('.hn-controls').nextElementSibling;
+      const line = next && next.tagName === 'P' ? next : null;
+      const box = line ? line.getBoundingClientRect() : null;
+      const of = (act) => {
+        const b = card.querySelector('[data-act="' + act + '"]');
+        return { disabled: b.getAttribute('aria-disabled'), described: b.getAttribute('aria-describedby'), opacity: getComputedStyle(b).opacity, off: b.disabled };
+      };
+      const plain = [...card.querySelectorAll('[data-act="candidate"], [data-act="typed"]')].filter((e) => e.hasAttribute('aria-disabled')).length;
+      return {
+        line: line ? { text: line.textContent, id: line.id, shown: box.width > 0 && box.height > 0 } : null,
+        marks: Object.fromEntries(acts.map((a) => [a, of(a)])),
+        plain,
+        focus: document.activeElement ? document.activeElement.getAttribute('data-act') : null,
+        said: [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent),
+      };
+    }, ['choose', 'none', 'choose_file']);
+  try {
+    for (const a of prepare(setup)) await act(h, a);
+    const before = await look();
+    const press = h.page.locator(sel('choose', setup.item));
+    await press.focus();
+    await press.evaluate((b) => b.click());
+    await waitCalls(h, out, 1);
+    const during = await look();
+    if (callsOf(out).length !== 1) faults.push('calls_while_held=' + callsOf(out).length);
+    if (!during.line) faults.push('no_line_below_the_buttons');
+    else {
+      if (during.line.text !== text) faults.push('line_text');
+      if (!during.line.shown) faults.push('line_not_rendered');
+      if (!during.line.id) faults.push('line_no_id');
+    }
+    for (const [a, m] of Object.entries(during.marks)) {
+      if (m.disabled !== 'true') faults.push(a + ':not_marked');
+      if (!during.line || m.described !== during.line.id) faults.push(a + ':not_described_by_the_line');
+      if (m.off) faults.push(a + ':disabled_property');
+      if (!(Number(m.opacity) < Number(before.marks[a].opacity))) faults.push(a + ':not_dimmed=' + m.opacity + ':before=' + before.marks[a].opacity);
+    }
+    if (during.plain !== 0) faults.push('choices_or_line_marked=' + during.plain);
+    if (during.focus !== 'choose') faults.push('focus_left_the_pressed_button=' + during.focus);
+    if (during.said.join('|') !== text) faults.push('region_said=' + during.said.join('|'));
+    h.held.shift()({ ok: 'yes' });
+    await waitCalls(h, out, 1 + rest.length);
+    const after = await look();
+    if (after.line) faults.push('line_stays_after_the_reply');
+    for (const [a, m] of Object.entries(after.marks)) {
+      if (m.disabled !== null || m.described !== null) faults.push(a + ':marked_after_the_reply');
+      if (m.opacity !== before.marks[a].opacity) faults.push(a + ':dimmed_after_the_reply');
+    }
+    if (after.said.join('|') !== during.said.join('|')) faults.push('region_said_at_the_end=' + after.said.join('|'));
+  } catch (err) {
+    faults.push('throws:' + ((err && err.message) || err).toString().slice(0, 80).replace(/\s+/g, '_'));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
+/** r4 U3.35: a question that a next snapshot draws anew in place keeps the cursor in its own line or
+ * list: in the new typed line with its text and caret where the old one held the focus, and on the
+ * choice of the same value where a choice of its list held it; never on the card's heading. */
+async function cursor(origin, dir) {
+  const faults = [];
+  const setup = stateFile(dir, 'test_setup').snapshot.items[0];
+  const line = setup.params.find((p) => p.typed === 'yes' && p.candidates.length === 0);
+  const list = setup.params.find((p) => p.candidates.length > 1);
+  if (!line || !list) return ['fixture_test_setup'];
+  const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
+  const turned = (name) => {
+    const copy = JSON.parse(JSON.stringify(setup));
+    copy.params.find((p) => p.name === name).hint = words()['param_hint.range'];
+    return copy;
+  };
+  const focusNow = (h) =>
+    h.page.evaluate(() => {
+      const e = document.activeElement;
+      return {
+        act: e ? e.getAttribute('data-act') : null,
+        param: e ? e.getAttribute('data-param') : null,
+        n: e ? e.getAttribute('data-n') : null,
+        old: Boolean(e && e.__old),
+        value: e && e.tagName === 'INPUT' && e.type === 'text' ? e.value : null,
+        caret: e && e.tagName === 'INPUT' && e.type === 'text' ? [e.selectionStart, e.selectionEnd] : null,
+        tag: e ? e.tagName : null,
+      };
+    });
+  const redraw = async (h, name) => {
+    await h.page.evaluate((agent) => window.Halvo.ipc.call('agents_card', { agent }), gate.args.agent);
+    await settled(h);
+    await frames(h);
+    const drawn = await h.page.evaluate((n) => Boolean(document.querySelector('[data-param="' + n + '"]')) && !document.querySelector('[data-param="' + n + '"]').__old, name);
+    if (!drawn) faults.push(name + ':not_drawn_anew');
+  };
+  let h = await open({ origin, replies: [{ state: snap(1, [setup]) }, gate, { state: snap(2, [turned(line.name)]) }], views: [CONFIRM, VIEW] });
+  try {
+    await act(h, { act: 'typed', param: line.name, text: TYPED });
+    await h.page.evaluate(([s, name]) => {
+      for (const e of document.querySelectorAll('[data-param="' + name + '"]')) e.__old = true;
+      const e = document.querySelector(s);
+      e.focus();
+      e.setSelectionRange(2, 2);
+    }, [sel('typed', line.name), line.name]);
+    await redraw(h, line.name);
+    const f = await focusNow(h);
+    if (f.act !== 'typed' || f.param !== line.name || f.old) faults.push('line:focus=' + f.tag + ':' + f.act + ':' + f.param + (f.old ? ':old' : ''));
+    else if (f.value !== TYPED || f.caret.join(',') !== '2,2') faults.push('line:text=' + f.value + ':caret=' + f.caret);
+  } catch (err) {
+    faults.push('line:throws:' + ((err && err.message) || err).toString().slice(0, 80).replace(/\s+/g, '_'));
+  } finally {
+    await h.close();
+  }
+  const n = String(list.candidates[list.candidates.length - 1].n);
+  h = await open({ origin, replies: [{ state: snap(1, [setup]) }, gate, { state: snap(2, [turned(list.name)]) }], views: [CONFIRM, VIEW] });
+  try {
+    await h.page.evaluate(([s, name]) => {
+      for (const e of document.querySelectorAll('[data-param="' + name + '"]')) e.__old = true;
+      document.querySelector(s).focus();
+    }, [sel('candidate', list.name) + '[data-n="' + n + '"]', list.name]);
+    await redraw(h, list.name);
+    const f = await focusNow(h);
+    if (f.act !== 'candidate' || f.param !== list.name || f.n !== n || f.old) faults.push('list:focus=' + f.tag + ':' + f.act + ':' + f.param + ':' + f.n + (f.old ? ':old' : ''));
+  } catch (err) {
+    faults.push('list:throws:' + ((err && err.message) || err).toString().slice(0, 80).replace(/\s+/g, '_'));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 async function features(origin) {
   if (!existsSync(FEATURES)) return ['no_list'];
   const faults = [];
@@ -2912,7 +3073,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown', 'guard', 'armed'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown', 'guard', 'armed', 'waits', 'cursor'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2942,6 +3103,8 @@ if (PAGE_TESTS.some(want)) {
     if (want('shown')) report('shown', await shownReports(origin, dir));
     if (want('guard')) report('guard', await guard(origin, dir));
     if (want('armed')) report('armed', await armedAlone(origin, dir));
+    if (want('waits')) report('waits', await waits(origin, dir));
+    if (want('cursor')) report('cursor', await cursor(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

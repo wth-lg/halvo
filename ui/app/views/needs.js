@@ -339,10 +339,48 @@
     const key = way(item);
     const ended = function (reply) {
       underWay.delete(key);
+      waitsOn(key);
       return reply;
     };
     underWay.add(key);
+    waitsOn(key);
     return sent.then(ended, ended);
+  }
+
+  function waitsOn(key) {
+    cards.forEach(function (card) {
+      if (way(card.item) === key) waiting(card, false);
+    });
+  }
+
+  /** While a call of a set-up card is under way, the line CARD_WAITS stands below its buttons, said once
+   * in the view's region when it comes, and each button whose press does nothing then carries
+   * aria-disabled with the line as its description: Not now while the card is busy, Use these answers
+   * while it is busy or its answers are under way, Choose a file while its answers are under way. */
+  function waiting(card, quiet) {
+    if (card.gone || card.item.kind !== 'setup') return;
+    const busy = Boolean(card.busy);
+    const under = underWay.has(way(card.item));
+    if ((busy || under) && !card.wait) {
+      card.wait = el('p', 'hn-text', Halvo.words.CARD_WAITS);
+      card.wait.id = fresh();
+      card.controls.parentNode.insertBefore(card.wait, card.controls.nextSibling);
+      if (!quiet && region && !holding()) addition([card.wait.textContent]);
+    } else if (!busy && !under && card.wait) {
+      card.wait.remove();
+      card.wait = null;
+    }
+    card.li.querySelectorAll('button[data-act]').forEach(function (b) {
+      const act = b.getAttribute('data-act');
+      const off = act === 'choose_file' ? under : busy || (act === 'choose' && under);
+      if (off && card.wait) {
+        b.setAttribute('aria-disabled', 'true');
+        b.setAttribute('aria-describedby', card.wait.id);
+      } else {
+        b.removeAttribute('aria-disabled');
+        b.removeAttribute('aria-describedby');
+      }
+    });
   }
 
   function shows(a) {
@@ -375,8 +413,10 @@
   function held(card, sent) {
     const mine = {};
     card.busy = mine;
+    waiting(card, false);
     return sent.then(function (reply) {
       if (card.busy === mine) card.busy = false;
+      waiting(card, false);
       return reply;
     });
   }
@@ -506,16 +546,51 @@
     item.params.forEach(function (p, i) {
       if (JSON.stringify(p) === JSON.stringify(was[i])) return;
       const old = card.answers[i];
-      const focused = old.set.contains(document.activeElement);
+      const focused = old.set.contains(document.activeElement) ? document.activeElement : null;
+      const caret = focused && focused === old.typed ? [focused.selectionStart, focused.selectionEnd, focused.value] : null;
       const a = question(item, p, carry);
       old.set.parentNode.insertBefore(a.set, old.set);
       old.set.remove();
       card.answers[i] = a;
-      if (focused && card.heading) card.heading.focus();
+      if (!focused) return;
+      const to = cursorTo(old, a, focused);
+      if (!to) {
+        if (card.heading) card.heading.focus();
+        return;
+      }
+      to.focus();
+      if (to !== a.typed) return;
+      const end = to.value.length;
+      if (caret && caret[2] === to.value) to.setSelectionRange(caret[0], caret[1]);
+      else to.setSelectionRange(end, end);
     });
     card.item = item;
     card.json = asHeld(item);
+    waiting(card, true);
     return true;
+  }
+
+  /** The control of a question drawn anew that takes the cursor from the control `was` of the old one:
+   * the same control (its typed line, its Choose a file, its choice of the same value), else its typed
+   * line, else its checked choice, else its first choice; null where it has none of them. */
+  function cursorTo(old, a, was) {
+    const act = was.getAttribute('data-act');
+    const chooser = a.set.querySelector('[data-act="choose_file"]');
+    const picked = old.radios.filter(function (r) {
+      return r.input === was;
+    })[0];
+    const same = picked ? a.radios.filter(function (r) {
+      return r.value === picked.value;
+    })[0] : null;
+    const checked = a.radios.filter(function (r) {
+      return r.input.checked;
+    })[0];
+    if (act === 'typed' && a.typed) return a.typed;
+    if (act === 'choose_file' && chooser) return chooser;
+    if (same) return same.input;
+    if (a.typed) return a.typed;
+    if (checked) return checked.input;
+    return a.radios.length > 0 ? a.radios[0].input : null;
   }
 
   function input(event) {
@@ -553,7 +628,7 @@
   }
 
   function build(item, key, carry) {
-    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), heading: null, dialog: null, handle: null, answers: [], gone: false, busy: false, sent: new Map() };
+    const card = { id: item.item, item: item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), heading: null, dialog: null, handle: null, answers: [], gone: false, busy: false, sent: new Map(), controls: null, wait: null };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -588,6 +663,7 @@
       buttons.push(b);
     });
     box.appendChild(controls);
+    card.controls = controls;
     if (page) {
       card.handle = Halvo.confirm.dress(box, item.title ? box.firstChild.id : null, about.id, release);
       card.handle.again = function () {
@@ -597,6 +673,7 @@
       card.dialog = box;
       card.li.appendChild(box);
     }
+    waiting(card, true);
     return card;
   }
 
@@ -665,6 +742,7 @@
       let card = cards.get(keys[i]);
       if (card && card.li === ref) {
         if (newer) card.busy = false;
+        waiting(card, true);
         ref = ref.nextSibling;
       } else {
         const carry = card ? kept(card) : carried.get(keys[i]);

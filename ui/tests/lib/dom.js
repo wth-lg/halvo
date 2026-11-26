@@ -216,6 +216,19 @@ class Element extends Node {
   }
   set value(v) {
     this._value = String(v);
+    this._selection = null;
+  }
+  // The selection of a text field as a real one keeps it: a value that a script sets puts the caret at
+  // its end, and setSelectionRange holds a range within the value. Another element has neither.
+  get selectionStart() {
+    return this.localName === "input" || this.localName === "textarea" ? (this._selection ? this._selection[0] : this.value.length) : undefined;
+  }
+  get selectionEnd() {
+    return this.localName === "input" || this.localName === "textarea" ? (this._selection ? this._selection[1] : this.value.length) : undefined;
+  }
+  setSelectionRange(start, end) {
+    const n = this.value.length;
+    this._selection = [Math.min(start, n), Math.min(end, n)];
   }
   addEventListener(type, fn) {
     if (!this.listeners.has(type)) this.listeners.set(type, []);

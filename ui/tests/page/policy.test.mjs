@@ -3,6 +3,9 @@
 // the needs view, the agents view and the question of confirm.js with their own styles: the
 // status region .hn-say of the needs view is hidden from sight, a state dot of the agents view has
 // its size, and the question that the delete control of a row opens has its border and buttons.
+// The list "What Halvo noticed" reads again every 15 s while the window shows and shows a new row,
+// reads nothing while the window is hidden (a hiding played by visibilityState, as no window exists),
+// and a read that brings the list that is drawn leaves an open Delete question open.
 // Run: R4_PAGE_BROWSERS=<the fetched browsers> node ui/tests/page/policy.test.mjs
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -88,9 +91,66 @@ try {
     return { border: getComputedStyle(dialog).borderTopWidth, minHeight: button ? getComputedStyle(button).minHeight : null };
   });
   result('question-styles', asked.border === '2px' && asked.minHeight === '44px', asked);
+
+  const listPage = await (await browser.newContext()).newPage();
+  await listPage.clock.install();
+  await listPage.addInitScript((given) => {
+    let reads = 0;
+    let hidden = false;
+    const kept = { state: 'running', proposals: [], stored: [given.stored] };
+    const grown = { state: 'running', proposals: [given.proposal], stored: [given.stored] };
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (hidden ? 'hidden' : 'visible') });
+    window.__list = {
+      reads: () => reads,
+      window: (state) => {
+        hidden = state === 'hidden';
+        document.dispatchEvent(new Event('visibilitychange'));
+      },
+    };
+    window.__TAURI_INTERNALS__ = {
+      invoke: (cmd) => {
+        if (cmd === 'workflows') {
+          reads += 1;
+          return Promise.resolve(JSON.parse(JSON.stringify(reads < given.grownAt ? kept : grown)));
+        }
+        return cmd in given.replies ? Promise.resolve(JSON.parse(JSON.stringify(given.replies[cmd]))) : Promise.reject('no reply for ' + cmd);
+      },
+    };
+  }, {
+    replies,
+    grownAt: 3,
+    stored: { id: 'fedcba9876543210fedcba9876543210', category: 'email' },
+    proposal: { id: '0123456789abcdef0123456789abcdef', category: 'email', app: 'Mail', site: 'example.com', count: 5 },
+  });
+  await listPage.goto(origin + '/index.html');
+  await listPage.waitForSelector('#stored-workflows .stored-workflow', { state: 'attached' });
+  const listNow = () =>
+    listPage.evaluate(() => {
+      const question = document.querySelector('#stored-workflows .confirm-row');
+      return {
+        reads: window.__list.reads(),
+        rows: document.querySelectorAll('#proposals-list .proposal').length,
+        open: Boolean(question) && !question.classList.contains('hidden'),
+      };
+    });
+  const steps = { first: await listNow() };
+  await listPage.evaluate(() => document.querySelector('#stored-workflows .stored-workflow button').click());
+  await listPage.clock.runFor(15000);
+  steps.same = await listNow();
+  await listPage.clock.runFor(15000);
+  steps.grown = await listNow();
+  await listPage.evaluate(() => window.__list.window('hidden'));
+  await listPage.clock.runFor(60000);
+  steps.hidden = await listNow();
+  const listOk =
+    steps.first.reads === 1 && steps.first.rows === 0 &&
+    steps.same.reads === 2 && steps.same.open &&
+    steps.grown.reads === 3 && steps.grown.rows === 1 &&
+    steps.hidden.reads === 3;
+  result('list-reads-again', listOk, steps);
 } finally {
   await browser.close();
   server.close();
 }
 console.log('policy tests passed=' + (ran - failed) + ' failed=' + failed + ' browser=' + build.browser);
-process.exitCode = failed === 0 && ran === 3 ? 0 : 1;
+process.exitCode = failed === 0 && ran === 4 ? 0 : 1;
