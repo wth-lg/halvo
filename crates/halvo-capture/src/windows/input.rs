@@ -1399,7 +1399,8 @@ impl RawInputSource {
 
     #[cfg(test)]
     fn with_calls(device: RawDevice, calls: StartCalls) -> Self {
-        let gate = (device == RawDevice::Keyboard).then(|| Arc::new(PasswordGate::new()));
+        let gate = (device == RawDevice::Keyboard)
+            .then(|| Arc::new(PasswordGate::with_the_attach_wait_of_a_test()));
         Self {
             calls,
             gate,
@@ -3863,7 +3864,8 @@ mod tests {
         );
         assert!(
             keyboard_started.is_ok() && pointer_started.is_ok(),
-            "INCONCLUSIVE: a source did not start"
+            "INCONCLUSIVE: a source did not start: the keyboard's start returned \
+             {keyboard_started:?}, the pointer's {pointer_started:?}"
         );
         assert_eq!(
             one_period_later,
@@ -3916,8 +3918,10 @@ mod tests {
                 }
             }
         });
-        let mut keyboard =
-            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut keyboard = RawInputSource::keyboard(
+            Arc::new(Mutex::new(None)),
+            PasswordGate::with_the_attach_wait_of_a_test(),
+        );
         let _ = seam::take_marks();
         let started = keyboard.begin(crate::source::SourceContext::new(sink));
         std::thread::sleep(std::time::Duration::from_millis(500));
@@ -4115,7 +4119,7 @@ mod tests {
         );
         assert!(
             started.is_ok(),
-            "INCONCLUSIVE: the keyboard source did not start"
+            "INCONCLUSIVE: the keyboard source did not start: its start returned {started:?}"
         );
         assert_eq!(recorded.len(), 6, "INCONCLUSIVE: the rounds did not run");
         assert!(in_front, "INCONCLUSIVE: own_window_in_front=false");
@@ -4597,7 +4601,10 @@ mod tests {
         use crate::source::{SourceContext, SourceState, Started};
         let _serial = crate::windows::tests::serial();
         let (sink, _writer) = crate::sink::channel(64);
-        let mut source = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut source = RawInputSource::keyboard(
+            Arc::new(Mutex::new(None)),
+            PasswordGate::with_the_attach_wait_of_a_test(),
+        );
         let first = source.begin(SourceContext::new(sink.clone()));
         let second = source.begin(SourceContext::new(sink.clone()));
         let running = source.health().state;
@@ -4615,8 +4622,14 @@ mod tests {
     fn a_second_keyboard_source_in_the_process_waits_for_the_first_to_stop() {
         let _serial = crate::windows::tests::serial();
         let (sink, _writer) = crate::sink::channel(64);
-        let mut first = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
-        let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut first = RawInputSource::keyboard(
+            Arc::new(Mutex::new(None)),
+            PasswordGate::with_the_attach_wait_of_a_test(),
+        );
+        let mut second = RawInputSource::keyboard(
+            Arc::new(Mutex::new(None)),
+            PasswordGate::with_the_attach_wait_of_a_test(),
+        );
         let first_started = first.begin(crate::source::SourceContext::new(sink.clone()));
         let while_first_runs = second.begin(crate::source::SourceContext::new(sink.clone()));
         let first_stopped = first.shutdown();
@@ -4894,8 +4907,10 @@ mod tests {
         let (own, in_front) = OwnWindow::in_front();
         let (sink, writer) = crate::sink::channel(256);
         let events = keystroke_counter(writer);
-        let mut keyboard =
-            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut keyboard = RawInputSource::keyboard(
+            Arc::new(Mutex::new(None)),
+            PasswordGate::with_the_attach_wait_of_a_test(),
+        );
         let started = keyboard.begin(crate::source::SourceContext::new(sink));
         std::thread::sleep(std::time::Duration::from_millis(500));
         let gate = clicks().gate.clone();
@@ -4974,8 +4989,10 @@ mod tests {
         let (own, in_front) = OwnWindow::in_front();
         let (sink, writer) = crate::sink::channel(256);
         let events = keystroke_counter(writer);
-        let mut keyboard =
-            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut keyboard = RawInputSource::keyboard(
+            Arc::new(Mutex::new(None)),
+            PasswordGate::with_the_attach_wait_of_a_test(),
+        );
         let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
         let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
         let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
@@ -5044,7 +5061,8 @@ mod tests {
         );
         assert!(
             keyboard_started.is_ok() && pointer_started.is_ok() && in_front,
-            "INCONCLUSIVE: a source did not start or the window of the test was not in front"
+            "INCONCLUSIVE: a source did not start or the window of the test was not in front: \
+             the keyboard's start returned {keyboard_started:?}, the pointer's {pointer_started:?}"
         );
         assert_eq!(
             owner,
@@ -5148,7 +5166,8 @@ mod tests {
                 "TF keyboard-let-go case={case} timed_out={timed_out} started={} held={held} \
                  window={window:?} owner_at_the_start={owner_at_the_start:?} stopped={stopped:?} \
                  mouse_removed={mouse_removed} window_after={window_after:?} gate_left={gate_left} \
-                 gate_is_the_other={gate_is_the_other} owner_after={owner_after:?}",
+                 gate_is_the_other={gate_is_the_other} owner_after={owner_after:?} \
+                 start={started:?}",
                 started.is_ok()
             );
             rows.push((
@@ -5162,6 +5181,7 @@ mod tests {
                 gate_left,
                 gate_is_the_other,
                 owner_after,
+                started,
             ));
         }
         for (
@@ -5175,11 +5195,13 @@ mod tests {
             gate_left,
             other,
             owner,
+            start,
         ) in rows
         {
             assert!(
                 ran,
-                "INCONCLUSIVE: {case} timed_out={timed_out} did not run"
+                "INCONCLUSIVE: {case} timed_out={timed_out} did not run: its start returned \
+                 {start:?}"
             );
             assert_eq!(
                 stop_timed_out, timed_out,
@@ -5271,7 +5293,8 @@ mod tests {
         );
         assert!(
             keyboard_started.is_ok() && pointer_started.is_ok() && registered != u64::MAX,
-            "INCONCLUSIVE: a source did not start or the pointer's mouse registration was not seen"
+            "INCONCLUSIVE: a source did not start or the pointer's mouse registration was not seen: \
+             the keyboard's start returned {keyboard_started:?}, the pointer's {pointer_started:?}"
         );
         let since = since.expect("the pointer's time of owning the clicks");
         let ahead = i64::from((registered as u32).wrapping_sub(since) as i32);
@@ -5358,7 +5381,8 @@ mod tests {
             );
             assert!(
                 keyboard_started.is_ok(),
-                "INCONCLUSIVE: the keyboard source did not start"
+                "INCONCLUSIVE: the keyboard source did not start: its start returned \
+                 {keyboard_started:?}"
             );
             seen.push((
                 refused,
