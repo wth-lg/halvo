@@ -346,3 +346,88 @@ test("lost-says: where this life's count or the last life's count of a loss is o
     assert.equal(lostLine(await page({ ...none, service })), "", service);
   }
 });
+
+test("says-left-out: where the status's left_out holds secure_input, the line under the heading names what the hold leaves out, also with typing off, with the heading and the dot as they are; where the row of the app in front reads failed it says nothing; the doubt's sentence wins; a status without left_out gets the old sentence; another cause, paused or held it does not show", async () => {
+  const said = (or, and) => `Halvo is not recording ${or} right now, because a password field or another app has asked your Mac to keep typing private. It records ${and} again by itself when that ends.`;
+  const old = "Halvo is not recording typing right now, because a password field or another app has asked your Mac to keep typing private. It records typing again by itself when that ends.";
+  const doubt = "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.";
+  const turned = (status, name, row) => ({ ...status, sources: status.sources.map((src) => (src.name === name ? { ...src, ...row } : src)) });
+  const entry = (cause, what) => ({ cause, what, since: "2027-01-15T08:00:00Z" });
+  const hold = (what) => [entry("secure_input", what)];
+  const running = fixture("capture_status-running");
+  const kept = turned(running, "input", { state: "impaired", reason: "secure_input_elsewhere" });
+  const stopped = (status) => turned({ ...status, capture: "partial" }, "foreground", { state: "failed", reason: "thread_ended" });
+  const forms = [
+    [["typing", "window_titles"], said("typing or window titles", "typing and window titles")],
+    [["typing", "window_titles", "screen_activity"], said("typing, window titles or screen activity", "typing, window titles and screen activity")],
+    [["screen_activity", "typing"], said("typing or screen activity", "typing and screen activity")],
+    [["typing"], old],
+    [["window_titles", "a_later_part"], said("window titles", "window titles")],
+  ];
+  for (const [what, sentence] of forms) {
+    for (const capture of ["running", "partial"]) {
+      const shown = await page({ ...kept, capture, left_out: hold(what) });
+      assert.equal(shown.text("capture-reason"), sentence, `${what} ${capture}`);
+      assert.equal(shown.text("state"), CAPTURE[capture], `${what} ${capture}`);
+      assert.equal(shown.byId("dot").classList.contains("on"), true, `${what} ${capture}`);
+    }
+  }
+  const off = { ...running, typing_switch: { ...running.typing_switch, on: false }, left_out: hold(["window_titles"]) };
+  assert.equal((await page(off)).text("capture-reason"), said("window titles", "window titles"), "typing off, the input row running");
+  const refused = turned(running, "input", { state: "impaired", reason: "permission" });
+  assert.equal((await page({ ...refused, left_out: hold(["window_titles"]) })).text("capture-reason"), said("window titles", "window titles"), "typing on, the input row impaired by permission");
+  assert.equal((await page(stopped({ ...kept, left_out: hold(["typing", "window_titles"]) }))).text("capture-reason"), "", "the app in front has stopped");
+  assert.equal((await page(stopped(kept))).text("capture-reason"), "", "the app in front has stopped, a status without left_out");
+  assert.equal((await page({ ...kept, left_out: [entry("doubt", ["everything"]), ...hold(["typing"])] })).text("capture-reason"), doubt, "the doubt beside it");
+  assert.equal((await page({ ...kept, left_out_in_doubt: true, left_out: hold(["typing"]) })).text("capture-reason"), doubt, "left_out_in_doubt beside it");
+  assert.equal((await page(kept)).text("capture-reason"), old, "a status without left_out");
+  assert.equal((await page({ ...running, left_out: [entry("a_later_cause", ["typing"])] })).text("capture-reason"), "", "a cause that the page does not know");
+  assert.equal((await page({ ...running, left_out: hold(["a_later_part"]) })).text("capture-reason"), "", "no part that the page knows");
+  assert.equal((await page({ ...kept, desired: "paused", capture: "paused", left_out: hold(["typing"]) })).text("capture-reason"), "", "paused");
+  assert.notEqual((await page({ ...kept, hold: { press: "resume" }, left_out: hold(["window_titles"]) })).text("capture-reason"), said("window titles", "window titles"), "held");
+});
+
+test("says-left-out: an entry of left_out_before with the cause doubt shows on a line of its own right behind the heading's line, of today with its two times and of another day with its dates, by this computer's clock, in every capture state, held and beside each reason; without an entry, with another cause, with a time that does not read, or while the service does not answer, the line is empty", async () => {
+  const because = "Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.";
+  const FROM = Date.UTC(2026, 10, 14, 9, 30, 7);
+  const UNTIL = Date.UTC(2026, 10, 14, 10, 1, 59);
+  const second = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
+  const date = (ms) => new Date(ms).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  const stretch = (cause, from, until) => [{ cause, what: ["everything"], from: second(from), until: second(until) }];
+  const open = (status, nowMs, timezoneOffset = 0) => openPage({ replies: { capture_status: () => status }, nowMs, timezoneOffset });
+  const line = (p) => (p.document.getElementById("left-out-before-line") || { textContent: "" }).textContent;
+  const today = `Today from 09:30 to 10:01, ${because}`;
+  const soon = UNTIL + 3600000;
+  for (const name of ["capture_status-running", "capture_status-running-windows"]) {
+    const told = { ...fixture(name), left_out_before: stretch("doubt", FROM, UNTIL) };
+    for (const capture of Object.keys(CAPTURE)) {
+      const shown = await open({ ...told, capture }, soon);
+      assert.equal(line(shown), today, `${name} ${capture}`);
+      assert.equal(shown.text("state"), CAPTURE[capture], `${name} ${capture}`);
+    }
+    assert.equal(line(await open({ ...told, hold: { press: "resume" } }, soon)), today, `${name} held`);
+    const doubt = await open({ ...told, left_out_in_doubt: true }, soon);
+    assert.equal(line(doubt), today, `${name}: beside the doubt`);
+    assert.equal(doubt.text("capture-reason"), "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.", name);
+    const nodes = [...doubt.byId("left-out-before-line").parentNode.childNodes];
+    assert.equal(nodes.indexOf(doubt.byId("left-out-before-line")), nodes.indexOf(doubt.byId("state").parentNode.parentNode) + 1, `${name}: right behind the heading's line`);
+    assert.equal(line(await open(fixture(name), soon)), "", `${name}: no entry`);
+    assert.equal(line(await open({ ...fixture(name), left_out_before: stretch("a_later_cause", FROM, UNTIL) }, soon)), "", `${name}: another cause`);
+    assert.equal(line(await open({ ...fixture(name), left_out_before: [{ cause: "doubt", what: ["everything"], from: "then", until: second(UNTIL) }] }, soon)), "", `${name}: a time that does not read`);
+    for (const service of ["not_running", "connecting", "status_refused"]) {
+      assert.equal(line(await open({ ...told, service }, soon)), "", `${name} ${service}`);
+    }
+  }
+  const mac = fixture("capture_status-running");
+  const kept = { ...mac, left_out: [{ cause: "secure_input", what: ["window_titles"], since: second(UNTIL) }], left_out_before: stretch("doubt", FROM, UNTIL) };
+  const both = await open(kept, soon);
+  assert.equal(line(both), today, "beside the hold's sentence");
+  assert.equal(both.text("capture-reason"), "Halvo is not recording window titles right now, because a password field or another app has asked your Mac to keep typing private. It records window titles again by itself when that ends.");
+  const told = { ...mac, left_out_before: stretch("doubt", FROM, UNTIL) };
+  assert.equal(line(await open(told, UNTIL + 20 * 3600000)), `From ${date(FROM)} at 09:30 to ${date(UNTIL)} at 10:01, ${because}`, "read on the next day");
+  assert.equal(line(await open(told, soon, 60)), `Today from 08:30 to 09:01, ${because}`, "on a clock one hour behind UTC");
+  const night = Date.UTC(2026, 10, 14, 23, 50);
+  const over = { ...mac, left_out_before: stretch("doubt", night, night + 20 * 60000) };
+  assert.equal(line(await open(over, night + 3600000)), `From ${date(night)} at 23:50 to ${date(night + 20 * 60000)} at 00:10, ${because}`, "over midnight");
+  assert.notEqual(date(night), date(night + 20 * 60000), "two dates");
+});

@@ -13,7 +13,7 @@ use halvo_route::tier::{CallKind, CategoryId, Tier};
 use crate::import::Date;
 use crate::score::{score, Score};
 use crate::table::{Model, Table};
-use crate::{Router, Setup};
+use crate::{Fill, Router, Setup};
 
 /// The router `product`: `halvo_route::pick::pick` on its policy with the ceiling `frontier`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -115,28 +115,34 @@ pub fn score_once(
 }
 
 /// The setup of a recorded table (contract T6.6): the tiers that `release::ruling()` allows, and
-/// the `driver` and `writer` of the freeze file whose text is given, or none of either when no
-/// text is given. A text that is not the two lines of T5.2 is refused; the string is the detail
-/// of `REFUSED file`.
+/// the `driver` and `writer` of the freeze file whose text is given with the fill of its third
+/// line, or none of them when no text is given. A text that is not the lines of T5.2 is refused;
+/// the string is the detail of `REFUSED file`.
 pub fn recorded_setup(freeze: Option<&str>) -> Result<Setup, String> {
-    let (driver, writer) = match freeze {
+    let (driver, writer, frontier) = match freeze {
         Some(text) => {
             let freeze = Freeze::parse(text)?;
-            (freeze.driver, freeze.writer)
+            (
+                freeze.driver,
+                freeze.writer,
+                freeze.frontier.unwrap_or_default(),
+            )
         }
-        None => (None, None),
+        None => (None, None, Fill::default()),
     };
     Ok(Setup {
         allowed: release::ruling().allowed().to_vec(),
         driver,
         writer,
+        frontier,
         recorded: true,
     })
 }
 
 /// The freeze file of contract T5.2: `freeze rows=<n> models=<n> sources=2 date=<YYYY-MM-DD>`
-/// and `on_device driver=<token|none> writer=<token|none>`, each line ended by one LF, where a
-/// token is a model token other than `synthetic`.
+/// and `on_device driver=<token|none> writer=<token|none>`, or the first line with `sources=3`,
+/// the second, and `frontier driver=<token|none>`; each line ended by one LF, where a token is a
+/// model token other than `synthetic`. `frontier` is none for two lines.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Freeze {
     pub rows: u64,
@@ -144,21 +150,24 @@ pub struct Freeze {
     pub date: String,
     pub driver: Option<String>,
     pub writer: Option<String>,
+    pub frontier: Option<Fill>,
 }
 
 impl Freeze {
-    /// Reads the two lines and refuses any other text, with a detail that names the line.
+    /// Reads the two or three lines and refuses any other text, with a detail that names the line.
     pub fn parse(text: &str) -> Result<Freeze, String> {
         let refused = |line: usize| format!("--freeze line {line} is not of the freeze form");
         let Some(body) = text.strip_suffix('\n') else {
             return Err("--freeze does not end with LF".to_owned());
         };
-        let mut lines = body.split('\n');
-        let (Some(first), Some(second), None) = (lines.next(), lines.next(), lines.next()) else {
-            return Err("--freeze does not hold two lines".to_owned());
+        let lines: Vec<&str> = body.split('\n').collect();
+        let (first, second, third, sources) = match lines[..] {
+            [first, second] => (first, second, None, "sources=2"),
+            [first, second, third] => (first, second, Some(third), "sources=3"),
+            _ => return Err("--freeze does not hold two lines".to_owned()),
         };
         let mut fields = first.split(' ');
-        let (Some("freeze"), Some(rows), Some(models), Some("sources=2"), Some(date), None) = (
+        let (Some("freeze"), Some(rows), Some(models), Some(count), Some(date), None) = (
             fields.next(),
             fields.next().and_then(|f| f.strip_prefix("rows=")),
             fields.next().and_then(|f| f.strip_prefix("models=")),
@@ -168,9 +177,12 @@ impl Freeze {
         ) else {
             return Err(refused(1));
         };
-        let (Some(rows), Some(models), Some(date)) =
-            (decimal(rows), decimal(models), Date::parse(date))
-        else {
+        let (Some(rows), Some(models), Some(date), true) = (
+            decimal(rows),
+            decimal(models),
+            Date::parse(date),
+            count == sources,
+        ) else {
             return Err(refused(1));
         };
         let mut fields = second.split(' ');
@@ -185,12 +197,23 @@ impl Freeze {
         let (Some(driver), Some(writer)) = (model(driver), model(writer)) else {
             return Err(refused(2));
         };
+        let frontier = match third {
+            Some(line) => {
+                let driver = line
+                    .strip_prefix("frontier driver=")
+                    .and_then(model)
+                    .ok_or_else(|| refused(3))?;
+                Some(Fill { driver })
+            }
+            None => None,
+        };
         Ok(Freeze {
             rows,
             models,
             date: date.as_str().to_owned(),
             driver,
             writer,
+            frontier,
         })
     }
 }

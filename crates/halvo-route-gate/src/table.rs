@@ -61,7 +61,7 @@ word_list! {
 
 word_list! {
     /// The source of a row: an id of the sources file in a recorded row, `generated` in a generated one.
-    Source { S1 => "s1", S2 => "s2", Generated => "generated" }
+    Source { S1 => "s1", S2 => "s2", S3 => "s3", Generated => "generated" }
 }
 
 word_list! {
@@ -426,7 +426,7 @@ mod tests {
         );
         assert_eq!(
             Source::ALL.iter().map(|v| v.as_str()).collect::<Vec<_>>(),
-            ["s1", "s2", "generated"]
+            ["s1", "s2", "s3", "generated"]
         );
     }
 
