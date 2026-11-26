@@ -96,8 +96,16 @@
   var line = { text: "", from: null };
   /** Each list read that fails, by its name: the text of its failure, and whether a Dismiss took that text away. */
   var failing = {};
+  /** The number of the newest read of each list whose outcome the line took. */
+  var taken = {};
   /** A list read changed the line while held: the change is drawn at the release. */
   var lineKept = false;
+
+  function newest(name, n) {
+    if (n < (taken[name] || 0)) return false;
+    taken[name] = n;
+    return true;
+  }
 
   function drawLine() {
     lineKept = false;
@@ -115,8 +123,9 @@
     writeLine(wordsOf(e), null, false);
   };
 
-  /** A list read that failed writes its line, unless a Dismiss took the same text away while this read failed and the read has not succeeded since. */
-  Halvo.readFailed = function (name, e) {
+  /** A list read that failed writes its line, unless the line has taken the outcome of a newer read of that list, or a Dismiss took the same text away while that list's reads failed and none of them has succeeded since. */
+  Halvo.readFailed = function (name, n, e) {
+    if (!newest(name, n)) return;
     var text = wordsOf(e);
     var known = failing[name];
     if (known && known.dismissed && known.text === text) return;
@@ -124,8 +133,9 @@
     writeLine(text, name, true);
   };
 
-  /** A list read that succeeded takes away the line that it wrote; a line that a press or another view wrote stays. */
-  Halvo.readSucceeded = function (name) {
+  /** A list read that succeeded takes away the line that its list wrote, unless the line has taken the outcome of a newer read of that list; a line that a press or another view wrote stays. */
+  Halvo.readSucceeded = function (name, n) {
+    if (!newest(name, n)) return;
     delete failing[name];
     if (line.from === name) writeLine("", null, true);
   };
