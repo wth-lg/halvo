@@ -1546,6 +1546,7 @@ fn pay_past() -> crate::types::PastRun {
         day: DAY - 1,
         outcome: crate::types::Outcome::Failed,
         unknown: 0,
+        notes: crate::types::Notes::default(),
     }
 }
 

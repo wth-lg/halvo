@@ -61,7 +61,7 @@ use halvo_coord::types::{
     Cleared, ConfigView, ConfirmAsk, Decision, DecisionEntry, Defers, Digest, DismissedWorkflow,
     DoneAnswer, EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason,
     HandbackResult, HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LastCause,
-    LinkAnswer, Name, Origin, OtherLapse, Outcome, PageCause, PastEffect, PastRun, Progress,
+    LinkAnswer, Name, Notes, Origin, OtherLapse, Outcome, PageCause, PastEffect, PastRun, Progress,
     Raised, ReadyAnswer, Reply, ReplyRow, RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId,
     RunSpec, SetupAnswer, SheetAnswers, SignInAnswer, Slot, Trigger, Unknown, What, Workflow,
     WorkflowId, WorkflowState, WorkflowTrigger,
@@ -1177,13 +1177,17 @@ fn kept_of(v: &Value) -> Option<Vec<Kept>> {
         .collect()
 }
 
-/// The coordinator's reading of a stored run record `agent_run`.
+/// The coordinator's reading of a stored run record `agent_run`: its `letters_guessed` `yes` as the note's yes, and a
+/// missing key (a record of a build before the key stood) or any other value as none (r3 U11.10).
 fn past_run(record: &Value) -> Option<PastRun> {
     Some(PastRun {
         run: RunId::parse(record["run"].as_str()?).ok()?,
         day: u32::try_from(record["day"].as_u64()?).ok()?,
         outcome: Outcome::parse(record["outcome"].as_str()?).ok()?,
         unknown: u32::try_from(record["unknown"].as_u64().unwrap_or(0)).ok()?,
+        notes: Notes {
+            letters_guessed: record["letters_guessed"].as_str() == Some("yes"),
+        },
     })
 }
 

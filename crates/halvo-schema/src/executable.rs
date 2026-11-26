@@ -382,4 +382,5 @@ record::run_list! { names_with_run_list
     "source",
     "load_reply_body",
     "body",
+    "letters_guessed",
 }

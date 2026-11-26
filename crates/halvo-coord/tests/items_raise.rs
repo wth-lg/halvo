@@ -353,12 +353,14 @@ fn with_past_runs(mut f: Facts<Config>) -> Facts<Config> {
             day: f.today - 1,
             outcome: Outcome::EffectUnknown,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
         PastRun {
             run: run_id(4),
             day: f.today - 2,
             outcome: Outcome::EffectUnknown,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     ];
     f

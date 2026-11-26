@@ -253,6 +253,7 @@ impl Sim {
                     day: DAY - 2,
                     outcome: Outcome::Completed,
                     unknown: 0,
+                    notes: halvo_coord::types::Notes::default(),
                 }),
                 unknown: vec![],
                 refused_run: None,
@@ -388,6 +389,7 @@ impl Sim {
                     day: self.h.day,
                     outcome: outcome.unwrap_or(Outcome::Failed),
                     unknown: u32::from(*outcome == Some(Outcome::EffectUnknown)),
+                    notes: halvo_coord::types::Notes::default(),
                 });
             }
             _ => {}
@@ -611,6 +613,7 @@ impl Sim {
                                 day: self.h.day,
                                 outcome: Outcome::Failed,
                                 unknown: 0,
+                                notes: halvo_coord::types::Notes::default(),
                             },
                         );
                     }
@@ -629,6 +632,7 @@ impl Sim {
                             day: self.h.day,
                             outcome: Outcome::Failed,
                             unknown: 0,
+                            notes: halvo_coord::types::Notes::default(),
                         });
                         if let Some((_, cause)) = r.stop {
                             self.h.pending.insert(run.to_string(), cause);
@@ -868,6 +872,7 @@ impl Sim {
                         day,
                         outcome: Outcome::Failed,
                         unknown: 0,
+                        notes: halvo_coord::types::Notes::default(),
                     },
                 );
             }
@@ -921,6 +926,7 @@ impl Sim {
                     day,
                     outcome: Outcome::Failed,
                     unknown: 0,
+                    notes: halvo_coord::types::Notes::default(),
                 });
                 self.h.ended_mark(&run);
             }

@@ -340,6 +340,7 @@ fn expected_keys() -> BTreeSet<String> {
         "line.problem.no_access_mac",
         "line.problem.no_access_windows",
         "line.problem.answers_saved",
+        "line.note.letters_guessed",
     ] {
         k.insert(key.to_owned());
     }
@@ -560,7 +561,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 409);
+    assert_eq!(seen.len(), 410);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

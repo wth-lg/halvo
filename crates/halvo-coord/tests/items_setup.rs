@@ -1154,6 +1154,7 @@ fn past(n: u32, outcome: Outcome) -> PastRun {
         day: TODAY - 1,
         outcome,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     }
 }
 
