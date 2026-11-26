@@ -155,6 +155,7 @@ pub(crate) fn end_run(
             other_task: None,
             held_earlier: None,
             earlier_page: None,
+            letters_guessed: None,
         };
         let mut records = vec![record(rows::AGENT_RUN, run.to_json())?];
         records.extend(moves(&*host, &b.run, now)?);

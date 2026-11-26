@@ -173,6 +173,7 @@ fn u46b_a_switch_off_keeps_the_line_and_a_record_of_the_store_that_names_the_run
         day: coord::DAY,
         outcome: Outcome::Failed,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     });
     tick_at(&life, 2);
     assert_eq!(
@@ -313,6 +314,7 @@ fn u46b_a_record_of_the_store_that_names_the_run_ends_the_line_while_mail_replie
         day: coord::DAY,
         outcome: Outcome::Failed,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     });
     next.ports.refuse(Method::Replies, PortError::NoService);
     let life = Coordinator::new(next, Limits::PRODUCT);
@@ -370,6 +372,7 @@ fn record(run: &RunId, outcome: Outcome) -> PastRun {
         day: DAY,
         outcome,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     }
 }
 

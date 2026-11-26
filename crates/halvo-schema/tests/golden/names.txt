@@ -206,6 +206,7 @@ learn_routine
 learn_run
 lease_renewal_or_change
 left
+letters_guessed
 limit
 limits
 link

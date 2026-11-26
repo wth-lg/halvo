@@ -219,6 +219,7 @@ fn card_of(
                 day: DAY,
                 outcome,
                 unknown: 0,
+                notes: halvo_coord::types::Notes::default(),
             },
             effects,
         },
@@ -899,6 +900,7 @@ fn u24x_a_failed_run_whose_roster_entry_holds_no_browser_gives_the_browser_line(
                 day: DAY,
                 outcome: Outcome::Failed,
                 unknown: 0,
+                notes: halvo_coord::types::Notes::default(),
             },
         );
         end(&c, &run, Outcome::Failed);

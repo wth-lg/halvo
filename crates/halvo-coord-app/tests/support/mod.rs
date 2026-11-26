@@ -365,6 +365,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
                 day: DAY - 2,
                 outcome: Outcome::parse(end.name()).unwrap_or(Outcome::Completed),
                 unknown: 0,
+                notes: halvo_coord::types::Notes::default(),
             }),
             unknown: Vec::new(),
             refused_run: None,

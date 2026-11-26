@@ -151,10 +151,11 @@ fn bounded_title(text: &CFString) -> TitleText {
     }
 }
 
-/// The name of the localization of a browser's bundle under which the rules
-/// keep its titles: the bundle's `en`, for which [`NAME_ENDINGS`] holds the
-/// US-English ending of an ordinary window. Where a language puts its private
-/// words and the name is each translation's own, and no other is read.
+/// The code of the language file under which the rules keep a browser's
+/// titles: the `en` of the bundle's `en.lproj`, for which [`NAME_ENDINGS`]
+/// holds the US-English ending of an ordinary window. Where a language puts
+/// its private words and the name is each translation's own, and no other is
+/// read.
 pub(crate) const ENGLISH: &str = "en";
 
 /// What a title of Chrome or Edge ends with where Halvo keeps it: the
