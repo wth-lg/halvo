@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::Cancel;
-use halvo_schema::executable::names::{Autonomy, FieldName, HandbackReason, LogEvent};
+use halvo_schema::executable::names::{Autonomy, FieldName, HandbackReason, LogEvent, YesNo};
 use halvo_schema::executable::{
     ActionClass, AgentLog, Cause, EffectState, ExecutableStep, FromRunner, Outcome, RunnerCall,
     ToRunner,
@@ -13,7 +13,7 @@ use halvo_schema::Category;
 
 use support::{
     is_effect, is_op, now_nanos, offset_of_another_day, offset_of_another_day_at, range_texts,
-    store_error, Act, FillFiles, Seen, Supervisor, LONG,
+    scratch, store_error, Act, FillFiles, Seen, Supervisor, LONG,
 };
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
@@ -1279,6 +1279,8 @@ fn a_file_or_a_folder_that_the_system_refuses_for_the_permission_ends_the_run_wi
 /// r3 U11.5: a file run whose data file is not UTF-8 (the seed's rows with an accent as Windows-1252 saves it, `é`
 /// as the one byte 0xE9, behind the text of the first row) ends `failed` with `data_encoding` at the read (step 1)
 /// and in the run's `stopped` line, makes no effect and leaves the workbook as it was, with no file beside it.
+/// On Windows, where the computer's code page reads that byte (r3 U11.10), the run reads the file by that page,
+/// ends completed and keeps `letters_guessed` in its record.
 #[test]
 fn a_data_file_that_is_not_utf_8_ends_the_run_failed_with_data_encoding_and_writes_nothing() {
     let files = FillFiles::new("not-utf-8-source", 1);
@@ -1301,7 +1303,25 @@ fn a_data_file_that_is_not_utf_8_ends_the_run_failed_with_data_encoding_and_writ
         std::str::from_utf8(&bytes).is_err(),
         "the data file is not UTF-8"
     );
+    // r3 U11.10: on Windows the reader reads a data file that is not UTF-8 by the computer's code page where
+    // that page reads its bytes; the sheet's own reader says on this computer whether it does, and then the
+    // run ends completed and its record holds `letters_guessed`. Under a page that reads no such byte, and on
+    // a Mac, the run ends as before. So this test holds under each of the fourteen ANSI pages.
+    let page_reads = cfg!(windows) && {
+        let locks = halvo_sheet::Locks::open(&scratch("not-utf-8-source-locks"), LONG)
+            .expect("the locks open");
+        halvo_sheet::Folder::new(&files.dir, locks)
+            .expect("the folder opens")
+            .read_data(&files.source)
+            .is_ok()
+    };
     let seen = fill(78, &files).serve(|_, _| Act::Answer, LONG);
+    if page_reads {
+        assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+        let guessed = seen.finish().and_then(|run| run.letters_guessed);
+        assert_eq!(guessed, Some(YesNo::Yes), "{}", seen.stderr);
+        return;
+    }
     assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
     assert_eq!(
         failed_at(&seen),
