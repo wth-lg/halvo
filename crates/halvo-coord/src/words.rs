@@ -271,7 +271,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.note.letters_guessed",
-        "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. If a letter looks wrong in the spreadsheet, save the data file as CSV UTF-8 and choose Start now.",
+        "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. In such a file Halvo writes a value with a sign such as € as text, not as a number. If a letter looks wrong in the spreadsheet or a sum leaves values out, save the data file as CSV UTF-8 and choose Start now.",
     ),
     (
         "line.note.texts_one",

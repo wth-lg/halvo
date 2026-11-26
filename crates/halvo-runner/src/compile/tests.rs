@@ -16,21 +16,24 @@ use std::sync::{mpsc, Arc, Mutex};
 use halvo_schema::executable::body::{
     LoadReply, LoadedBindings, LoadedPlaybook, StepsReply, Stored,
 };
-use halvo_schema::executable::frame::{Browser, SecretReply, StoreReply, StoreReplyFrame};
-use halvo_schema::executable::names::{LogEvent, ModelTier};
+use halvo_schema::executable::frame::{
+    Approval, Browser, ConfirmDecision, ConfirmReply, SecretReply, StoreReply, StoreReplyFrame,
+};
+use halvo_schema::executable::names::{Answer as Card, LogEvent, ModelTier};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::step::Cond;
-use halvo_schema::executable::text::{CreationTime, Name, OwnValue, SecretText};
+use halvo_schema::executable::text::{CreationTime, Name, OwnValue, SecretText, V1};
 use halvo_schema::executable::{
-    Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, RunnerReply, ToRunner, WebOrigin,
+    ApprovalId, Cause, ExecutableStep, FromRunner, Outcome, RunnerCall, RunnerReply, ToRunner,
+    WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
-use halvo_web::cdp::{PausedRequest, SessionState, Sign, SnapshotLine};
+use halvo_web::cdp::{HeldForm, HeldRequest, PausedRequest, SessionState, Sign, SnapshotLine};
 
 use crate::link::{encode, Link};
 use crate::model::ask::Place;
 use crate::run::Runner;
-use crate::web::{Act, Page, Web};
+use crate::web::{Act, ClickWay, Page, Web};
 use crate::words;
 
 /// The made-up key of these tests: visible ASCII, held by no file but this one.
@@ -172,6 +175,9 @@ struct Shown {
     slow: bool,
     /// An act on the page comes with the person's stop: the supervisor's frame `cancel`.
     cancel: bool,
+    /// The paying request that a click or a press on the page sends (r3 U7.10): held where the rule holds, else
+    /// failed and in the record, as the executor's rule answers it.
+    pays: Option<HeldRequest>,
 }
 
 /// How long a slow act takes on the run's clock of the test, in milliseconds.
@@ -197,6 +203,7 @@ fn page(lines: Vec<SnapshotLine>) -> Shown {
         after_act: Vec::new(),
         slow: false,
         cancel: false,
+        pays: None,
     }
 }
 
@@ -212,9 +219,21 @@ struct StandIn {
     clock: Arc<std::sync::atomic::AtomicU64>,
     /// The runner's standard input, on which an act with the person's stop sends `cancel`.
     to_runner: mpsc::Sender<Vec<u8>>,
+    /// Whether the newest arm holds (`arm_hold`) or fails (`arm`) a state-changing request.
+    hold: bool,
+    /// The requests that the rule holds now.
+    held: Vec<HeldRequest>,
+    /// Whether `let_through` let a held request leave.
+    released: bool,
+    /// Every call of the runner to the stand-in that reads the page, arms the rule or acts, one line each, in order.
+    calls: Arc<Mutex<Vec<String>>>,
 }
 
 impl StandIn {
+    fn call(&self, what: impl Into<String>) {
+        self.calls.lock().expect("the calls").push(what.into());
+    }
+
     fn turn(&mut self) {
         if let Some(next) = self.pages.pop_front() {
             self.now = next;
@@ -232,6 +251,9 @@ impl Page for StandIn {
     }
 
     fn arm(&mut self, _: &[WebOrigin]) -> Result<(), ()> {
+        self.call("arm fail");
+        self.hold = false;
+        self.held.clear();
         Ok(())
     }
 
@@ -247,6 +269,7 @@ impl Page for StandIn {
             }
             _ => act.verb().to_owned(),
         };
+        self.call(format!("act {}", act.verb()));
         self.acts.lock().expect("the acts").push(what);
         if self.now.slow {
             self.clock
@@ -257,6 +280,22 @@ impl Page for StandIn {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
         *self.last.lock().expect("the record") = self.now.after_act.clone();
+        if let (Some(pays), Act::Click(_) | Act::Press(..)) = (&self.now.pays, act) {
+            if self.hold {
+                self.held = vec![pays.clone()];
+            } else {
+                self.last.lock().expect("the record").push(PausedRequest {
+                    id: None,
+                    method: pays.method.clone(),
+                    origin: pays.origin.clone(),
+                    path: pays.path.clone(),
+                    frame: pays.frame.clone(),
+                    resource: "Document".to_owned(),
+                    let_through: false,
+                    outcome: halvo_web::cdp::Outcome::Failed,
+                });
+            }
+        }
         self.turn();
         Ok(matches!(act, Act::Extract(_)).then(|| DUE.to_owned()))
     }
@@ -274,14 +313,20 @@ impl Page for StandIn {
     }
 
     fn sign(&mut self) -> Result<Option<Sign>, ()> {
+        self.call("read sign");
         Ok(self.now.sign)
     }
 
     fn snapshot(&mut self) -> Result<Vec<SnapshotLine>, ()> {
+        self.call("snapshot");
         Ok(self.now.lines.clone())
     }
 
     fn fail_held(&mut self) -> Result<(), ()> {
+        if !self.held.is_empty() {
+            self.call("fail held");
+        }
+        self.held.clear();
         Ok(())
     }
 
@@ -303,6 +348,7 @@ impl Page for StandIn {
     }
 
     fn address(&mut self) -> Result<String, ()> {
+        self.call("address");
         Ok(format!("{ORIGIN}/bill"))
     }
 
@@ -312,6 +358,35 @@ impl Page for StandIn {
 
     fn import(&mut self, _: &SessionState) -> Result<(), ()> {
         Ok(())
+    }
+
+    fn arm_hold(&mut self, _: &[WebOrigin], _: &[WebOrigin]) -> Result<(), ()> {
+        self.call("arm hold");
+        self.hold = true;
+        Ok(())
+    }
+
+    fn held(&mut self) -> Vec<HeldRequest> {
+        self.held.clone()
+    }
+
+    fn let_through(&mut self, id: u64) -> Result<(), ()> {
+        self.call(format!("let through {id}"));
+        if !self.held.iter().any(|h| h.id == id) {
+            return Err(());
+        }
+        self.held.clear();
+        self.released = true;
+        Ok(())
+    }
+
+    fn released_status(&mut self) -> Option<i64> {
+        self.released.then_some(200)
+    }
+
+    fn page_amounts(&mut self) -> Result<Vec<u64>, ()> {
+        self.call("read page after");
+        Ok(vec![8437])
     }
 }
 
@@ -353,6 +428,16 @@ struct Supervisor {
     steps: Vec<ExecutableStep>,
     to_runner: mpsc::Sender<Vec<u8>>,
     bytes: Vec<u8>,
+    /// The person's answer on every card (`CARD`).
+    card: Card,
+}
+
+thread_local! {
+    /// The person's answer on every card of the runs of the test's own thread: `allow_once` unless the test sets it.
+    static CARD: std::cell::Cell<Card> = const { std::cell::Cell::new(Card::AllowOnce) };
+    /// The way of a compile's click in the runs of the test's own thread (r3 U7.10): the build's unless the test sets
+    /// it.
+    static WAY: std::cell::Cell<ClickWay> = const { std::cell::Cell::new(ClickWay::BUILT) };
 }
 
 impl Supervisor {
@@ -406,6 +491,25 @@ impl Supervisor {
                     .to_owned()
             }
             FromRunner::Bind(_) => r#"{"t":"bind_reply","bound":"yes"}"#.to_owned(),
+            FromRunner::Confirm(c) => {
+                let approvals = c
+                    .request
+                    .effects
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| Approval {
+                        approval: ApprovalId::from_random([0x40 + i as u8; 16]),
+                        effect: e.effect.clone(),
+                        digest: e.digest.clone(),
+                        answer: self.card,
+                    })
+                    .collect();
+                ToRunner::ConfirmReply(ConfirmReply {
+                    decision: ConfirmDecision { v: V1, approvals },
+                })
+                .to_json()
+                .expect("a reply")
+            }
             _ => return,
         };
         let _ = self.to_runner.send(encode(&text));
@@ -500,6 +604,8 @@ struct Ran {
     requests: Vec<serde_json::Value>,
     starts: usize,
     status: i32,
+    /// The stand-in browser's log of reads, arms and acts (`StandIn::calls`).
+    calls: Vec<String>,
 }
 
 impl Ran {
@@ -569,6 +675,7 @@ fn run(
         steps,
         to_runner,
         bytes: Vec::new(),
+        card: CARD.with(std::cell::Cell::get),
     };
     let input = Input {
         from,
@@ -601,8 +708,10 @@ fn run(
     .collect();
     let args = crate::args::parse(&words).expect("the arguments");
     let mut runner = Runner::new(args, link);
+    runner.click_way = WAY.with(std::cell::Cell::get);
     let acts = Arc::new(Mutex::new(Vec::new()));
     let last = Arc::new(Mutex::new(Vec::new()));
+    let calls = Arc::new(Mutex::new(Vec::new()));
     runner.stand_in = Some(Web(Box::new(StandIn {
         now: page(Vec::new()),
         pages: pages.into(),
@@ -610,6 +719,10 @@ fn run(
         last: Arc::clone(&last),
         clock: Arc::clone(&runner.test_clock),
         to_runner: cancel_to,
+        hold: false,
+        held: Vec::new(),
+        released: false,
+        calls: Arc::clone(&calls),
     })));
     let mut before: Vec<OsString> = ["--exact", "--test-threads=1", "--quiet", STAND_IN, "--"]
         .into_iter()
@@ -646,6 +759,7 @@ fn run(
         .filter(|request| request.let_through)
         .cloned()
         .collect();
+    let calls = calls.lock().expect("the calls").clone();
     Ran {
         let_through,
         frames: seen.frames,
@@ -654,6 +768,7 @@ fn run(
         requests,
         starts,
         status,
+        calls,
     }
 }
 
@@ -887,6 +1002,7 @@ fn u72b_no_request_holds_a_snapshot_of_a_page_with_a_credential_field() {
         after_act: Vec::new(),
         slow: false,
         cancel: false,
+        pays: None,
     };
     let after = page(vec![line("e5", "link", "Bills", None)]);
     let ran = run(
@@ -1084,6 +1200,7 @@ fn u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_no
         after_act: Vec::new(),
         slow: false,
         cancel: false,
+        pays: None,
     };
     let word = "pageword-u72b";
     let mut framed = line("e13", "text", "Pay here", None);
@@ -1233,12 +1350,12 @@ fn u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_no
     );
 }
 
-/// (d1), the side of an effect (the coordinator's log line 22533): a click of a compile whose request the rule failed,
-/// a state-changing request of the page to an origin of the bindings, is no refusal `origin`: the drive writes the
-/// effect step of A9.4 (the same click with the effect `request`, the class of the category, and the bound fields
-/// `payee` and `instrument` from their slots, `amount` from the kept extract `amount_due` and `origin` the request's
-/// own) and carries it out as a replay does. Here the stand-in browser holds no request for the maker, so the step's
-/// act fails and the run ends `failed`; nothing left.
+/// (d1), the side of an effect (the coordinator's log line 22533), in the way of a build without the browser's maker
+/// (`ClickWay::Fail`, r3 U7.10): a click of a compile whose request the rule failed, a state-changing request of the
+/// page to an origin of the bindings, is no refusal `origin`: the drive writes the effect step of A9.4 (the same click
+/// with the effect `request`, the class of the category, and the bound fields `payee` and `instrument` from their
+/// slots, `amount` from the kept extract `amount_due` and `origin` the request's own), stores it, and answers
+/// `step_failed` before any act: the run ends `failed`, the click was made once, and nothing left.
 #[test]
 fn u72b_a_click_whose_state_changing_request_to_a_bound_origin_the_rule_failed_writes_the_effect_step(
 ) {
@@ -1277,6 +1394,7 @@ fn u72b_a_click_whose_state_changing_request_to_a_bound_origin_the_rule_failed_w
             bindings.origins = vec![WebOrigin::parse(bound).expect("an origin")];
             bindings.slots[0] = slot("start", &format!("{recorded}/bill"));
         }
+        WAY.with(|cell| cell.set(ClickWay::Fail));
         let ran = run(
             &format!("u72b-effect-{n}"),
             "compile",
@@ -1312,12 +1430,19 @@ fn u72b_a_click_whose_state_changing_request_to_a_bound_origin_the_rule_failed_w
         ] {
             assert!(paying_json.contains(want), "{paying_json} holds {want}");
         }
+        WAY.with(|cell| cell.set(ClickWay::BUILT));
         assert_eq!(
             ran.end(),
             (Some(Outcome::Failed), Some(Cause::StepFailed)),
             "{bound}"
         );
         assert_eq!(ran.let_through.len(), 0);
+        assert_eq!(
+            ran.acts.iter().filter(|act| *act == "click").count(),
+            1,
+            "{bound}: no second act: {:?}",
+            ran.acts
+        );
     }
 }
 
@@ -1424,4 +1549,207 @@ fn u72b_a_line_with_the_credential_mark_hands_back_before_any_request() {
     assert_eq!(marked_requests, 0);
     assert_eq!(verbs, ["navigate", "handback"]);
     assert_eq!(ran.requests[0]["snapshot"], masked(&after.lines).as_str());
+}
+
+/// The paying request of the bill's page (r3 U7.10): a form's POST to the biller's origin whose body names the amount
+/// due, under the executor's id 1.
+fn charge() -> HeldRequest {
+    HeldRequest {
+        id: 1,
+        method: "POST".to_owned(),
+        origin: ORIGIN.to_owned(),
+        path: "/charge".to_owned(),
+        frame: "F1".to_owned(),
+        form: HeldForm::Named(vec![DUE.to_owned()]),
+    }
+}
+
+/// The pages of a compile of the bill that pays (r3 U7.10): the bill's page with the amount due and a Pay now whose
+/// click sends `charge`, shown after the navigate, after the extract and after the read of the amount again before
+/// the click; then the page after the payment.
+fn paying_pages() -> Vec<Shown> {
+    let bill_page = || {
+        let mut shown = page(vec![
+            line("e4", "text", &format!("Amount due {DUE}"), None),
+            line("e5", "button", "Pay now", None),
+        ]);
+        shown.pays = Some(charge());
+        shown
+    };
+    let received = || page(vec![line("e6", "text", "Payment received", None)]);
+    vec![
+        bill_page(),
+        bill_page(),
+        bill_page(),
+        received(),
+        received(),
+    ]
+}
+
+/// The model's answers of a compile of the bill that pays: extract the amount due, click Pay now, done.
+fn paying_replies() -> Vec<String> {
+    vec![
+        serde_json::json!({"action": "extract", "ref": "e4", "slot": null, "key": null, "name": "amount_due"})
+            .to_string(),
+        action("click", Some("e5"), None),
+        action("done", None, None),
+    ]
+}
+
+/// A compile of the bill that pays, with the person's `card` on its card.
+fn paying_compile(name: &str, n: u8, card: Card) -> (Ran, LoadReply) {
+    let (agent, workflow) = ids(n);
+    let mut load = bill(&agent, &workflow, 100_000);
+    if let Some(bindings) = load.bindings.as_mut() {
+        bindings.slots[0] = slot("start", &format!("{ORIGIN}/bill"));
+    }
+    let replies = paying_replies();
+    let replies: Vec<&str> = replies.iter().map(String::as_str).collect();
+    CARD.with(|cell| cell.set(card));
+    let ran = run(
+        name,
+        "compile",
+        load.clone(),
+        Vec::new(),
+        paying_pages(),
+        &replies,
+        Some(&[OPEN]),
+    );
+    CARD.with(|cell| cell.set(Card::AllowOnce));
+    (ran, load)
+}
+
+/// The count of the lines of `calls` that are `what`.
+fn calls_of(ran: &Ran, what: &str) -> usize {
+    ran.calls.iter().filter(|c| c.as_str() == what).count()
+}
+
+/// T1 of r3 U7.10 (the coordinator's ruling of 2026-11-26, P1): in a build with the maker the click of a compile
+/// whose state-changing request goes to an origin of the bindings is made ONCE, with the rule armed to hold before
+/// it; the held request is the stored effect step and leaves once at the person's `allow_once` on its card, and never
+/// at a `reject_once`.
+#[test]
+fn u710_a_compiles_paying_click_holds_its_request_and_it_leaves_only_after_the_yes() {
+    let (ran, _) = paying_compile("u710-yes", 0x81, Card::AllowOnce);
+    println!(
+        "yes: end {:?} acts {:?} calls {:?} confirms {} stored {:?}",
+        ran.end(),
+        ran.acts,
+        ran.calls,
+        ran.count(|f| matches!(f, FromRunner::Confirm(_))),
+        ran.stored
+            .iter()
+            .map(|s| format!("{} {}", s.verb.as_str(), s.effect.as_str()))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(calls_of(&ran, "act click"), 1, "ONE act of the click");
+    let hold = ran.calls.iter().position(|c| c == "arm hold");
+    let click = ran.calls.iter().position(|c| c == "act click");
+    assert!(
+        hold.is_some() && hold < click,
+        "the rule holds before the click: {:?}",
+        ran.calls
+    );
+    assert_eq!(ran.count(|f| matches!(f, FromRunner::Confirm(_))), 1);
+    assert_eq!(calls_of(&ran, "let through 1"), 1);
+    let paying = ran.stored.last().expect("a stored step");
+    assert_eq!(paying.verb.as_str(), "click");
+    assert_eq!(paying.effect.as_str(), "request");
+    assert_eq!(paying.class.as_str(), "payment");
+    assert_eq!(
+        ran.end(),
+        (Some(Outcome::Completed), Some(Cause::AmountMatched))
+    );
+
+    let (ran, _) = paying_compile("u710-no", 0x83, Card::RejectOnce);
+    println!(
+        "no: end {:?} calls {:?} confirms {}",
+        ran.end(),
+        ran.calls,
+        ran.count(|f| matches!(f, FromRunner::Confirm(_)))
+    );
+    assert_eq!(calls_of(&ran, "act click"), 1);
+    assert_eq!(ran.count(|f| matches!(f, FromRunner::Confirm(_))), 1);
+    assert!(ran.calls.iter().all(|c| !c.starts_with("let through")));
+    assert_eq!(calls_of(&ran, "fail held"), 1);
+    assert_eq!(ran.end(), (Some(Outcome::Declined), Some(Cause::Declined)));
+}
+
+/// T2 of r3 U7.10: while the request of a compile's click is held the drive reads nothing of the page (no snapshot,
+/// no reading of a credential field, no extract, no address): every value of the card is read before the click.
+#[test]
+fn u710_while_a_compiles_request_is_held_the_drive_reads_nothing_of_the_page() {
+    let (ran, _) = paying_compile("u710-reads", 0x85, Card::AllowOnce);
+    println!("calls {:?}", ran.calls);
+    let click = ran
+        .calls
+        .iter()
+        .position(|c| c == "act click")
+        .expect("a click");
+    let answered = ran
+        .calls
+        .iter()
+        .position(|c| c.starts_with("let through") || c == "fail held")
+        .expect("the held request let through or failed");
+    let reads = ["snapshot", "read sign", "act extract", "address"];
+    let between: Vec<&String> = ran.calls[click + 1..answered]
+        .iter()
+        .filter(|c| reads.contains(&c.as_str()))
+        .collect();
+    assert!(
+        between.is_empty(),
+        "reads of the page while held: {between:?}"
+    );
+    let last_snapshot = ran.calls[..click]
+        .iter()
+        .rposition(|c| c == "snapshot")
+        .expect("the click's snapshot");
+    assert!(
+        ran.calls[last_snapshot..click]
+            .iter()
+            .any(|c| c == "act extract"),
+        "the amount read again before the click: {:?}",
+        ran.calls
+    );
+}
+
+/// T3 of r3 U7.10: a replay of the playbook that a compile stored where its paying click was held acts ONCE: one click,
+/// one card and one let-through, by the maker, as a replay does.
+#[test]
+fn u710_a_replay_of_the_compiled_playbook_acts_once() {
+    let (ran, load) = paying_compile("u710-compiled", 0x87, Card::AllowOnce);
+    let mut stored = load;
+    stored.playbook = Some(LoadedPlaybook {
+        number: NonZeroU32::MIN,
+        steps: NonZeroU32::new(ran.stored.len() as u32).expect("steps"),
+    });
+    stored.next_playbook = NonZeroU32::new(2).expect("two");
+    let replies = paying_replies();
+    let replies: Vec<&str> = replies.iter().map(String::as_str).collect();
+    let replay = run(
+        "u710-replay",
+        "replay",
+        stored,
+        ran.stored.clone(),
+        paying_pages(),
+        &replies,
+        Some(&[OPEN]),
+    );
+    println!(
+        "replay of {:?}: end {:?} calls {:?}",
+        ran.stored
+            .iter()
+            .map(|s| format!("{} {}", s.verb.as_str(), s.effect.as_str()))
+            .collect::<Vec<_>>(),
+        replay.end(),
+        replay.calls
+    );
+    assert_eq!(calls_of(&replay, "act click"), 1);
+    assert_eq!(replay.count(|f| matches!(f, FromRunner::Confirm(_))), 1);
+    assert_eq!(calls_of(&replay, "let through 1"), 1);
+    assert_eq!(
+        replay.end(),
+        (Some(Outcome::Completed), Some(Cause::AmountMatched))
+    );
+    assert_eq!(replay.requests.len(), 0);
 }

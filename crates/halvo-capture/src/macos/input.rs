@@ -57,10 +57,22 @@ extern "C" {
     fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
     #[cfg(any(test, debug_assertions))]
     fn CGEventSourceCounterForEventType(state: i32, event_type: u32) -> u32;
+    fn CGEventSourceSecondsSinceLastEventType(state: i32, event_type: u32) -> f64;
 }
 
-#[cfg(any(test, debug_assertions))]
+/// `kCGEventSourceStateHIDSystemState`: the state of the hardware's input events.
 const HID_SYSTEM_STATE: i32 = 1;
+
+/// How long ago a key was last pressed on the whole computer, as the system's HID state has
+/// it: a length of time and no number of keys; none for an answer that is not a time.
+fn since_the_last_key_down() -> Option<Duration> {
+    // SAFETY: a query of the system that takes two values and touches no memory of the
+    // caller.
+    let seconds = unsafe {
+        CGEventSourceSecondsSinceLastEventType(HID_SYSTEM_STATE, CGEventType::KeyDown as u32)
+    };
+    Duration::try_from_secs_f64(seconds).ok()
+}
 
 #[cfg(any(test, debug_assertions))]
 fn hid_key_downs() -> u32 {
@@ -75,6 +87,29 @@ pub const HELD_SAMPLE_STEP: Duration = Duration::from_millis(250);
 /// How long every reading of the secure-input state at the fold timer's fires must read on
 /// before the input source reads impaired with the reason secure_input_elsewhere.
 pub const KEPT_PRIVATE_AFTER: Duration = Duration::from_secs(30);
+
+/// At how many fires of the fold timer within [`KEPT_PRIVATE_AFTER`] a key must have been
+/// pressed on the computer, with none at the tap, before the input source reads impaired
+/// with the reason no_key_events.
+pub const NO_KEY_FIRES: u32 = 10;
+
+/// What a tap context holds of keys that are pressed and do not arrive: the window of
+/// readings that it counts in, and whether the rule stands. It holds no answer of the
+/// system and no number of keys.
+#[derive(Default)]
+struct NoKey {
+    window: Option<NoKeyWindow>,
+    stands: bool,
+}
+
+/// A window of the fold timer's readings that all read off, with no key-down at the tap: the
+/// stamp of its first reading, that reading's second, and at how many of its fires a key had
+/// been pressed on the computer since the fire before.
+struct NoKeyWindow {
+    first: Monotonic,
+    second: u64,
+    fires_with_a_key: u32,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -224,6 +259,7 @@ struct InputFigures {
     stalled: AtomicBool,
     kept_private: AtomicBool,
     secure_hold_since: AtomicU64,
+    no_key_since: AtomicU64,
     secure_released_keystrokes: AtomicU64,
     secure_held_keystrokes: AtomicU64,
     secure_held_suppressed_down: AtomicU64,
@@ -354,6 +390,18 @@ impl InputCounters {
             .store(since.unwrap_or(0), Ordering::Relaxed);
     }
 
+    /// Marks the second, counted from 1970, of the first reading of 30 seconds through
+    /// which keys were pressed and none reached the tap, or takes the mark back.
+    fn set_no_key(&self, since: Option<u64>) {
+        self.0
+            .no_key_since
+            .store(since.unwrap_or(0), Ordering::Relaxed);
+    }
+
+    fn no_key(&self) -> bool {
+        self.0.no_key_since.load(Ordering::Relaxed) > 0
+    }
+
     /// Key downs that came in time and were read while secure input was on; each
     /// was suppressed and never emitted. A modifier press after a reading of on is
     /// a reading alone and is not counted, and a late or untimed press under
@@ -390,6 +438,7 @@ impl InputCounters {
             typing_gate: None,
             secure_hold_keys: f.kept_private.load(Ordering::Relaxed),
             secure_hold_since: Some(read(&f.secure_hold_since)).filter(|since| *since > 0),
+            no_key_since: Some(read(&f.no_key_since)).filter(|since| *since > 0),
         }
     }
 }
@@ -909,6 +958,13 @@ struct TapContext {
     /// The clock of the second that a status names for a hold of secure input: whole
     /// seconds since 1970.
     wall: fn() -> u64,
+    /// The question of how long ago a key was last pressed on the whole computer.
+    last_key: fn() -> Option<Duration>,
+    /// Whether a key-down reached the callback since the fold timer's last fire.
+    key_arrived: AtomicBool,
+    /// What the fold timer's fires hold of keys that are pressed and do not arrive
+    /// ([`TapContext::read_no_key`]).
+    no_key: Mutex<NoKey>,
     held_phase: Arc<AtomicBool>,
     /// Whether the start of this context asked its tap for key types: a key
     /// event that reaches a context whose start asked for none makes no record,
@@ -1522,6 +1578,7 @@ impl Drop for TapContext {
             .take();
         self.counters.count_folds_dropped_at_stop(&left);
         self.counters.set_secure_hold(None);
+        self.counters.set_no_key(None);
     }
 }
 
@@ -1564,7 +1621,8 @@ impl TapContext {
     /// reads; a reading of off or unknown takes both back. It runs on the tap thread, whose
     /// stop a shutdown waits for [`INPUT_STOP_DEADLINE`] at most.
     fn read_kept_private(&self) {
-        let on = (self.secure)((self.session)()) == Reading::On;
+        let reading = (self.secure)((self.session)());
+        let on = reading == Reading::On;
         let now = (self.clocks.stamps)();
         let mut since = self
             .private_since
@@ -1582,6 +1640,61 @@ impl TapContext {
             .set_kept_private(kept.is_some() && self.keys_asked);
         self.counters
             .set_secure_hold(kept.map(|(_, second)| second));
+        drop(since);
+        self.read_no_key(reading, now);
+    }
+
+    /// One step, at a fire of the fold timer, of the rule on keys that are pressed on the
+    /// computer and do not reach the tap, for a context whose start asked for the key types.
+    /// A reading of secure input that is not off, and a key-down at the callback since the
+    /// fire before, end the window and take the mark back, and such a fire asks the system
+    /// nothing. The first reading of off behind either only opens a window. At each later
+    /// fire of the window the system is asked how long ago a key was last pressed
+    /// (`last_key`); the answer is compared with the timer's interval and kept nowhere. A
+    /// window that has stood for [`KEPT_PRIVATE_AFTER`] with [`NO_KEY_FIRES`] or more such
+    /// fires marks the input figures with the second of its first reading, and from then on
+    /// nothing is asked; one with fewer begins anew.
+    fn read_no_key(&self, reading: Reading, now: Monotonic) {
+        if !self.keys_asked {
+            return;
+        }
+        let arrived = self.key_arrived.swap(false, Ordering::Relaxed);
+        let mut guard = self.no_key.lock().unwrap_or_else(PoisonError::into_inner);
+        let held = &mut *guard;
+        if reading != Reading::Off || arrived {
+            held.stands = false;
+            held.window = (reading == Reading::Off).then(|| self.no_key_window(now));
+            self.counters.set_no_key(None);
+            return;
+        }
+        if held.stands {
+            return;
+        }
+        let Some(window) = held.window.as_mut() else {
+            held.window = Some(self.no_key_window(now));
+            return;
+        };
+        if (self.last_key)().is_some_and(|ago| ago < POINTER_FOLD_INTERVAL) {
+            window.fires_with_a_key += 1;
+        }
+        let stood = Duration::from_nanos(now.nanos().saturating_sub(window.first.nanos()));
+        if stood < KEPT_PRIVATE_AFTER {
+            return;
+        }
+        if window.fires_with_a_key >= NO_KEY_FIRES {
+            held.stands = true;
+            self.counters.set_no_key(Some(window.second));
+        } else {
+            held.window = Some(self.no_key_window(now));
+        }
+    }
+
+    fn no_key_window(&self, now: Monotonic) -> NoKeyWindow {
+        NoKeyWindow {
+            first: now,
+            second: (self.wall)(),
+            fires_with_a_key: 0,
+        }
     }
 }
 
@@ -1674,6 +1787,9 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             ctx.port.reenable();
         }
         return;
+    }
+    if matches!(event.etype, CGEventType::KeyDown) {
+        ctx.key_arrived.store(true, Ordering::Relaxed);
     }
     let kind = match kind_of(event.etype, key_code, event.flags, autorepeat) {
         Kind::Key(_) if !ctx.keys_asked || !ctx.floor.switches().is_on(Switch::KeyClass) => {
@@ -1833,6 +1949,9 @@ fn tap_context(
         fold_timer: Mutex::new(None),
         private_since: Mutex::new(None),
         wall: crate::floor::exclude::unix_seconds_now,
+        last_key: since_the_last_key_down,
+        key_arrived: AtomicBool::new(false),
+        no_key: Mutex::new(NoKey::default()),
         held_phase: Arc::new(AtomicBool::new(false)),
         keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -2456,6 +2575,7 @@ impl InputSource {
         self.counters.set_stalled(false);
         self.counters.set_kept_private(false);
         self.counters.set_secure_hold(None);
+        self.counters.set_no_key(None);
         self.keys_missing.store(false, Ordering::SeqCst);
         let events = self.start_events();
         self.off = events.is_empty();
@@ -2678,7 +2798,10 @@ impl CaptureSource for InputSource {
     /// read on, reads impaired with the reason secure_input_elsewhere, after
     /// the reasons thread_ended, permission and run_loop_stalled; the next
     /// reading of off or unknown, and a new begin, take it back. Health reads
-    /// that mark alone and calls the system for nothing.
+    /// that mark alone and calls the system for nothing. A running tap whose
+    /// figures hold that keys were pressed on the computer through
+    /// [`KEPT_PRIVATE_AFTER`] and none of them reached it reads impaired with
+    /// the reason no_key_events, after every other reason.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
@@ -2690,6 +2813,9 @@ impl CaptureSource for InputSource {
             },
             (Some(_), _) if self.counters.kept_private() => SourceState::Impaired {
                 reason: HealthReason::SecureInputElsewhere,
+            },
+            (Some(_), _) if self.counters.no_key() => SourceState::Impaired {
+                reason: HealthReason::NoKeyEvents,
             },
             (Some(_), _) => SourceState::Running,
             (None, Some(error)) => source_failure(error.clone()),
@@ -7376,6 +7502,159 @@ mod tests {
             None,
             "nothing that a hold leaves out is on"
         );
+    }
+
+    #[test]
+    fn keys_pressed_through_thirty_seconds_with_none_at_the_tap_stand_in_the_status_and_on_the_row_and_no_fire_asks_at_a_hold_or_behind_a_key(
+    ) {
+        use crate::daemon::board::Board;
+        use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::state::{Cap, Desired, StateHealth};
+        use crate::floor::Switches;
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{LastStop, Lease, Parent, Platform};
+
+        thread_local! {
+            static AGO_MS: Cell<u64> = const { Cell::new(60_000) };
+            static ASKS: Cell<u32> = const { Cell::new(0) };
+        }
+        fn last_key() -> Option<Duration> {
+            ASKS.with(|asks| asks.set(asks.get() + 1));
+            Some(Duration::from_millis(AGO_MS.with(Cell::get)))
+        }
+        fn wall() -> u64 {
+            1_800_000_000 + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
+        }
+        let asks = || ASKS.with(Cell::get);
+        let written = |held: &Held| {
+            let mut board = Board::new(Platform::Macos);
+            board.figures = held.counters.figures();
+            let parts = StatusParts {
+                board,
+                desired: Desired::Running,
+                lease: Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap: Cap::Known(StorageCap::DEFAULT),
+                switches: Switches::default(),
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: true,
+                held: false,
+                typing_off_unsaved: None,
+                search: None,
+                left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
+            };
+            let facts = RunFacts {
+                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+                parent: Parent::None,
+                last_stop: LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+        };
+        let entry = |since: &str| {
+            Some(format!(
+                r#"[{{"cause":"no_key_arrives","what":["typing"],"since":"{since}"}}]"#
+            ))
+        };
+
+        let mut held = held(100);
+        held.ctx.wall = wall;
+        held.ctx.last_key = last_key;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || {
+            advance(1_000);
+            fold_timer_fired(std::ptr::null_mut(), info);
+        };
+        let seconds = |with_a_key: u32, without: u32| {
+            for second in 0..with_a_key + without {
+                AGO_MS.with(|ago| ago.set(if second < with_a_key { 200 } else { 60_000 }));
+                fire();
+            }
+        };
+
+        answer(Reading::Off);
+        fold_timer_fired(std::ptr::null_mut(), info);
+        assert_eq!(asks(), 0, "the first reading of off asks nothing");
+        seconds(9, 21);
+        assert_eq!(asks(), 30, "one question at each fire behind it");
+        assert_eq!(written(&held), None, "a key in 9 of 30 seconds");
+        seconds(10, 20);
+        assert_eq!(
+            written(&held),
+            entry("2027-01-15T08:00:30Z"),
+            "a key in 10 of 30 seconds and none at the tap: since the window's first reading"
+        );
+        fire();
+        assert_eq!(asks(), 60, "while it stands nothing is asked");
+
+        key_down(&held.ctx);
+        fire();
+        assert_eq!(written(&held), None, "a key-down reached the tap");
+        assert_eq!(asks(), 60, "a second in which a key arrived asks nothing");
+        seconds(10, 5);
+        answer(Reading::On);
+        fire();
+        answer(Reading::Off);
+        fire();
+        assert_eq!(
+            asks(),
+            75,
+            "a reading of on and the first reading of off behind it ask nothing"
+        );
+        seconds(10, 19);
+        assert_eq!(
+            written(&held),
+            None,
+            "29 seconds behind a hold: the seconds before it count no more"
+        );
+        seconds(0, 1);
+        assert_eq!(
+            written(&held),
+            entry("2027-01-15T08:01:19Z"),
+            "30 seconds behind the hold"
+        );
+        answer(Reading::Unknown);
+        fire();
+        assert_eq!(written(&held), None, "a reading of unknown");
+        assert_eq!(asks(), 105, "a reading of unknown asks nothing");
+
+        held.ctx.keys_asked = false;
+        answer(Reading::Off);
+        seconds(10, 25);
+        assert_eq!(written(&held), None, "a tap that asked no key type");
+        assert_eq!(asks(), 105, "a tap that asked no key type asks nothing");
+
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::Never);
+        source.session = || Session::NotAtConsole;
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, FakeMaker(ended_tx), || {})
+            .expect("the source starts with a fake tap");
+        source.counters.set_no_key(Some(1_800_000_000));
+        assert_eq!(
+            source.health().state,
+            SourceState::Impaired {
+                reason: HealthReason::NoKeyEvents
+            }
+        );
+        source.counters.set_kept_private(true);
+        assert_eq!(
+            source.health().state,
+            SourceState::Impaired {
+                reason: HealthReason::SecureInputElsewhere
+            },
+            "behind the reasons that stood"
+        );
+        source.counters.set_kept_private(false);
+        source.counters.set_no_key(None);
+        assert_eq!(source.health().state, SourceState::Running);
+        source.shutdown().expect("the source stops");
     }
 
     #[test]

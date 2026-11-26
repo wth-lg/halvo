@@ -53,7 +53,10 @@ pub struct Data {
 /// as a spreadsheet program shows it turns whole or not at all (`turning`).
 pub(crate) fn data(bytes: &[u8], page: Option<u16>) -> Result<Data, Error> {
     let (text, letters) = letters(bytes, page)?;
-    let rows = rows(&text)?;
+    let rows = match letters {
+        Letters::Page(_) => page_rows(&text)?,
+        Letters::Utf8 | Letters::Utf16 => rows(&text)?,
+    };
     Ok(Data { rows, letters })
 }
 
@@ -91,7 +94,6 @@ fn letters(bytes: &[u8], page: Option<u16>) -> Result<(Cow<'_, str>, Letters), E
                 .filter(|page| PAGES.contains(page))
                 .ok_or_else(encoding)?;
             let text = by_page(bytes, page)?;
-            alike(bytes, &text)?;
             Ok((Cow::Owned(text), Letters::Page(page)))
         }
     }
@@ -159,59 +161,69 @@ fn four_byte(bytes: &[u8]) -> bool {
     false
 }
 
-/// Whether the file of `bytes`, which its own page reads as `text`, reads alike under every page
-/// of `PAGES` that reads its bytes (`by_page`) (r3 U11.10, the coordinator's rule of log line
-/// 23651): part (1), by the same separator (`reading`), or by the same refusal of it; part (2), in
-/// as many rows of as many cells (`rows`), where no cell is a number under two pages with two
-/// values, a number under one page beside a text under another passing. Else the file is refused
-/// with `data_encoding`. Part (3) follows: the own page reads as the same text saved as UTF-8,
-/// and so cell for cell as the twin of every page that reads the bytes, or is refused.
-fn alike(bytes: &[u8], text: &str) -> Result<(), Error> {
+/// The rows of a file that the computer's page reads as `text` (r3 U11.10, the coordinator's rule
+/// of log line 23819, R1 to R3, with the builder's reading X of its line RULE): R2, the separator
+/// that `reading` tells for the text with every sign beyond ASCII taken as a plain letter
+/// (`letters`), for the text with every run of such signs taken as one sign of money (`as_money`)
+/// and for the page's own text must be one, else the file is refused with `data_encoding`: the
+/// separator rises with signs taken as money and falls with signs taken as letters, so under every
+/// page that keeps ASCII the file reads by that one separator. R1, every number is that of the
+/// rows with every sign beyond ASCII a plain letter (`rows`), so a cell that holds such a sign is a
+/// text, and every text is the page's own field. R3 follows: under every page that keeps ASCII, in
+/// the list or outside it, the same cells and the same numbers.
+fn page_rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
+    let letters: String = text
+        .chars()
+        .map(|c| if c.is_ascii() { c } else { 'a' })
+        .collect();
     let separator = |text: &str| reading(text).map(|(sign, _)| sign);
-    let own = separator(text);
-    let mut seen = rows(text).ok().map(|rows| number_bits(&rows));
-    for page in PAGES {
-        let Ok(other) = by_page(bytes, page) else {
-            continue;
-        };
-        if separator(&other) != own {
-            return Err(encoding());
-        }
-        let (Some(seen), Ok(rows)) = (seen.as_mut(), rows(&other)) else {
-            continue;
-        };
-        let theirs = number_bits(&rows);
-        let shape = theirs.len() == seen.len()
-            && theirs
-                .iter()
-                .zip(seen.iter())
-                .all(|(a, b)| a.len() == b.len());
-        if !shape {
-            return Err(encoding());
-        }
-        for (cell, held) in theirs.iter().flatten().zip(seen.iter_mut().flatten()) {
-            match (*cell, *held) {
-                (Some(x), Some(y)) if x != y => return Err(encoding()),
-                (Some(x), None) => *held = Some(x),
-                _ => {}
-            }
-        }
+    let told = separator(&letters)?;
+    if separator(&as_money(text))? != told || separator(text)? != told {
+        return Err(encoding());
     }
-    Ok(())
-}
-
-/// The bits of each number of `rows`, cell for cell, and none for a text.
-fn number_bits(rows: &[Vec<Value>]) -> Vec<Vec<Option<u64>>> {
-    rows.iter()
-        .map(|row| {
-            row.iter()
-                .map(|value| match value {
-                    Value::Number(x) => Some(x.to_bits()),
-                    Value::Text(_) => None,
+    let numbers = rows(&letters)?;
+    let (_, fields) = reading(text)?;
+    let shape = numbers.len() == fields.len()
+        && numbers.iter().zip(&fields).all(|(a, b)| a.len() == b.len());
+    if !shape {
+        return Err(encoding());
+    }
+    Ok(numbers
+        .into_iter()
+        .zip(fields)
+        .map(|(row, cells)| {
+            row.into_iter()
+                .zip(cells)
+                .map(|(value, cell)| match value {
+                    Value::Number(x) => Value::Number(x),
+                    Value::Text(_) => Value::Text(cell.into_owned()),
                 })
                 .collect()
         })
-        .collect()
+        .collect())
+}
+
+/// `text` with every run of signs beyond ASCII taken as ONE sign of money (`€`), each sign of the
+/// run with at most one following sign of 40 to 7E, a possible second byte of a letter of two bytes
+/// under another page (r3 U11.10): the reading of a page-read file in which as many fields as can be
+/// are numbers written with a comma and as few as can be are texts.
+fn as_money(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c.is_ascii() {
+            out.push(c);
+            continue;
+        }
+        out.push('€');
+        loop {
+            chars.next_if(|next| ('\u{40}'..='\u{7e}').contains(next));
+            if chars.next_if(|next| !next.is_ascii()).is_none() {
+                break;
+            }
+        }
+    }
+    out
 }
 
 /// The code page that Windows gives as the computer's own (`GetACP`), the one by which Excel's
@@ -2253,7 +2265,7 @@ mod tests {
                 "1252: u-umlaut and the euro sign",
                 b"M\xfcller,12.50 \x80\r\n",
                 1252,
-                vec![vec![t("Müller"), n(12.5)]],
+                vec![vec![t("Müller"), t("12.50 €")]],
             ),
             (
                 "1250",
@@ -2278,7 +2290,7 @@ mod tests {
                 "1252: a pound sign right before a digit, 936 and 949 and 950 reading none of it",
                 b"Miete,\xa3100\r\n",
                 1252,
-                vec![vec![t("Miete"), n(100.0)]],
+                vec![vec![t("Miete"), t("£100")]],
             ),
             (
                 "1252: a paragraph sign right before a digit",
@@ -2663,5 +2675,146 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// The reader's file of round 2 (verifier-161) with the byte `sign` in the place of the money
+    /// sign and `separator` between its fields: a money sign under a page outside the list (A4 of
+    /// ISO 8859-15, DB of the Mac's page, 9C of 437 and 850, BE of 850) that no page of the list reads
+    /// as money.
+    fn readers_file_of(sign: u8, separator: u8) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        for (amount, text, last) in [
+            ("41,20 ", " Strom,Gas", " x"),
+            ("12,50 ", " Wasser,Abwasser", " y"),
+        ] {
+            bytes.extend_from_slice(amount.as_bytes());
+            bytes.push(sign);
+            bytes.push(separator);
+            bytes.extend_from_slice(text.as_bytes());
+            bytes.push(separator);
+            bytes.extend_from_slice(last.as_bytes());
+            bytes.extend_from_slice(b"\r\n");
+        }
+        bytes
+    }
+
+    /// r3 U11.10 round 2 (a), the coordinator's log line 23819: the reader's file with A4, DB, 9C
+    /// and BE, by semicolons and by tabs, under each page of the list: no cell holds a number other
+    /// than 41.2 and 12.5; a text, or a refusal with `data_encoding`, passes.
+    #[test]
+    fn the_readers_file_of_a_page_outside_the_list_holds_no_other_number() {
+        let mut wrong = Vec::new();
+        for sign in [0xa4, 0xdb, 0x9c, 0xbe] {
+            for separator in *b";\t" {
+                let bytes = readers_file_of(sign, separator);
+                for page in THE_PAGES {
+                    match data(&bytes, Some(page)) {
+                        Err(error) if error == encoding() => {}
+                        Err(error) => wrong.push(format!("{sign:02x} {page}: {error:?}")),
+                        Ok(read) => {
+                            let other: Vec<f64> = numbers(&read.rows)
+                                .into_iter()
+                                .filter(|x| ![41.2, 12.5].contains(x))
+                                .collect();
+                            if !other.is_empty() {
+                                wrong.push(format!(
+                                    "{sign:02x} {separator} {page}: {:?}",
+                                    read.rows
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.10 round 2 (b), R3 by a table: for files of each shape, every renaming of their bytes
+    /// beyond ASCII to one other such byte, under every page of the list that reads the renamed
+    /// bytes, reads to the same rows of the same cells and the same numbers, or is refused.
+    #[test]
+    fn a_renaming_of_the_bytes_beyond_ascii_reads_to_the_same_cells_and_numbers() {
+        let shapes: [&[u8]; 6] = [
+            b"M\xfcller,12.50,41\r\nStrom,3.5,7\r\n",
+            b"41,20 \x80; Strom,Gas; x\r\n12,50 \x80; Wasser,Abwasser; y\r\n",
+            b"Gas;41,20 \x80;7\r\nStrom;12,50 \x80;3\r\n",
+            b"\xe9;1,5;2\r\n\xe8;3,5;4\r\n",
+            b"Rent,\"1\xa0234\",5\r\n",
+            b"41,20 \x80\t Strom,Gas\t x\r\n12,50 \x80\t Wasser,Abwasser\t y\r\n",
+        ];
+        let mut wrong = Vec::new();
+        for shape in shapes {
+            let mut seen: Option<(Vec<usize>, Vec<Option<u64>>)> = None;
+            for byte in 0x80..=0xffu8 {
+                let renamed: Vec<u8> = shape
+                    .iter()
+                    .map(|&b| if b >= 0x80 { byte } else { b })
+                    .collect();
+                for page in THE_PAGES {
+                    if by_page(&renamed, page).is_err() {
+                        continue;
+                    }
+                    let Ok(read) = data(&renamed, Some(page)) else {
+                        continue;
+                    };
+                    let widths: Vec<usize> = read.rows.iter().map(Vec::len).collect();
+                    let cells: Vec<Option<u64>> = read
+                        .rows
+                        .iter()
+                        .flatten()
+                        .map(|v| match v {
+                            Value::Number(x) => Some(x.to_bits()),
+                            Value::Text(_) => None,
+                        })
+                        .collect();
+                    match &seen {
+                        None => seen = Some((widths, cells)),
+                        Some(first) if *first != (widths, cells) => {
+                            wrong.push(format!(
+                                "{}: {byte:02x} under {page}: {:?}",
+                                shown(shape),
+                                read.rows
+                            ));
+                        }
+                        Some(_) => {}
+                    }
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.10 round 2 (c), R1: in a file read by the page a cell that holds a sign beyond ASCII
+    /// is a text: `41,20 €` (the byte 80 under 1252), `£500` and a number with a no-break space.
+    #[test]
+    fn in_a_page_read_file_a_cell_with_a_sign_beyond_ascii_is_a_text() {
+        let cases: [(&[u8], Vec<Vec<Value>>); 3] = [
+            (
+                b"Strom;41,20 \x80\r\n",
+                vec![vec![t("Strom"), t("41,20 €")]],
+            ),
+            (b"Miete,\xa3500\r\n", vec![vec![t("Miete"), t("£500")]]),
+            (
+                b"Miete,1\xa0234\r\n",
+                vec![vec![t("Miete"), t("1\u{a0}234")]],
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (bytes, rows) in cases {
+            let got = data(bytes, Some(1252)).map(|read| read.rows);
+            if got != Ok(rows) {
+                wrong.push(format!("{}: got {got:?}", shown(bytes)));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.10 round 2 (d), R2: a file whose separator the page's own reading tells otherwise
+    /// than the rules with every sign beyond ASCII taken as a plain letter is refused with
+    /// `data_encoding`: the first reader's file with the byte 80, the euro sign under 1252.
+    #[test]
+    fn a_file_whose_page_tells_another_separator_than_its_letters_is_refused() {
+        assert_eq!(data(READERS_FILE, Some(1252)), Err(encoding()));
     }
 }
