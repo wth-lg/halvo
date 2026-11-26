@@ -2890,6 +2890,59 @@ mod tests {
     }
 
     #[test]
+    fn a_chrome_or_edge_whose_process_holds_the_british_english_language_file_keeps_its_titles_and_one_that_holds_the_german_one_keeps_none(
+    ) {
+        let chrome_normal = "Quarterly plan - Google Docs - Google Chrome";
+        let edge_normal = "Quarterly plan - Google Docs - Microsoft Edge";
+        let mut made = Vec::new();
+        for (bundle_id, normal, private) in [
+            (
+                "com.google.Chrome",
+                chrome_normal,
+                "New Tab - Google Chrome (Incognito)",
+            ),
+            (
+                "com.microsoft.edgemac",
+                edge_normal,
+                "New Tab - Microsoft Edge (InPrivate)",
+            ),
+        ] {
+            for code in ["en_GB", "de"] {
+                let said = SaidLanguage::holding(code);
+                said.started(40, at(5));
+                let mut through = Through::new(None, &said);
+                let front = app(bundle_id, 40);
+                for title in [normal, private] {
+                    through.shows(&front, title);
+                }
+                let (_, titles, reads, left_out) = through.made();
+                made.push((bundle_id, code, titles, reads, left_out));
+            }
+        }
+        assert_eq!(
+            made,
+            [
+                (
+                    "com.google.Chrome",
+                    "en_GB",
+                    vec![chrome_normal.to_string()],
+                    2,
+                    1
+                ),
+                ("com.google.Chrome", "de", Vec::new(), 0, 0),
+                (
+                    "com.microsoft.edgemac",
+                    "en_GB",
+                    vec![edge_normal.to_string()],
+                    2,
+                    1
+                ),
+                ("com.microsoft.edgemac", "de", Vec::new(), 0, 0)
+            ]
+        );
+    }
+
+    #[test]
     fn a_browser_whose_process_gives_no_answer_is_read_again_and_at_most_25_times() {
         let normal = "Quarterly plan - Google Docs - Google Chrome";
 
