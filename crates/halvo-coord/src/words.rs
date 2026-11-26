@@ -232,7 +232,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.shortfall",
-        "Halvo cannot do this agent's task with the AI model that this agent may use. The agent hands its work back to you each time it starts.",
+        "Last time, Halvo could not do this agent's task with the AI model that this agent may use. The agent waits until you choose Start now.",
     ),
     (
         "line.problem.not_replaced",
