@@ -9,8 +9,10 @@ sentences before it on a result line and on the block: the block of the round li
 because it holds the lines of one machine's run. This file holds, under the heading "The round's
 block" at its end, the block's sha256, its count of lines and its verdict line, and no other line of
 the block. The verdict line was read from the block by counts by hand, under the verdict rule of A13.6
-as point 4 below gives it. No tool of the tree reads a hosted block. The verdict line stands by the
-coordinator's line alone.
+as point 4 below gives it. No tool of the tree reads this round's block: `route-gate import --hosted`
+refuses a block that holds an attempt line of the kind `recover` or a `spend`, `egress` or `host` line,
+and this round wrote both (the cells above and the part "The lines that the paid round adds"). The
+verdict line stands by the coordinator's line alone.
 
 ## The verdict rule of A13.6, word for word
 

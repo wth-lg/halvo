@@ -43,6 +43,12 @@ const TYPING_OFF_NEW: &str = "typing-off.new";
 
 const TYPING_OFF_LINE: &str = "key_class=off\n";
 
+const KEYS_RESTART: &str = "keys-restart";
+
+const KEYS_RESTART_NEW: &str = "keys-restart.new";
+
+const KEYS_RESTART_LINE: &str = "input_monitoring=restarted\n";
+
 /// run/ of the folder that the instance lock holds, where every write of the
 /// marker after the start of a life goes: on macOS a descriptor of run/,
 /// opened through the descriptor of the held folder as the state file's
@@ -144,6 +150,33 @@ pub fn keep_typing_off(run: &HeldRun) -> io::Result<()> {
 pub fn let_typing_go(run: &HeldRun) -> io::Result<()> {
     remove_named_in(run, TYPING_OFF)?;
     remove_named_in(run, TYPING_OFF_NEW)
+}
+
+/// Whether the note of a life that ended for a grant of Input Monitoring
+/// whose tap held no key type stands in run/ of the held folder, as a start
+/// reads it through `run`: where no run/ stands, none; any entry at
+/// run/keys-restart or run/keys-restart.new, and a run/ or a name that
+/// cannot be read, read as standing, the side of no further end.
+pub fn keys_restart_stands(run: &io::Result<HeldRun>) -> bool {
+    match run {
+        Ok(run) => [KEYS_RESTART, KEYS_RESTART_NEW]
+            .iter()
+            .any(|name| !absent_in(run, name)),
+        Err(error) => error.kind() != io::ErrorKind::NotFound,
+    }
+}
+
+/// The one writer of that note: run/keys-restart, by the durable write of
+/// the marker, through `run`, the held folder.
+pub fn keep_keys_restart(run: &HeldRun) -> io::Result<()> {
+    replace_named_in(run, KEYS_RESTART, KEYS_RESTART_LINE.as_bytes())
+}
+
+/// The one remover of that note, and of a run/keys-restart.new that a write
+/// left; a name where nothing stands is no error.
+pub fn let_keys_restart_go(run: &HeldRun) -> io::Result<()> {
+    remove_named_in(run, KEYS_RESTART)?;
+    remove_named_in(run, KEYS_RESTART_NEW)
 }
 
 /// What a start found in the marker and made of it: its reading, the result

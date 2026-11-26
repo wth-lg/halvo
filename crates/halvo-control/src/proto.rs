@@ -1587,6 +1587,52 @@ pub enum TypingGate {
 
 one_spelling!(TypingGate, "typing gate", [Ok => "ok", FieldUnknown => "field_unknown", LatchOpen => "latch_open"]);
 
+/// Why the capture service leaves something out, as the entries of the status's `left_out`
+/// and `left_out_before` name it. A word that this build does not know reads as `other`, so
+/// that a status which names another cause still reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeftOutCause {
+    /// Three or more events in a row were left out by doubt, as `left_out_in_doubt` says.
+    Doubt,
+    /// A Mac's alone: every reading of the system's secure input has read on for 30 seconds
+    /// or more.
+    SecureInput,
+    #[serde(other)]
+    Other,
+}
+
+/// A part of the capture that an entry of the status's `left_out` or `left_out_before`
+/// names. A word that this build does not know reads as `other`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeftOutPart {
+    Everything,
+    Typing,
+    WindowTitles,
+    ScreenActivity,
+    #[serde(other)]
+    Other,
+}
+
+/// What the capture service leaves out now by one cause, and since when.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeftOut {
+    pub cause: LeftOutCause,
+    pub what: Vec<LeftOutPart>,
+    pub since: UtcSecond,
+}
+
+/// What the capture service left out by one cause, from when to when: the last such stretch
+/// that ended. The service holds it in its memory alone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeftOutBefore {
+    pub cause: LeftOutCause,
+    pub what: Vec<LeftOutPart>,
+    pub from: UtcSecond,
+    pub until: UtcSecond,
+}
+
 /// Why typing reads off though the state file did not take a person's turn of typing to off:
 /// the capture service's note keeps the turn across its starts until a turn on, or it holds
 /// the turn in the memory of this life alone, where the note could not be written either.
@@ -1694,6 +1740,16 @@ pub struct StatusFields {
     /// not move for it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub left_out_in_doubt: bool,
+    /// What the capture service leaves out now, with one entry for each cause that holds. It
+    /// crosses the wire only while it holds an entry, so that a status of a daemon that sends
+    /// none reads empty, and the protocol number does not move for it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub left_out: Vec<LeftOut>,
+    /// What the capture service left out before, with at most one entry for each cause: the
+    /// last stretch of that cause that ended. It crosses the wire only while it holds an
+    /// entry, and the protocol number does not move for it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub left_out_before: Vec<LeftOutBefore>,
     pub title_read_errors: u64,
     #[serde(deserialize_with = "required")]
     pub last_flush_at: Option<UtcSecond>,
