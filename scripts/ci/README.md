@@ -87,7 +87,7 @@ The seconds of each check of `scripts/ci/merge-gate.txt` as a check of the merge
 | 72-notices | 2 | - |
 | sum of the lines | 532, and 60 on a developer's Mac | 723 |
 
-61-r6-senders-egress came after that run: its 41 s are those of one run by the driver on a developer's Mac, and its seconds on the hosted Mac stand in the run of the pull request that added it. Its entry of halvo-runner (r6 U5.4), one unit test that starts the built door from the runner's own start, added 19 s on a developer's Mac in a call whose third-party crates were built, 7 s of them the build of the runner's library tests, which no other check of the macos gate builds, and 50 s in a call that built those crates too; that entry's seconds on the hosted Mac stand in the run of the pull request that added the entry.
+61-r6-senders-egress came after that run: its 41 s are those of one run by the driver on a developer's Mac, and its seconds on the hosted Mac stand in the run of the pull request that added it. Its entry of halvo-runner (r6 U5.4), one unit test that starts the built door from the runner's own start, added 19 s on a developer's Mac in a call whose third-party crates were built, 8 s of them the build of the runner's library tests, which no other check of the macos gate builds, and 50 s in a call that built those crates too; that entry's seconds on the hosted Mac stand in the run of the pull request that added the entry.
 
 The checks of the billing server and of the account (20-r7-backend-static, 21-r7-backend-test, 25-r7-backend-licenses, 27-r7-metering-self and 10-r7-account) are run by hand, with the input `checks` of a run by hand: the carrier of a unit that touches that part runs them, and the coordinator runs them before a build is named.
 
