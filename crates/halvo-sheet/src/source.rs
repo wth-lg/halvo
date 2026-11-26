@@ -172,8 +172,10 @@ fn four_byte(bytes: &[u8]) -> bool {
 /// with every run of such signs taken as one sign of money give it the same number (`rows`); every
 /// other cell is a text, the page's own field, so a cell that holds such a sign is a text (R1). The
 /// two texts keep every separator, quote and line end of the page's text in its order and make no
-/// other sign one, so their rows hold the same cells. The page's own text decides no number, so a
-/// number stays the same under every page that keeps ASCII, in the list or outside it (R3).
+/// other sign one, so their rows hold the same cells. No cell is one number under one page and
+/// another number under another, in the list or outside it (R3); whether it is a number at all can
+/// differ between a page of one-byte letters and a page of two-byte letters, since `as_money` drops
+/// one sign of 40 to 7E behind a sign beyond ASCII.
 fn page_rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
     let letters: String = text
         .chars()
