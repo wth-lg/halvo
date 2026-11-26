@@ -229,6 +229,7 @@ const WORDS = {
   SEEN_WHERE: "{category} in {app} on {site}",
   SEEN_COUNT: "Seen {count} times.",
   SEEN_COUNT_DAYS: "Seen {count} times, from {first day} to {last day}.",
+  CANNOT_DO_TASK: "This version of Halvo cannot do this task.",
   APPROVE: "Approve",
   NOT_NOW: "Not now",
   STORED_WORKFLOWS: "Workflows stored on this computer",
