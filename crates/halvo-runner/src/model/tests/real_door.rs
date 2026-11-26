@@ -5,8 +5,9 @@
 //! through `tee` into a record. The port is that of a stand-in host that this test binds on 127.0.0.1; a door of the
 //! stand-in form makes its ruling from that port alone, so its one origin is that host, and a door built without
 //! that form refuses the argument and sends nothing. The test is ignored in a plain run, whose build does not make
-//! the door: scripts/r6/ci.d/61-r6-senders-egress.sh runs it by its exact name with `--ignored`, under the egress
-//! check, behind the call that builds the door. Every wait of the test has a bound (`RUN_BOUND`, `HOST_READ`).
+//! the door: scripts/r3/ci.d/64-model-egress.sh runs it by its exact name with `--ignored`, in the macos job, under
+//! the egress check, behind its call that builds the door. Every wait of the test has a bound (`RUN_BOUND`,
+//! `HOST_READ`).
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -174,7 +175,7 @@ fn script(record: &Path, door: &Path, port: u16) -> String {
 /// no variable of its environment, no body at the host, no frame that the runner wrote and no line of its standard
 /// error. (6) The door ends by the end of its input, with the exit status 0, before the run's `finish`.
 #[test]
-#[ignore = "starts the built door halvo-model, which the build of a plain run does not make: scripts/r6/ci.d/61-r6-senders-egress.sh runs it by its exact name with --ignored, under the egress check, behind the call that builds the door"]
+#[ignore = "starts the built door halvo-model, which the build of a plain run does not make: scripts/r3/ci.d/64-model-egress.sh runs it by its exact name with --ignored, in the macos job, under the egress check, behind its call that builds the door"]
 fn a_run_asks_the_built_door_through_the_runners_own_start() {
     let exe = std::env::current_exe().expect("the test binary");
     let door = exe
@@ -184,7 +185,7 @@ fn a_run_asks_the_built_door_through_the_runners_own_start() {
         .join("halvo-model");
     assert!(
         door.is_file(),
-        "no built door at {}: `cargo test --locked -p halvo-model --no-run` builds it, as the first call of scripts/r6/ci.d/61-r6-senders-egress.sh does",
+        "no built door at {}: `cargo test --locked -p halvo-model --no-run` builds it, as the first call of scripts/r3/ci.d/64-model-egress.sh does",
         door.display()
     );
     let dir = scratch("real-door");

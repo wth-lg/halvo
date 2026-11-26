@@ -5,7 +5,7 @@
 //! whether its standard error is the null device) into a directory of the test, answers one line a request line, and
 //! opens no socket. No test of this file starts halvo-model: the one test of the tree that starts it from the runner's
 //! own start stands in the child module real_door (r6 U5.4); a plain run ignores it, and
-//! scripts/r6/ci.d/61-r6-senders-egress.sh runs it under the egress check.
+//! scripts/r3/ci.d/64-model-egress.sh runs it in the macos job, under the egress check.
 
 use std::ffi::OsString;
 use std::io::{BufRead, Read, Write};

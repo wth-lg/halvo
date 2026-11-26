@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The test build of each package that can start a sender, halvo-model and halvo-connect, which turns on their feature loopback, runs its lib, bin and test targets, and the test build of halvo-runner runs the one ignored unit test of its library that starts the built door halvo-model from the runner's own start, under sh scripts/egress/check.sh in its mode sandbox with a list of 127.0.0.1 at the ports 49152 to 65535 alone, which this row writes at its run: every test passes and no process opens a connection, sends a datagram or resolves a name outside that list, and the check fails where cargo test fails, where a call runs no test or where denied is above 0, with the denied lines. It does not show the windows job, the doc tests of these packages, the five tests of halvo-connect's target fixture that start the setuid program ps (skipped by their exact names), a test of a package that it does not list, any other test of halvo-runner, or what the egress check does not see (an xpc service, a launch-service open, what a process does after the command ends).
+# rule: The test build of each package that can start a sender, halvo-model and halvo-connect, which turns on their feature loopback, runs its lib, bin and test targets under sh scripts/egress/check.sh in its mode sandbox with a list of 127.0.0.1 at the ports 49152 to 65535 alone, which this row writes at its run: every test passes and no process opens a connection, sends a datagram or resolves a name outside that list, and the check fails where cargo test fails or where denied is above 0, with the denied lines. It does not show the windows job, the doc tests of these packages, the five tests of halvo-connect's target fixture that start the setuid program ps (skipped by their exact names), a test of a package that it does not list, or what the egress check does not see (an xpc service, a launch-service open, what a process does after the command ends).
 # lane: alone
 # self-test: alone
 set -u
@@ -9,11 +9,8 @@ name=61-r6-senders-egress
 
 # The entries of the row. An entry is a whole package, whose lib, bin and test targets run in one
 # call, or ONE target of a package as <package>:<target>, which runs as that package's --test
-# <target> alone in a call of its own, or ONE ignored unit test of a package's library as
-# <package>:lib:<test>, which runs as that package's --lib with --ignored and the test's exact name
-# in a call of its own. The calls of the unit entries come last: the door that the runner's test
-# starts is the one that the call of halvo-model built. A later unit adds its entry to this line.
-entries='halvo-model halvo-connect halvo-runner:lib:model::tests::real_door::a_run_asks_the_built_door_through_the_runners_own_start'
+# <target> alone in a call of its own. A later unit adds its entry to this line.
+entries='halvo-model halvo-connect'
 
 # The tests that meet a rule of the sandbox, skipped by their exact names in every call. Each of
 # these five of crates/halvo-connect/tests/fixture.rs starts ps, a setuid program, which a process
@@ -48,17 +45,13 @@ write_list() {
 }
 
 # calls ENTRIES: prints the arguments of cargo for each call, one line a call: one call for the whole
-# packages, then one call for each target entry, then one call for each unit entry. Exits 1 on an
-# entry of another form.
+# packages, then one call for each target entry. Exits 1 on an entry of another form.
 calls() {
   packages=
   targets=
-  units=
   for entry in $1; do
     case $entry in
-      *[!a-z0-9_:-]* | :* | *:) return 1 ;;
-      *:lib:?*) units="$units $entry" ;;
-      *:*:*) return 1 ;;
+      *[!a-z0-9_:-]* | :* | *: | *:*:*) return 1 ;;
       *:*) targets="$targets $entry" ;;
       *) packages="$packages -p $entry" ;;
     esac
@@ -70,9 +63,6 @@ calls() {
   [ -z "$packages" ] || printf 'test --locked --offline%s --lib --bins --tests%s\n' "$packages" "$tail"
   for entry in $targets; do
     printf 'test --locked --offline -p %s --test %s%s\n' "${entry%%:*}" "${entry#*:}" "$tail"
-  done
-  for entry in $units; do
-    printf 'test --locked --offline -p %s --lib%s --ignored %s\n' "${entry%%:*}" "$tail" "${entry#*:lib:}"
   done
 }
 
@@ -219,13 +209,11 @@ test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
   case_of no-test 0 "$ok_line
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s" FAIL
 
-  # The form of the entries: the whole packages run in one call, a target entry alone as its
-  # package's --test <target>, and a unit entry alone as its package's --lib with --ignored and the
-  # test's exact name, behind the others.
+  # The form of the entries: the whole packages run in one call, and a target entry alone as its
+  # package's --test <target>.
   want='test --locked --offline -p halvo-model -p halvo-connect --lib --bins --tests -- --exact --skip s1 --skip s2
-test --locked --offline -p halvo-runner --test door_run -- --exact --skip s1 --skip s2
-test --locked --offline -p halvo-runner --lib -- --exact --skip s1 --skip s2 --ignored model::tests::one'
-  got=$(skips='s1 s2' && calls 'halvo-model halvo-runner:lib:model::tests::one halvo-runner:door_run halvo-connect')
+test --locked --offline -p halvo-runner --test door_run -- --exact --skip s1 --skip s2'
+  got=$(skips='s1 s2' && calls 'halvo-model halvo-runner:door_run halvo-connect')
   if [ "$got" = "$want" ]; then
     printf 'case %s/entries want=%s got=%s\n' "$name" ok ok
   else
@@ -237,13 +225,6 @@ test --locked --offline -p halvo-runner --lib -- --exact --skip s1 --skip s2 --i
     wrong="$wrong bad-entry"
   else
     printf 'case %s/bad-entry want=%s got=%s\n' "$name" refused refused
-    rejected=$((rejected + 1))
-  fi
-  if calls 'halvo-runner:lib:' >/dev/null; then
-    printf 'case %s/bad-unit-entry want=%s got=%s\n' "$name" refused taken
-    wrong="$wrong bad-unit-entry"
-  else
-    printf 'case %s/bad-unit-entry want=%s got=%s\n' "$name" refused refused
     rejected=$((rejected + 1))
   fi
 
