@@ -3525,35 +3525,21 @@ mod tests {
     const MBL_TITLE: &str = "Halvo probe page";
     const MBL_PRIVATE_TITLE: &str = "Halvo probe private page";
 
-    /// `vnode_fdinfowithpath` of the system's `sys/proc_info.h`, which the
-    /// libc crate does not hold: a `proc_fileinfo` of 24 bytes, then the
-    /// file's `vnode_info_path`.
+    /// `vnode_fdinfo` of the system's `sys/proc_info.h`, which the libc crate
+    /// does not hold: a `proc_fileinfo` of 24 bytes, then the file's
+    /// `vnode_info`, whose `vi_stat` holds the device and the inode of the
+    /// file. It holds no path.
     #[repr(C)]
     struct MblOpenFile {
         _file: [u64; 3],
-        path: libc::vnode_info_path,
+        info: libc::vnode_info,
     }
 
-    /// `proc_regionwithpathinfo` of the same header: a `proc_regioninfo` of
-    /// 96 bytes, whose last two numbers are the region's address and size,
-    /// then the `vnode_info_path` of the file that the region maps.
-    #[repr(C)]
-    struct MblRegion {
-        _head: [u32; 4],
-        _offset: u64,
-        _counts: [u32; 14],
-        address: u64,
-        size: u64,
-        path: libc::vnode_info_path,
-    }
+    /// The flavor `PROC_PIDFDVNODEINFO` of that header: the info of an open
+    /// file with no path.
+    const MBL_FD_VNODE_INFO: libc::c_int = 1;
 
-    /// The flavors `PROC_PIDFDVNODEPATHINFO` and `PROC_PIDREGIONPATHINFO` of
-    /// that header.
-    const MBL_FD_VNODE_PATH: libc::c_int = 2;
-    const MBL_REGION_PATH: libc::c_int = 8;
-
-    const _: () = assert!(std::mem::size_of::<MblOpenFile>() == 1200);
-    const _: () = assert!(std::mem::size_of::<MblRegion>() == 1272);
+    const _: () = assert!(std::mem::size_of::<MblOpenFile>() == 176);
 
     /// The probe's count line: the lines of a state that it printed, and of
     /// them those whose title was read, was refused for the missing grant or
@@ -3690,61 +3676,29 @@ mod tests {
         }
     }
 
-    /// The path that a `vnode_info_path` holds, up to its first NUL.
-    fn mbl_path(path: &libc::vnode_info_path) -> String {
-        let bytes: Vec<u8> = path
-            .vip_path
-            .iter()
-            .flatten()
-            .map(|unit| unit.to_ne_bytes()[0])
-            .take_while(|&unit| unit != 0)
-            .collect();
-        String::from_utf8_lossy(&bytes).into_owned()
+    /// What one read of a process's open files gives: how many open files
+    /// the list named, the device and the inode of each that is a file of a
+    /// disk, and how many info calls did not answer, with the errno of the
+    /// last.
+    struct MblNumbers {
+        fds: usize,
+        numbers: Vec<(u32, u64)>,
+        unread: u32,
+        unread_errno: i32,
     }
 
-    /// What the kept paths tell, and the paths themselves: `lang=<code>` with
-    /// `in_bundle=` where they hold exactly one `<code>.lproj/locale.pak`, be
-    /// it open more than once, `lang=none` where they hold none and
-    /// `lang=many:<count>` else. `place` is the place of the browser's bundle.
-    fn mbl_paks(paks: &[String], place: Option<&str>) -> String {
-        let mut files: Vec<&str> = paks
-            .iter()
-            .filter_map(|path| path.strip_suffix(".lproj/locale.pak"))
-            .collect();
-        files.sort_unstable();
-        files.dedup();
-        let lang = match files.as_slice() {
-            [] => "none".to_string(),
-            [one] => {
-                let code = one.rsplit('/').next().unwrap_or("");
-                let inside = place.is_some_and(|place| {
-                    one.starts_with(&format!("{}/", place.trim_end_matches('/')))
-                });
-                format!("{} in_bundle={}", mbl_text(code), mbl_yes(inside))
-            }
-            many => format!("many:{}", many.len()),
-        };
-        let list: Vec<String> = paks.iter().map(|path| mbl_text(path)).collect();
-        format!("lang={lang} pak=[{}]", list.join("|"))
-    }
-
-    /// One reading of the files that the process `pid` holds open, through
-    /// the two calls of way (iii): the list of its open files, then the path
-    /// of each that is a file of a disk. Of the paths only those that end in
-    /// `.pak` are kept; every other one is dropped unprinted.
-    fn mbl_open_files(pid: libc::pid_t, place: Option<&str>) -> String {
-        let begun = Instant::now();
+    /// The device and the inode of each file of a disk that the process `pid`
+    /// holds open, by the list of its open files and then, for each, the call
+    /// that gives a file's info with no path: no name of a file is asked for.
+    /// `Err` holds the errno of a list call that did not answer.
+    fn mbl_numbers(pid: libc::pid_t) -> Result<MblNumbers, i32> {
         let entry = std::mem::size_of::<libc::proc_fdinfo>();
         // SAFETY: with a null buffer of no bytes the call writes nothing and
         // answers the bytes that the list takes.
         let need =
             unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
         if need <= 0 {
-            return format!(
-                "fd{{list=errno:{} ms={}}}",
-                mbl_errno(),
-                begun.elapsed().as_millis()
-            );
+            return Err(mbl_errno());
         }
         let room = usize::try_from(need).unwrap_or(0) / entry + 64;
         let mut list = vec![
@@ -3767,29 +3721,24 @@ mod tests {
             )
         };
         if wrote <= 0 {
-            return format!(
-                "fd{{list=errno:{} ms={}}}",
-                mbl_errno(),
-                begun.elapsed().as_millis()
-            );
+            return Err(mbl_errno());
         }
         list.truncate(usize::try_from(wrote).unwrap_or(0) / entry);
         let size = libc::c_int::try_from(std::mem::size_of::<MblOpenFile>()).expect("a small size");
-        let (mut vnodes, mut unread, mut unread_errno) = (0, 0, 0);
-        let mut paks = Vec::new();
+        let (mut unread, mut unread_errno) = (0, 0);
+        let mut numbers = Vec::new();
         for open in &list {
             if i64::from(open.proc_fdtype) != i64::from(libc::PROX_FDTYPE_VNODE) {
                 continue;
             }
-            vnodes += 1;
             let mut info = std::mem::MaybeUninit::<MblOpenFile>::zeroed();
-            // SAFETY: `info` is writable for a whole vnode_fdinfowithpath, the
-            // struct of this flavor, which is all that the call writes.
+            // SAFETY: `info` is writable for a whole vnode_fdinfo, the struct
+            // of this flavor, which is all that the call writes.
             let answer = unsafe {
                 libc::proc_pidfdinfo(
                     pid,
                     open.proc_fd,
-                    MBL_FD_VNODE_PATH,
+                    MBL_FD_VNODE_INFO,
                     info.as_mut_ptr().cast(),
                     size,
                 )
@@ -3802,74 +3751,101 @@ mod tests {
             // SAFETY: the buffer was zeroed before the call, and every bit
             // pattern is a value of this struct of plain numbers.
             let info = unsafe { info.assume_init() };
-            let path = mbl_path(&info.path);
-            if path.ends_with(".pak") {
-                paks.push(path);
+            numbers.push((info.info.vi_stat.vst_dev, info.info.vi_stat.vst_ino));
+        }
+        Ok(MblNumbers {
+            fds: list.len(),
+            numbers,
+            unread,
+            unread_errno,
+        })
+    }
+
+    /// The language files inside the bundle at `place`, read from the disk
+    /// itself: the code, the device and the inode of each
+    /// `Contents/Frameworks/<a framework>/Versions/<a version>/Resources/<code>.lproj/locale.pak`,
+    /// each file once, also where two version folders name it.
+    fn mbl_bundle_language_files(place: &str) -> Vec<(String, u64, u64)> {
+        use std::os::unix::fs::MetadataExt;
+        let entries = |folder: &std::path::Path| -> Vec<std::path::PathBuf> {
+            std::fs::read_dir(folder)
+                .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
+                .unwrap_or_default()
+        };
+        let mut files: Vec<(String, u64, u64)> = Vec::new();
+        let frameworks = std::path::Path::new(place).join("Contents/Frameworks");
+        for framework in entries(&frameworks) {
+            for version in entries(&framework.join("Versions")) {
+                for folder in entries(&version.join("Resources")) {
+                    let Some(code) = folder
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .and_then(|name| name.strip_suffix(".lproj"))
+                    else {
+                        continue;
+                    };
+                    let Ok(file) = std::fs::metadata(folder.join("locale.pak")) else {
+                        continue;
+                    };
+                    let known = files
+                        .iter()
+                        .any(|(_, dev, ino)| (*dev, *ino) == (file.dev(), file.ino()));
+                    if file.is_file() && !known {
+                        files.push((code.to_string(), file.dev(), file.ino()));
+                    }
+                }
             }
         }
-        format!(
-            "fd{{list=ok fds={} files={vnodes} unread={unread} unread_errno={unread_errno} ms={} {}}}",
-            list.len(),
-            begun.elapsed().as_millis(),
-            mbl_paks(&paks, place)
-        )
+        files
     }
 
-    /// One reading of the files that the process `pid` has mapped, beside
-    /// the open files: a walk of its regions, for at most five seconds. Of
-    /// the paths only those that end in `.pak` are kept, each once.
-    fn mbl_mapped_files(pid: libc::pid_t, place: Option<&str>) -> String {
+    /// One reading of the process `pid` by numbers alone, as the probe prints
+    /// it: the open files of a disk, the language files that the disk holds
+    /// inside the bundle at `place`, how many of those language files an open
+    /// file carries the numbers of (`held`, and `held_by_inode` by the inode
+    /// alone), how many open files carry such numbers (`open_with_numbers`),
+    /// and the code told: of the one held language file, `none` or `many:`.
+    /// No name of an open file is asked for or printed.
+    fn mbl_holds(pid: libc::pid_t, place: Option<&str>) -> String {
         let begun = Instant::now();
-        let size = libc::c_int::try_from(std::mem::size_of::<MblRegion>()).expect("a small size");
-        let (mut address, mut regions) = (0u64, 0u32);
-        let mut paks: Vec<String> = Vec::new();
-        let walk = loop {
-            if regions >= 400_000 || begun.elapsed() > Duration::from_secs(5) {
-                break "cut".to_string();
+        let read = mbl_numbers(pid);
+        let ms = begun.elapsed().as_millis();
+        let MblNumbers {
+            fds,
+            numbers,
+            unread,
+            unread_errno,
+        } = match read {
+            Ok(read) => read,
+            Err(errno) => return format!("num{{list=errno:{errno} ms={ms}}}"),
+        };
+        let begun = Instant::now();
+        let bundle = place.map(mbl_bundle_language_files).unwrap_or_default();
+        let disk_ms = begun.elapsed().as_millis();
+        let (mut held, mut by_inode, mut open_with_numbers) = (Vec::new(), 0, 0);
+        for (code, dev, ino) in &bundle {
+            let carrying = numbers
+                .iter()
+                .filter(|(open_dev, open_ino)| u64::from(*open_dev) == *dev && open_ino == ino)
+                .count();
+            if carrying > 0 {
+                held.push(code.as_str());
             }
-            let mut region = std::mem::MaybeUninit::<MblRegion>::zeroed();
-            // SAFETY: `region` is writable for a whole
-            // proc_regionwithpathinfo, the struct of this flavor, which is
-            // all that the call writes.
-            let answer = unsafe {
-                libc::proc_pidinfo(
-                    pid,
-                    MBL_REGION_PATH,
-                    address,
-                    region.as_mut_ptr().cast(),
-                    size,
-                )
-            };
-            if answer != size {
-                break format!("ended_errno:{}", mbl_errno());
+            open_with_numbers += carrying;
+            if numbers.iter().any(|(_, open_ino)| open_ino == ino) {
+                by_inode += 1;
             }
-            // SAFETY: the buffer was zeroed before the call, and every bit
-            // pattern is a value of this struct of plain numbers.
-            let region = unsafe { region.assume_init() };
-            regions += 1;
-            let path = mbl_path(&region.path);
-            if path.ends_with(".pak") && !paks.contains(&path) {
-                paks.push(path);
-            }
-            let next = region.address.saturating_add(region.size);
-            if next <= address {
-                break "no_step".to_string();
-            }
-            address = next;
+        }
+        let lang = match held.as_slice() {
+            [] => "none".to_string(),
+            [one] => mbl_text(one),
+            many => format!("many:{}", mbl_text(&many.join(","))),
         };
         format!(
-            "map{{walk={walk} regions={regions} ms={} {}}}",
-            begun.elapsed().as_millis(),
-            mbl_paks(&paks, place)
-        )
-    }
-
-    /// Both readings of the process `pid`.
-    fn mbl_holds(pid: libc::pid_t, place: Option<&str>) -> String {
-        format!(
-            "{} {}",
-            mbl_open_files(pid, place),
-            mbl_mapped_files(pid, place)
+            "num{{list=ok fds={fds} files={} unread={unread} unread_errno={unread_errno} ms={ms} bundle_language_files={} disk_ms={disk_ms} held={} held_by_inode={by_inode} open_with_numbers={open_with_numbers} lang={lang}}}",
+            numbers.len(),
+            bundle.len(),
+            held.len()
         )
     }
 
@@ -4026,6 +4002,67 @@ mod tests {
         }
         child.kill().ok();
         child.wait().ok();
+    }
+
+    /// The numbers on this test's own process alone: it starts nothing and
+    /// reads no other process.
+    #[test]
+    fn the_numbers_of_a_file_that_this_test_holds_open_are_those_that_the_disk_gives() {
+        use std::os::unix::fs::MetadataExt;
+        let me = libc::pid_t::try_from(std::process::id()).expect("a pid");
+        let app = std::env::temp_dir()
+            .join(format!("halvo-mbl-numbers-{me}"))
+            .join("Made Browser.app");
+        let resources = app
+            .join("Contents/Frameworks/Made Browser Framework.framework/Versions/1.2.3/Resources");
+        for code in ["de", "en"] {
+            let folder = resources.join(format!("{code}.lproj"));
+            std::fs::create_dir_all(&folder).expect("the folder");
+            std::fs::write(folder.join("locale.pak"), code).expect("the file");
+        }
+        let place = app.to_str().expect("a path of plain text");
+        let german_path = resources.join("de.lproj/locale.pak");
+        let none = mbl_holds(me, Some(place));
+        let german = std::fs::File::open(&german_path).expect("the German file");
+        let one = mbl_holds(me, Some(place));
+        let of_the_disk = std::fs::metadata(&german_path).expect("its numbers on the disk");
+        let read = mbl_numbers(me).expect("the list of this process");
+        let by_the_call = read
+            .numbers
+            .iter()
+            .filter(|(dev, ino)| u64::from(*dev) == of_the_disk.dev() && *ino == of_the_disk.ino())
+            .count();
+        let english =
+            std::fs::File::open(resources.join("en.lproj/locale.pak")).expect("the English file");
+        let two = mbl_holds(me, Some(place));
+        drop(german);
+        drop(english);
+        let closed = mbl_holds(me, Some(place));
+        println!("MBL own none={none}");
+        println!(
+            "MBL own one={one} disk_dev={} disk_ino={} open_files_with_these_numbers={by_the_call}",
+            of_the_disk.dev(),
+            of_the_disk.ino()
+        );
+        println!("MBL own two={two}");
+        println!("MBL own closed={closed}");
+        assert!(
+            none.contains(" held=0 ") && none.contains("lang=none"),
+            "{none}"
+        );
+        assert_eq!(
+            by_the_call, 1,
+            "one open file carries the numbers that the disk gives"
+        );
+        assert!(one.contains(" held=1 ") && one.contains("lang=de"), "{one}");
+        assert!(
+            two.contains(" held=2 ") && two.contains("lang=many:"),
+            "{two}"
+        );
+        assert!(
+            closed.contains(" held=0 ") && closed.contains("lang=none"),
+            "{closed}"
+        );
     }
 
     #[test]
