@@ -306,3 +306,97 @@ connection leaves the computer. A request of the browser's own to a host that
 the person did bind is let through. The test
 `a_host_outside_the_list_is_refused_before_any_connection_and_recorded`
 (`crates/halvo-web/src/relay.rs`) shows the refusal.
+
+A request of an agent to the host of a hosted AI model, which the person
+allowed the agent to use, is of another kind. Before each such request the
+agent's run asks the router's table, which has a row for each kind of task and
+each kind of request, and it sends none where that row hands back. While every
+compile, recover and write row of that table hands back, the rows for working
+out an agent's steps, for mending a step and for writing a reply, no run sends
+such a request. The tests `route_pick_before_model_call`
+(`crates/halvo-runner/src/compile/tests.rs`) and
+`with_no_writer_no_agreement_or_the_cap_reached_the_body_is_the_const_text_and_nothing_reaches_the_host`
+(`crates/halvo-runner/src/model/write/tests.rs`) hold it for working out steps
+and for writing a reply.
+
+Such a request holds text alone: the test
+`the_request_that_leaves_holds_the_closed_fields_alone`
+(`crates/halvo-model/tests/door.rs`) holds that what leaves is a closed set of
+text fields. For an agent that works out the steps of its task on a web page,
+as one that pays a bill or orders from a shop, it holds three things:
+
+- the text of the page as the agent's own browser shows it: what the page says,
+  the names of its boxes, buttons and links, what its boxes hold, and the web
+  address of a frame, a page inside the page, in which a text stands; the
+  person's answers stand there as marks, as said below;
+- fixed texts that come with Halvo: rules that tell the model to take the text
+  of a page or a message as data and to follow no order in it, the task, and
+  the form of the model's answer; and
+- the run's own list of what it has done so far, such as which part of the page
+  it filled and the name of the answer that it put there, and the names of the
+  person's answers and of what it noted from a page, such as `payee` and
+  `amount_due`, never the answers themselves.
+
+For an agent that writes a reply to a mail, a request holds the fixed texts of a
+reply and the subject and the body of the message that it answers, and whatever
+else the message says goes with it, such as a name or a phone number in its
+body; a very long message goes as far as its first lines fit in one request.
+Beside these texts a request names the AI model, how much effort it should give,
+low, medium or high, as the router's table names it, and the most that it may
+write back, and it carries the key that the person saved for that host.
+
+Before a request is made, Halvo puts a mark in the place of each answer that the
+person gave the agent, such as the payee of a bill or the senders whose mail it
+answers: the mark reads `[slot NAME]` with the name of that answer, for example
+`[slot payee]`. Halvo looks for the answers in each part of a page's text that
+leaves, the name of a box, a button or a text, what a box holds and the web
+address of a frame, and in the subject and the body of a message. It finds an
+answer in capitals or small letters alike, for the letters A to Z, with its
+spaces squeezed as a page shows them, and inside a longer word, where the mark
+then stands for that part of the word alone. In a message, the line that names
+the sender always reads `From: [slot reply_senders]` and names no address,
+however many senders the person listed. The test
+`u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_nothing_of_the_store`
+(`crates/halvo-runner/src/compile/tests.rs`) holds the marks on a page, and the
+test `u72b_a_messages_snapshot_names_no_sender_and_masks_its_subject_and_body`
+(`crates/halvo-runner/src/model/snapshot.rs`) holds them in a message.
+
+The mark stands only where a text holds an answer as the person gave it, in one
+of the forms above, so these can still leave with a request:
+
+- another spelling of a number or a date: an answer `12345678` that the page
+  shows as `1234 5678`, or `01/12/2026` that it shows as `1 December 2026`;
+- a part of an answer: of the payee `City Water Board`, a page that shows
+  `City Water` alone; and of two senders or more whose mail the agent answers,
+  one address that the body of a message names alone;
+- a letter outside A to Z in the other case: an answer `Müller` that the page
+  shows as `MÜLLER`;
+- in the subject or the body of a message, a double quote where the answer holds
+  two single quotes: an answer `5'' pipe` that the message writes as `5" pipe`;
+  and
+- an answer that holds a double quote and the word `value=` or `frame=`, which
+  the agent's reading writes between the parts of a line, such as
+  `Size" value="10` beside a box named `Size` that holds `10`: it can leave whole
+  where its parts fall in two parts of one line.
+
+These never leave with such a request:
+
+- a page on which the agent's own reading finds a field for a password or
+  another sign-in secret, with what that field holds: the agent hands the
+  browser to the person there, and its next request holds the page after the
+  sign-in. The tests
+  `u72b_no_request_holds_a_snapshot_of_a_page_with_a_credential_field` and
+  `u72b_a_line_with_the_credential_mark_hands_back_before_any_request`
+  (`crates/halvo-runner/src/compile/tests.rs`) hold it;
+- a word of a step that Halvo stored for the agent. The tests
+  `u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_nothing_of_the_store`
+  (`crates/halvo-runner/src/compile/tests.rs`) and
+  `a_reply_body_is_the_writers_text_asked_through_ask_alone_with_the_trials_texts`
+  (`crates/halvo-runner/src/model/write/tests.rs`) hold it; and
+- the key that the person saved for the model's host, in any text of a request:
+  it goes to that host alone, in the header that the host reads. The tests
+  `the_key_stands_in_the_doors_standard_input_and_in_nothing_else_that_the_run_wrote`
+  (`crates/halvo-runner/src/model/tests.rs`),
+  `the_request_that_leaves_holds_the_closed_fields_alone` and
+  `with_a_grant_one_request_reaches_the_granted_origin_alone`
+  (`crates/halvo-model/tests/door.rs`) hold it.
