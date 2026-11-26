@@ -16,17 +16,28 @@
 # add a line, name the seconds of the check in that job: the newest reading of the slice's job stays
 # under 1,000 s with them, or another slice takes the line. scripts/ci/README.md, The slices, holds the
 # measured seconds and what each slice builds.
+# One job stands over 1,000 s by its newest reading and stays under the owner's bound: the windows job
+# of wed, whose one row, 50-windows-functional, took 892 s of a job of 1,053 s on an AMD EPYC 7763 in
+# the run 45719997737.
 
 mon macos tests A
 mon macos check 31-store-full-volume
 mon macos check 25-advisories
 mon windows tests A
 mon windows check 24-hook-imports
+# 10-egress came from the windows job of wed2, where it took 220 s of a job of 1,330 s on an AMD
+# EPYC 7763 in the run 45743649121; the windows job of mon took 415 s before it, on an AMD EPYC 9V74
+# in the run 45714187192.
+mon windows check 10-egress
 
 tue macos tests B
 tue macos check 55-r6-formal
 tue macos check 25-advisories
 tue windows tests B
+# 60-r6-egress came from the windows job of wed2, where it took 166 s of a job of 1,330 s on an AMD
+# EPYC 7763 in the run 45743649121; the windows job of tue took 501 s before it, on an Intel Xeon
+# Platinum 8370C in the run 45715834050.
+tue windows check 60-r6-egress
 
 # The group G of tue2 came out of the group B, whose slice tue took 994 s in
 # the macos job, on an Apple M1 (Virtual) with 3 processors, and 1,072 s in the windows job, on an AMD
@@ -55,14 +66,13 @@ wed windows check 50-windows-functional
 # no macos job runs any more: their tests took 229 s of the windows jobs of mon, tue, tue2 and sat in
 # the runs of 2026-11-24 (by libtest's lines, before their builds), and the windows job of wed2 took
 # 660 s in the run 45396357837 with 10-r7-account's 82 s.
+# Since r4 U3.33 10-egress runs in the windows job of mon, and 60-r6-egress in that of tue.
 wed2 macos check 11-clippy
 wed2 macos tests F
 wed2 macos check 38-app-engine-routes
 wed2 macos check 25-advisories
 wed2 windows tests I
 wed2 windows check 38-app-engine-routes
-wed2 windows check 10-egress
-wed2 windows check 60-r6-egress
 wed2 windows check 80-r6-absent
 
 thu macos check 60-release-dry-run
@@ -92,10 +102,12 @@ sun windows check 62-build
 sun windows check 70-package-windows
 sun windows check 64-model-egress
 
-# The slice pages runs the three browser suites of the agents page. 30-r4-page-suites took 460 s
+# The slice pages runs the three browser suites of the agents page and
+# ui/tests/page/policy.test.mjs, the page under the app's own policy. 30-r4-page-suites took 460 s
 # and 431 s in the macos job and 642 s and 583 s in the windows job in its runs by hand
-# 45705544364 and 45733611573. It has a slice of its own: added to the shortest windows job of the
-# other slices in their runs of 2026-11-25 (415 s, the slice mon), its 642 s pass 1,000 s.
+# 45705544364 and 45733611573, which ran the three suites alone. It has a slice of its own: added to
+# the shortest windows job of the other slices in their runs of 2026-11-25 (415 s, the slice mon),
+# its 642 s pass 1,000 s.
 pages macos check 30-r4-page-suites
 pages macos check 25-advisories
 pages windows check 30-r4-page-suites
