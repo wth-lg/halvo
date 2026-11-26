@@ -1,0 +1,1 @@
+- Added: (capture run, r1 hold-told-after) On a Mac, where a password field or another app kept typing private for a minute or more, the Status page afterwards says from when to when Halvo left out typing, window titles or screen activity. It says so for up to 24 hours.

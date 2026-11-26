@@ -262,14 +262,17 @@
     return parts.slice(0, -1).join(w.PARTS_THEN) + last + parts[parts.length - 1];
   }
 
-  function heldPrivate(s) {
-    var entry = leftOutBy(s.left_out, "secure_input");
+  function partsOf(entry) {
     var what = entry && Array.isArray(entry.what) ? entry.what : [];
-    var parts = PARTS.filter(function (part) {
+    return PARTS.filter(function (part) {
       return what.indexOf(part[0]) !== -1;
     }).map(function (part) {
       return part[1];
     });
+  }
+
+  function heldPrivate(s) {
+    var parts = partsOf(leftOutBy(s.left_out, "secure_input"));
     if (parts.length === 0) return "";
     return w.KEPT_PRIVATE.replace("{parts_or}", joined(parts, w.PARTS_OR)).replace("{parts_and}", joined(parts, w.PARTS_AND));
   }
@@ -290,14 +293,32 @@
     return local.getUTCFullYear() * 10000 + local.getUTCMonth() * 100 + local.getUTCDate();
   }
 
-  function leftOutBefore(s) {
-    var entry = s.service === "running" ? leftOutBy(s.left_out_before, "doubt") : null;
+  function stretchOf(entry, today, across) {
     var from = entry ? Date.parse(entry.from) : NaN;
     var until = entry ? Date.parse(entry.until) : NaN;
-    if (isNaN(from) || isNaN(until)) return "";
-    var today = dayOf(Date.now());
-    if (dayOf(from) === today && dayOf(until) === today) return w.LEFT_OUT_BEFORE_TODAY.replace("{from}", clockOf(from)).replace("{until}", clockOf(until));
-    return w.LEFT_OUT_BEFORE.replace("{from_date}", Halvo.dateOf(from)).replace("{from}", clockOf(from)).replace("{until_date}", Halvo.dateOf(until)).replace("{until}", clockOf(until));
+    if (isNaN(from) || isNaN(until)) return null;
+    var day = dayOf(Date.now());
+    if (dayOf(from) === day && dayOf(until) === day) return { from: from, said: today.replace("{from}", clockOf(from)).replace("{until}", clockOf(until)) };
+    return { from: from, said: across.replace("{from_date}", Halvo.dateOf(from)).replace("{from}", clockOf(from)).replace("{until_date}", Halvo.dateOf(until)).replace("{until}", clockOf(until)) };
+  }
+
+  function leftOutBefore(s) {
+    if (s.service !== "running") return "";
+    var held = leftOutBy(s.left_out_before, "secure_input");
+    var parts = joined(partsOf(held), w.PARTS_OR);
+    var told = [stretchOf(leftOutBy(s.left_out_before, "doubt"), w.LEFT_OUT_BEFORE_TODAY, w.LEFT_OUT_BEFORE)];
+    if (parts !== "") told.push(stretchOf(held, w.KEPT_PRIVATE_BEFORE_TODAY.replace("{parts_or}", parts), w.KEPT_PRIVATE_BEFORE.replace("{parts_or}", parts)));
+    return told
+      .filter(function (one) {
+        return one !== null;
+      })
+      .sort(function (a, b) {
+        return a.from - b.from;
+      })
+      .map(function (one) {
+        return one.said;
+      })
+      .join(" ");
   }
 
   function partLost(s) {

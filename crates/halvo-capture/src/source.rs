@@ -268,6 +268,23 @@ pub struct SourceCounters {
     /// seconds through which keys were pressed on the computer and none of them reached the
     /// source's tap; none while that does not stand.
     pub no_key_since: Option<u64>,
+    /// A Mac's input source alone: the last hold of the system's secure input that it saw end
+    /// after the hold had stood for a minute or more, which a status tells of behind its end;
+    /// none before the first such hold of the process and behind a delete of everything.
+    pub secure_hold_before: Option<HoldBefore>,
+}
+
+/// A hold of the system's secure input that a Mac's input source saw end: the seconds, counted
+/// from 1970, of its first reading of on and of the reading of off or of unknown that ended it,
+/// and which parts it left out by the switches of the tap's context as they stood then.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HoldBefore {
+    pub from: u64,
+    pub until: u64,
+    /// Whether its tap asked for the key types while the switch key_class was on.
+    pub typing: bool,
+    pub window_titles: bool,
+    pub screen_activity: bool,
 }
 
 /// Key events suppressed in the held phase, by type.
@@ -967,6 +984,7 @@ mod tests {
             secure_hold_keys: false,
             secure_hold_since: None,
             no_key_since: None,
+            secure_hold_before: None,
         };
         assert_eq!(SourceCounters::default(), zero);
         let health = SourceHealth::default();

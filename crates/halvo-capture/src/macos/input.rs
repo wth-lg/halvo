@@ -45,8 +45,8 @@ use crate::secure_input_macos::{
 };
 use crate::sink::{Emitted, FoldEmitted, SinkHandle};
 use crate::source::{
-    CaptureError, CaptureSource, HealthReason, HeldSamples, SourceContext, SourceCounters,
-    SourceHealth, SourceState, Started, StopCause, SuppressedKeys,
+    CaptureError, CaptureSource, HealthReason, HeldSamples, HoldBefore, SourceContext,
+    SourceCounters, SourceHealth, SourceState, Started, StopCause, SuppressedKeys,
 };
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -87,6 +87,11 @@ pub const HELD_SAMPLE_STEP: Duration = Duration::from_millis(250);
 /// How long every reading of the secure-input state at the fold timer's fires must read on
 /// before the input source reads impaired with the reason secure_input_elsewhere.
 pub const KEPT_PRIVATE_AFTER: Duration = Duration::from_secs(30);
+
+/// How long a row of readings of on must have stood, from its first reading to the reading of
+/// off or of unknown that ends it, for the input figures to keep it as the last hold that ended,
+/// which a status tells of behind its end; a shorter row changes nothing.
+pub const HOLD_TOLD_FROM: Duration = Duration::from_secs(60);
 
 /// At how many fires of the fold timer within [`KEPT_PRIVATE_AFTER`] a key must have been
 /// pressed on the computer, with none at the tap, before the input source reads impaired
@@ -260,6 +265,8 @@ struct InputFigures {
     kept_private: AtomicBool,
     secure_hold_since: AtomicU64,
     no_key_since: AtomicU64,
+    hold_before: Mutex<Option<HoldBefore>>,
+    deletes: AtomicU64,
     secure_released_keystrokes: AtomicU64,
     secure_held_keystrokes: AtomicU64,
     secure_held_suppressed_down: AtomicU64,
@@ -402,6 +409,37 @@ impl InputCounters {
         self.0.no_key_since.load(Ordering::Relaxed) > 0
     }
 
+    /// How many deletes of everything the figures have been told of: a row of readings takes the
+    /// number at its first reading, and keeps its hold at its end only where it is still the same.
+    fn deletes(&self) -> u64 {
+        self.0.deletes.load(Ordering::SeqCst)
+    }
+
+    /// Keeps `hold` as the last hold that ended, where no delete of everything came since its
+    /// row's first reading took `deletes`.
+    fn keep_hold(&self, hold: HoldBefore, deletes: u64) {
+        let mut kept = self
+            .0
+            .hold_before
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if self.0.deletes.load(Ordering::SeqCst) == deletes {
+            *kept = Some(hold);
+        }
+    }
+
+    /// Forgets the last hold that ended, as the factory's word at the slot of a delete of
+    /// everything asks; a row that stands now keeps nothing at its end.
+    pub(crate) fn forget_the_last_hold(&self) {
+        let mut kept = self
+            .0
+            .hold_before
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.0.deletes.fetch_add(1, Ordering::SeqCst);
+        *kept = None;
+    }
+
     /// Key downs that came in time and were read while secure input was on; each
     /// was suppressed and never emitted. A modifier press after a reading of on is
     /// a reading alone and is not counted, and a late or untimed press under
@@ -439,6 +477,7 @@ impl InputCounters {
             secure_hold_keys: f.kept_private.load(Ordering::Relaxed),
             secure_hold_since: Some(read(&f.secure_hold_since)).filter(|since| *since > 0),
             no_key_since: Some(read(&f.no_key_since)).filter(|since| *since > 0),
+            secure_hold_before: *f.hold_before.lock().unwrap_or_else(PoisonError::into_inner),
         }
     }
 }
@@ -952,9 +991,10 @@ struct TapContext {
     folds: Mutex<Folds>,
     fold_timer: Mutex<Option<ReadingTimer>>,
     /// The stamp of the first reading of a row that read on at the fold timer's fires
-    /// ([`TapContext::read_kept_private`]), with that reading's second by the clock `wall`;
-    /// none after a reading of off or unknown.
-    private_since: Mutex<Option<(Monotonic, u64)>>,
+    /// ([`TapContext::read_kept_private`]), with that reading's second by the clock `wall` and
+    /// the number of deletes of everything that the input figures had been told of then; none
+    /// after a reading of off or unknown.
+    private_since: Mutex<Option<(Monotonic, u64, u64)>>,
     /// The clock of the second that a status names for a hold of secure input: whole
     /// seconds since 1970.
     wall: fn() -> u64,
@@ -1618,7 +1658,10 @@ impl TapContext {
     /// reading since the first of a row that read on has read on for [`KEPT_PRIVATE_AFTER`]
     /// or more, the input figures carry the second of that first reading, and for a context
     /// whose start asked for the key types they carry the mark that the source's health
-    /// reads; a reading of off or unknown takes both back. It runs on the tap thread, whose
+    /// reads; a reading of off or unknown takes both back, and where the row stood for
+    /// [`HOLD_TOLD_FROM`] or more it hands the row to the figures as the last hold that ended:
+    /// the seconds of its first reading and of that reading, and the parts that it left out by
+    /// the context's switches; a shorter row changes nothing. It runs on the tap thread, whose
     /// stop a shutdown waits for [`INPUT_STOP_DEADLINE`] at most.
     fn read_kept_private(&self) {
         let reading = (self.secure)((self.session)());
@@ -1628,20 +1671,42 @@ impl TapContext {
             .private_since
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
+        let ended = since.filter(|_| !on);
         *since = match (on, *since) {
             (false, _) => None,
-            (true, None) => Some((now, (self.wall)())),
+            (true, None) => Some((now, (self.wall)(), self.counters.deletes())),
             (true, first) => first,
         };
-        let kept = since.filter(|(first, _)| {
+        let kept = since.filter(|(first, _, _)| {
             Duration::from_nanos(now.nanos().saturating_sub(first.nanos())) >= KEPT_PRIVATE_AFTER
         });
         self.counters
             .set_kept_private(kept.is_some() && self.keys_asked);
         self.counters
-            .set_secure_hold(kept.map(|(_, second)| second));
+            .set_secure_hold(kept.map(|(_, second, _)| second));
         drop(since);
+        if let Some(row) = ended {
+            self.hold_ended(row, now);
+        }
         self.read_no_key(reading, now);
+    }
+
+    /// A row of readings of on that a reading of off or of unknown ended at `now`: one that stood
+    /// for [`HOLD_TOLD_FROM`] or more goes to the input figures as the last hold that ended, with
+    /// the parts that it left out by this context's switches; a shorter one changes nothing.
+    fn hold_ended(&self, (first, from, deletes): (Monotonic, u64, u64), now: Monotonic) {
+        if Duration::from_nanos(now.nanos().saturating_sub(first.nanos())) < HOLD_TOLD_FROM {
+            return;
+        }
+        let switches = self.floor.switches();
+        let hold = HoldBefore {
+            from,
+            until: (self.wall)(),
+            typing: self.keys_asked && switches.is_on(Switch::KeyClass),
+            window_titles: switches.is_on(Switch::TitleText),
+            screen_activity: switches.is_on(Switch::ScreenActivity),
+        };
+        self.counters.keep_hold(hold, deletes);
     }
 
     /// One step, at a fire of the fold timer, of the rule on keys that are pressed on the
@@ -7375,6 +7440,17 @@ mod tests {
         titles: bool,
         screen: bool,
     ) -> Option<String> {
+        list_written(counters, record_typing, titles, screen, "left_out")
+    }
+
+    /// The list `list` of the same line, over the same status.
+    fn list_written(
+        counters: &InputCounters,
+        record_typing: bool,
+        titles: bool,
+        screen: bool,
+        list: &str,
+    ) -> Option<String> {
         use crate::daemon::board::Board;
         use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
         use crate::daemon::slot::Slot;
@@ -7413,7 +7489,7 @@ mod tests {
             last_stop: LastStop::None,
             rss_peak_bytes: 0,
         };
-        written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+        written_list(&status_of(&parts, &facts).unwrap(), list)
     }
 
     #[test]
@@ -7501,6 +7577,90 @@ mod tests {
             written(&held, false, false, false),
             None,
             "nothing that a hold leaves out is on"
+        );
+    }
+
+    #[test]
+    fn a_hold_of_a_minute_or_more_that_has_ended_stands_in_left_out_before_with_the_cause_secure_input_its_parts_by_the_switches_and_its_two_times_one_under_a_minute_does_not_a_delete_of_everything_empties_it(
+    ) {
+        use halvo_control::model::UtcSecond;
+        use halvo_control::proto::{LeftOutBefore, LeftOutCause, LeftOutPart};
+
+        static NOW: AtomicU64 = AtomicU64::new(0);
+        fn wall() -> u64 {
+            NOW.load(Ordering::Relaxed) + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
+        }
+        let before = |held: &Held| -> Vec<LeftOutBefore> {
+            list_written(&held.counters, true, true, false, "left_out_before")
+                .map_or_else(Vec::new, |list| {
+                    serde_json::from_str(&list).expect("the list reads")
+                })
+        };
+        let second = |at: u64| UtcSecond::from_unix_seconds(i64::try_from(at).unwrap()).unwrap();
+        let hold = |what: &[LeftOutPart], (from, until): (u64, u64)| LeftOutBefore {
+            cause: LeftOutCause::SecureInput,
+            what: what.to_vec(),
+            from: second(from),
+            until: second(until),
+        };
+
+        NOW.store(crate::floor::exclude::unix_seconds_now(), Ordering::Relaxed);
+        let mut held = held(100);
+        held.ctx.wall = wall;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        let row = |ms: u64| {
+            answer(Reading::On);
+            fire();
+            let from = wall();
+            advance(ms);
+            fire();
+            answer(Reading::Off);
+            fire();
+            (from, wall())
+        };
+
+        row(59_999);
+        assert_eq!(before(&held), [], "a hold of 59.999 s that has ended");
+        let first = hold(
+            &[LeftOutPart::Typing, LeftOutPart::WindowTitles],
+            row(60_000),
+        );
+        assert_eq!(
+            before(&held),
+            std::slice::from_ref(&first),
+            "a hold of 60 s that has ended, typing and window titles on"
+        );
+        row(59_999);
+        assert_eq!(
+            before(&held),
+            [first],
+            "behind it a hold under a minute ends, and the first stays"
+        );
+        let mut screen_alone = Switches::default();
+        screen_alone.set(Switch::TitleText, false);
+        screen_alone.set(Switch::ScreenActivity, true);
+        held.ctx.floor = FloorHandle::default().with_switches(screen_alone);
+        held.ctx.keys_asked = false;
+        let later = hold(&[LeftOutPart::ScreenActivity], row(90_000));
+        assert_eq!(
+            before(&held),
+            [later],
+            "a later hold of a minute or more takes its place, with the parts by its switches"
+        );
+        held.counters.forget_the_last_hold();
+        assert_eq!(before(&held), [], "a delete of everything");
+        answer(Reading::On);
+        fire();
+        held.counters.forget_the_last_hold();
+        advance(60_000);
+        fire();
+        answer(Reading::Off);
+        fire();
+        assert_eq!(
+            before(&held),
+            [],
+            "a hold that began before a delete of everything is not kept behind it"
         );
     }
 
