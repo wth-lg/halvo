@@ -38,6 +38,42 @@ pub struct Hosted {
     pub dir: PathBuf,
     /// The door's starts of the round, which the egress line holds its own count against.
     pub starts: Arc<AtomicU64>,
+    /// Where the form with the runner's mask keeps each request and each answer whole (r3 U0.10); none in
+    /// the first form.
+    pub records: Option<Records>,
+}
+
+/// The kept records of a round of the form with the runner's mask (r3 U0.10), three files of the round's
+/// directory `dir`, each appended in the order of the asks: `REQUESTS`, every request line whole as the
+/// harness hands it to the door; `ANSWERS`, every line whole as the door gives it back, a reply or a refusal;
+/// where none came back an empty line, so that the two files pair line by line; and `ASKS`, one line an ask
+/// that names its cell (`cell`, the words `tier=.. model=.. task=.. seed=.. i=..`), its id, its grammar and
+/// whether a line came back. No byte of the key stands in them: the key goes to the door before any request,
+/// by `Child::start` alone, and is no part of a request line.
+#[derive(Clone, Debug)]
+pub struct Records {
+    pub dir: PathBuf,
+    pub cell: String,
+}
+
+/// The file of the kept request lines.
+pub const REQUESTS: &str = "door-requests.jsonl";
+/// The file of the kept answer lines.
+pub const ANSWERS: &str = "door-answers.jsonl";
+/// The file that names the cell of each ask.
+pub const ASKS: &str = "door-asks.txt";
+
+impl Records {
+    /// Appends `line` and a line end to the file `name` of the round's directory.
+    fn append(&self, name: &str, line: &str) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.dir.join(name))
+        {
+            let _ = writeln!(f, "{line}");
+        }
+    }
 }
 
 /// The most requests of one round (the coordinator's ruling of log line 18072): 192 in compiles (six
@@ -95,6 +131,9 @@ pub struct Spend {
     ceiling_minor: u64,
     holds: u64,
     bound: u64,
+    /// The holds and the count's sum when the tier of now began (`turn_to`): 0 in a round of one tier.
+    holds_before: u64,
+    spent_before: u64,
     /// The requests that the door answered with the refusal `cut`, then `declined` (r3 U0.8b).
     ends: [u64; 2],
 }
@@ -115,8 +154,20 @@ impl Spend {
             ceiling_minor,
             holds: 0,
             bound: REQUESTS_MAX,
+            holds_before: 0,
+            spent_before: 0,
             ends: [0, 0],
         })
+    }
+
+    /// Turns the ONE count to `tier` (r3 U0.10: both tiers of a round under one ceiling): the cap and what
+    /// was spent stay, the holds from here on are priced at `tier`, the tier's own bound of requests is
+    /// `bound`, and `line` gives the requests and the sum of this tier alone.
+    pub fn turn_to(&mut self, tier: Tier, bound: u64) {
+        self.tier = tier;
+        self.bound = bound;
+        self.holds_before = self.holds;
+        self.spent_before = self.count.account().spent;
     }
 
     /// The requests so far that the door answered `cut` and `declined`, in that order.
@@ -134,7 +185,7 @@ impl Spend {
     /// `Fault::Bound` when the round has handed the door its bound of requests, `Fault::Ceiling`
     /// when the hold does not fit under the cap. A refused hold changes nothing.
     fn hold(&mut self, body_bytes: u64) -> Result<HoldId, Fault> {
-        if self.holds >= self.bound {
+        if self.holds - self.holds_before >= self.bound {
             return Err(Fault::Bound);
         }
         let mut id = [0u8; 16];
@@ -182,13 +233,14 @@ impl Spend {
     }
 
     /// `spend tier=<tier> requests=<n> spent_micro=<n> ceiling_minor=<n>`: the requests written to
-    /// the door and the count's sum of what was spent.
+    /// the door and the count's sum of what was spent, each of the tier of now alone where the count was
+    /// turned to it (`turn_to`).
     pub fn line(&self) -> String {
         format!(
             "spend tier={} requests={} spent_micro={} ceiling_minor={}",
             self.tier.as_str(),
-            self.holds,
-            self.count.account().spent,
+            self.holds - self.holds_before,
+            self.count.account().spent - self.spent_before,
             self.ceiling_minor
         )
     }
@@ -501,6 +553,20 @@ impl Child {
             _ => 0,
         };
         let reply = reply.trim_end();
+        if let (Some(Ok(())), Some(records)) =
+            (&sent, self.hosted.as_ref().and_then(|h| h.records.as_ref()))
+        {
+            records.append(REQUESTS, &line);
+            records.append(ANSWERS, if read > 0 { reply } else { "" });
+            records.append(
+                ASKS,
+                &format!(
+                    "ask {} id={id} grammar={grammar} answered={}",
+                    records.cell,
+                    if read > 0 { "yes" } else { "no" }
+                ),
+            );
+        }
         let parsed = if read == 0 {
             Err(match self.finish() {
                 Ok(o) if o.capped => Fault::Capped,

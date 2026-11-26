@@ -1,0 +1,16 @@
+[package]
+name = "r3-forms"
+version = "0.0.0"
+description = "Halvo R3 trial U0.10: the runner's maker of a snapshot, brought in from the runner's own file by its path"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+name = "r3_forms"
+path = "src/lib.rs"
+
+[dependencies]
+halvo-schema = { path = "../../../crates/halvo-schema" }
+halvo-web = { path = "../../../crates/halvo-web" }

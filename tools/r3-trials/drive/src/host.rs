@@ -39,6 +39,9 @@ pub enum Walk {
     Words,
     FirstRecoveryRefused,
     Ends,
+    /// `Ends`, and the third ask for a reply body is answered with a body that holds the head of a mark
+    /// (r3 U0.10: the control of the form with the runner's mask, where such a body is no body).
+    Marks,
 }
 
 /// The asks that the host has answered so far, which `Walk::Ends` reads.
@@ -237,7 +240,7 @@ fn answer(request: &Received, walk: Walk, seen: &mut Seen) -> (u16, String) {
         seen.bodies += 1;
         (seen.bodies == 1).then_some("max_tokens")
     }
-    .filter(|_| walk == Walk::Ends);
+    .filter(|_| matches!(walk, Walk::Ends | Walk::Marks));
     let text = if asks_action {
         let ask = Ask {
             prompt,
@@ -251,6 +254,8 @@ fn answer(request: &Received, walk: Walk, seen: &mut Seen) -> (u16, String) {
             next(&ask)
         };
         as_told(walk, system, reply)
+    } else if walk == Walk::Marks && seen.bodies == 3 {
+        "Thank you, [slot reply_senders], I will be there".to_string()
     } else {
         "Thank you for the message, I will reply soon".to_string()
     };
