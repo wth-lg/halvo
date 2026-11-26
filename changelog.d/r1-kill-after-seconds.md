@@ -1,0 +1,1 @@
+- Fixed: Remove Halvo, the delete that Halvo runs while the capture service is stopped, and a restart of the capture service that Halvo makes by itself now give the service its whole 20 seconds to end after Halvo asks it to, as Quit does; before, the time that Halvo spent between setting that limit and asking came off the 20 seconds.
