@@ -599,6 +599,13 @@ fn uptime_raw() -> Uptime {
     Uptime::from_nanos(unsafe { clock_gettime_nsec_np(libc::CLOCK_UPTIME_RAW) })
 }
 
+/// The whole seconds since 1970 by the system's clock; 0 where that clock reads earlier.
+fn unix_seconds_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
+}
+
 const CLOCKS: Clocks = Clocks {
     stamps: monotonic_raw,
     os_time: uptime_raw,
@@ -893,6 +900,9 @@ struct TapContext {
     /// The stamp of the first reading of a row that read on at the fold timer's fires
     /// ([`TapContext::read_kept_private`]); none after a reading of off or unknown.
     private_since: Mutex<Option<Monotonic>>,
+    /// The clock of the second that a status names for a hold of secure input: whole
+    /// seconds since 1970.
+    wall: fn() -> u64,
     held_phase: Arc<AtomicBool>,
     /// Whether the start of this context asked its tap for key types: a key
     /// event that reaches a context whose start asked for none makes no record,
@@ -1810,6 +1820,7 @@ fn tap_context(
         folds: Mutex::new(Folds::default()),
         fold_timer: Mutex::new(None),
         private_since: Mutex::new(None),
+        wall: unix_seconds_now,
         held_phase: Arc::new(AtomicBool::new(false)),
         keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -7215,6 +7226,109 @@ mod tests {
         source.counters.set_kept_private(false);
         assert_eq!(source.health().state, SourceState::Running);
         source.shutdown().expect("the source stops");
+    }
+
+    #[test]
+    fn a_hold_of_thirty_seconds_stands_in_the_status_with_what_it_leaves_out_with_typing_on_and_off_and_marks_the_row_with_the_key_types_alone(
+    ) {
+        use crate::daemon::board::Board;
+        use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::state::{Cap, Desired, StateHealth};
+        use crate::floor::Switches;
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{LastStop, Lease, Parent, Platform};
+
+        fn wall() -> u64 {
+            1_800_000_000 + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
+        }
+        let written = |held: &Held, typing: bool, titles: bool, screen: bool| {
+            let mut switches = Switches::default();
+            switches.set(Switch::KeyClass, typing);
+            switches.set(Switch::TitleText, titles);
+            switches.set(Switch::ScreenActivity, screen);
+            let mut board = Board::new(Platform::Macos);
+            board.figures = held.counters.figures();
+            let parts = StatusParts {
+                board,
+                desired: Desired::Running,
+                lease: Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap: Cap::Known(StorageCap::DEFAULT),
+                switches,
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: typing,
+                held: false,
+                typing_off_unsaved: None,
+                search: None,
+                left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
+            };
+            let facts = RunFacts {
+                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+                parent: Parent::None,
+                last_stop: LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+        };
+        let entry = |what: &str, since: &str| {
+            Some(format!(
+                r#"[{{"cause":"secure_input","what":[{what}],"since":"{since}"}}]"#
+            ))
+        };
+
+        let mut held = held(100);
+        held.ctx.wall = wall;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || fold_timer_fired(std::ptr::null_mut(), info);
+        answer(Reading::On);
+        fire();
+        advance(29_999);
+        fire();
+        assert_eq!(written(&held, true, true, false), None, "29.999 s of on");
+        advance(1);
+        fire();
+        assert!(held.counters.kept_private(), "the row's mark at 30 s of on");
+        assert_eq!(
+            written(&held, true, true, false),
+            entry(r#""typing","window_titles""#, "2027-01-15T08:00:00Z"),
+            "typing and window titles on"
+        );
+        assert_eq!(
+            written(&held, true, true, true),
+            entry(
+                r#""typing","window_titles","screen_activity""#,
+                "2027-01-15T08:00:00Z"
+            ),
+            "all three on"
+        );
+        answer(Reading::Off);
+        fire();
+        assert_eq!(written(&held, true, true, true), None, "a reading of off");
+
+        held.ctx.keys_asked = false;
+        answer(Reading::On);
+        fire();
+        advance(30_000);
+        fire();
+        assert!(
+            !held.counters.kept_private(),
+            "the row's mark for a tap that asked no key type"
+        );
+        assert_eq!(
+            written(&held, false, true, false),
+            entry(r#""window_titles""#, "2027-01-15T08:00:30Z"),
+            "typing off: window titles alone"
+        );
+        assert_eq!(
+            written(&held, false, false, false),
+            None,
+            "nothing that a hold leaves out is on"
+        );
     }
 
     #[test]

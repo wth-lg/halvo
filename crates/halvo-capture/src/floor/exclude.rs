@@ -22,6 +22,15 @@ pub const LINEAGE_WALK_MAX_STEPS: usize = 64;
 /// by doubt is ordinary on Windows, as where no app is known in front at a switch.
 pub const DOUBT_DROPS_IN_A_ROW: u64 = 3;
 
+/// What a status tells of the drops by doubt of a handle and of its clones, in whole
+/// seconds since 1970 by the handle's clock: the first drop of a row that stands, and the
+/// first drop and the end of the last row that ended.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DoubtTold {
+    pub since: Option<u64>,
+    pub before: Option<(u64, u64)>,
+}
+
 /// Password managers and Halvo's own app, by bundle id (macOS). Only
 /// `com.apple.Passwords` and `com.apple.keychainaccess` were read from a bundle;
 /// the other entries are a starter table that the owner approves.
@@ -310,6 +319,12 @@ impl FloorHandle {
     /// The same handle over the set `marks`, which each of its clones reads.
     pub fn with_marks(self, marks: Arc<Marks>) -> FloorHandle {
         FloorHandle { marks, ..self }
+    }
+
+    /// The same handle with `clock` as the clock of its drops by doubt.
+    #[cfg(test)]
+    pub(crate) fn with_clock(self, _clock: fn() -> u64) -> FloorHandle {
+        self
     }
 
     pub fn switches(&self) -> Switches {

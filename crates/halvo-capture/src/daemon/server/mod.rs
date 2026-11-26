@@ -569,6 +569,28 @@ pub struct StatusParts {
     /// Whether the floor left out events by doubt in a row since the last record built
     /// ([`crate::floor::exclude::FloorHandle::left_out_in_doubt`]).
     pub left_out_in_doubt: bool,
+    /// What the floor tells of its drops by doubt
+    /// ([`crate::floor::exclude::FloorHandle::doubt_told`]).
+    pub doubt_told: crate::floor::exclude::DoubtTold,
+}
+
+/// The text of the list `name` in the line that a service writes for `status`, for a test
+/// that reads a list as it stands on the wire; none where the line holds no such list.
+#[cfg(test)]
+pub(crate) fn written_list(status: &DaemonStatus, name: &str) -> Option<String> {
+    let line = serde_json::to_string(status).expect("a status is written as JSON");
+    let key = format!("\"{name}\":[");
+    let start = line.find(&key)? + key.len() - 1;
+    let mut depth = 0_usize;
+    for (at, sign) in line[start..].char_indices() {
+        match sign {
+            '[' => depth += 1,
+            ']' if depth == 1 => return Some(line[start..=start + at].to_string()),
+            ']' => depth -= 1,
+            _ => {}
+        }
+    }
+    None
 }
 
 /// The status of a service run (contracts.md C2.1, C2.3) on the system of
@@ -968,6 +990,7 @@ mod tests {
                 typing_off_unsaved: None,
                 search: None,
                 left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1063,6 +1086,7 @@ mod tests {
             typing_off_unsaved: None,
             search: None,
             left_out_in_doubt: false,
+            doubt_told: crate::floor::exclude::DoubtTold::default(),
         };
         let facts = RunFacts {
             started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1185,6 +1209,7 @@ mod tests {
                 typing_off_unsaved: None,
                 search: None,
                 left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
             };
             let facts = RunFacts {
                 started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
@@ -1374,6 +1399,7 @@ mod tests {
                 typing_off_unsaved: None,
                 search: None,
                 left_out_in_doubt: floor.left_out_in_doubt(),
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
             };
             let status = status_of(&parts, &facts).unwrap();
             serde_json::to_value(&status)
