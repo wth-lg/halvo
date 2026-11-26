@@ -181,6 +181,44 @@ impl Marks {
     }
 }
 
+/// The refs of the requests of one run in the form with the runner's mask (r3 U0.10), numbered by the product's
+/// rule (`RefTable` of crates/halvo-web/src/cdp.rs): a number is never given out twice in a run, and the refs of
+/// a snapshot go on from the last number of the snapshot before, in the order of its lines. The trial's own
+/// library numbers each snapshot from e1 again, so `back` leads from each ref of the newest request to the
+/// trial's ref of the same line; a ref of an older request, and one that was never given, lead nowhere. The
+/// count is the tool's own: the runner's other readings of a page between two requests take numbers too, which
+/// this count does not take.
+#[derive(Default)]
+struct Refs {
+    given: u64,
+    back: HashMap<String, String>,
+}
+
+impl Refs {
+    /// `lines` as a new snapshot of the run: each line that has a ref gets the next number.
+    fn number(&mut self, lines: &[SnapshotLine]) -> Vec<SnapshotLine> {
+        self.back.clear();
+        lines
+            .iter()
+            .map(|l| {
+                let mut line = l.clone();
+                if !l.reference.is_empty() {
+                    self.given += 1;
+                    line.reference = format!("e{}", self.given);
+                    self.back
+                        .insert(line.reference.clone(), l.reference.clone());
+                }
+                line
+            })
+            .collect()
+    }
+
+    /// The trial's ref of the line that the newest request shows as `reference`.
+    fn trial(&self, reference: &str) -> Option<&str> {
+        self.back.get(reference).map(String::as_str)
+    }
+}
+
 impl Ctx {
     /// The snapshot of a compile's request for a page of `lines` whose text is `text`: that text, and in the
     /// form with the runner's mask the runner's own maker of a snapshot over the same lines, field for field,
@@ -507,7 +545,29 @@ async fn start_browser(ctx: &Ctx, kind: Kind, i: u32) -> Result<Executor, End> {
     }
 }
 
+/// Writes into the cell's trace what the request rule paused since it was armed last, where it paused
+/// anything (r3 U0.10): how many requests, how many of them it let through, and the origin of each, once. The
+/// rule pauses every request of the browser before it leaves and drops its record when it is armed again, so
+/// this is called before each arming and before the browser stops: the lines `rule` of a trace then name the
+/// origin of every request that the run's browser tried.
+fn note_rule(ctx: &Ctx, ex: &Executor) {
+    let paused = ex.paused();
+    if paused.is_empty() {
+        return;
+    }
+    let mut origins: Vec<&str> = paused.iter().map(|p| p.origin.as_str()).collect();
+    origins.sort_unstable();
+    origins.dedup();
+    ctx.trace(&format!(
+        "rule paused={} let={} origins={}",
+        paused.len(),
+        paused.iter().filter(|p| p.let_through).count(),
+        origins.join(",")
+    ));
+}
+
 async fn stop_browser(ctx: &Ctx, ex: Executor) {
+    note_rule(ctx, &ex);
     let s = ex.stop_and_remove().await;
     ctx.trace(&format!(
         "browser stopped pids={} adopted={} left={} removed={}",
@@ -684,6 +744,7 @@ async fn sign_in(ex: &mut Executor, ctx: &Ctx) -> Result<Result<bool, String>, E
     if !lines.iter().any(|l| l.credential) {
         return Ok(Ok(false));
     }
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), true)).await? {
         return Ok(Err(e));
     }
@@ -722,6 +783,7 @@ async fn sign_in(ex: &mut Executor, ctx: &Ctx) -> Result<Result<bool, String>, E
         return Ok(Err(e));
     }
     settle(ex, &frames).await;
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
         return Ok(Err(e));
     }
@@ -842,6 +904,7 @@ async fn carry_out(
         .all(|k| kept.contains_key(*k));
     let already_left = tally.allowed > 0;
     let allow = allow_of(action, confirm, kept_all, already_left);
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), allow)).await? {
         return Ok(Done::Refused(e));
     }
@@ -885,7 +948,11 @@ async fn carry_out(
     };
     if let Err(e) = outcome {
         return Ok(Done::Refused(match action {
-            Action::Select { .. } => words::select_cause(&reference, line.role, &e),
+            // The ref as the action names it, which is the line's own ref but in the form with the runner's
+            // mask, where the request showed the product's number for it (r3 U0.10).
+            Action::Select { .. } => {
+                words::select_cause(action.reference().unwrap_or(&reference), line.role, &e)
+            }
             _ => words::page_refused(&e),
         }));
     }
@@ -894,6 +961,7 @@ async fn carry_out(
     }
     let effect = left_request(ex);
     if clicks {
+        note_rule(ctx, ex);
         if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
             ctx.trace(&format!("arm closed after the step: {e}"));
             return Err(End::NotRun("arm"));
@@ -1093,6 +1161,7 @@ async fn compile_steps(
     tally: &mut Tally,
     began: Instant,
 ) -> Result<bool, End> {
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
         ctx.trace(&format!("arm: {e}"));
         return Ok(false);
@@ -1106,6 +1175,7 @@ async fn compile_steps(
     let mut history: Vec<String> = vec![words::NAVIGATE_START.into()];
     let mut pending: Option<Carried> = None;
     let mut last_text: Option<String> = None;
+    let mut refs = Refs::default();
     for call in 1..=CALLS_MAX {
         let (lines, text) = match read_page(ex, ctx).await? {
             Ok((lines, handbacks)) => {
@@ -1136,7 +1206,9 @@ async fn compile_steps(
         );
         within_wall(ctx, began, tally)?;
         let taken = child.take().ok_or(End::NotRun("model"))?;
-        let snapshot = ctx.request_snapshot(&lines, &text);
+        // r3 U0.10: in the form with the runner's mask the request shows the refs as the product numbers them.
+        let shown = ctx.marks.as_ref().map(|_| refs.number(&lines));
+        let snapshot = ctx.request_snapshot(shown.as_deref().unwrap_or(&lines), &text);
         let (back, reply) = ask(ctx, taken, prompt, Some(snapshot), "action").await?;
         *child = Some(back);
         if let Some(end) = host_end(&reply) {
@@ -1175,10 +1247,14 @@ async fn compile_steps(
                 None
             }
             other => {
-                let reference = other.reference().unwrap_or_default();
-                match lines.iter().find(|l| l.reference == reference) {
+                let named = other.reference().unwrap_or_default();
+                let reference = match shown {
+                    Some(_) => refs.trial(named),
+                    None => Some(named),
+                };
+                match reference.and_then(|r| lines.iter().find(|l| l.reference == r)) {
                     None => {
-                        history.push(words::refused(other, &words::no_reference(reference)));
+                        history.push(words::refused(other, &words::no_reference(named)));
                         None
                     }
                     Some(line) => {
@@ -1192,6 +1268,10 @@ async fn compile_steps(
             Some(Done::Step(verb, mut target, args, request)) => {
                 target.place = parsed
                     .reference()
+                    .and_then(|r| match shown {
+                        Some(_) => refs.trial(r),
+                        None => Some(r),
+                    })
                     .and_then(|r| lines.iter().find(|l| l.reference == r))
                     .and_then(|l| place_of(&lines, l));
                 pending = Some(Carried {
@@ -1310,6 +1390,7 @@ async fn replay_steps(
         };
         match s.verb {
             Verb::Navigate => {
+                note_rule(ctx, ex);
                 if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
                     ctx.trace(&format!("arm: {e}"));
                     return Ok(false);

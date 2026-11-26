@@ -8,7 +8,7 @@ usage: sh tools/r3-trials/drive/hosted.sh --tier low_cost_hosted|frontier --ceil
        sh tools/r3-trials/drive/hosted.sh --standin --tier low_cost_hosted|frontier --ceiling MINOR
            --browser PATH --port N
        sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR
-           [--passes N] [--browser PATH] [--port N]
+           [--passes 1|2] [--browser PATH] [--port N]
        sh tools/r3-trials/drive/hosted.sh --marks --standin --ceiling MINOR [--browser PATH] [--port N]
        sh tools/r3-trials/drive/hosted.sh --help
 
@@ -69,11 +69,12 @@ and gives no verdict.
 --marks is the form with the runner's mask (unit U0.10); its rule is
 docs/r3/trials/driver-hosted-marks.md. It runs the tier frontier and then the tier
 low_cost_hosted in ONE call, under the ONE ceiling MINOR and one count, each tier N passes over
-the nine cells (--passes, 1 to 9; without it 1). The snapshot of every request is made by the
+the nine cells (--passes, 1 or 2; without it 1). The snapshot of every request is made by the
 runner's own maker of a snapshot, which the tool compiles from
 crates/halvo-runner/src/model/snapshot.rs: a page's lines with the mark [slot NAME] in the place
 of each text of a slot of the task, and a message with the From line From: [slot reply_senders].
-A cell runs no recovery, and a body that holds the head of a mark is no body. One tier makes at
+The refs of a compile's requests are numbered by the runner's rule: a number is given out once in
+a run. A cell runs no recovery, and a body that holds the head of a mark is no body. One tier makes at
 most 198 requests a pass: 192 in compiles and 6 for replies. The form takes no --tier, --model,
 --list or --cell: the model token of a tier is the model word of its row of
 crates/halvo-route/data/hosts.tsv with _ for each -, and the script writes the list of each
@@ -103,9 +104,9 @@ request line whole as it hands it to the door in door-requests.jsonl and every l
 gave back in door-answers.jsonl, one line an ask in each and in the order of the asks (an empty
 line where the door gave none back), with door-asks.txt, which names the cell of each ask; the
 records line gives the count of the asks and the SHA-256 of each of the two files. No byte of the
-key stands in them. Where the round gave a verdict line it writes block.txt beside lines.txt: the
-commit, attempt, drive, reply, marks, count, records and verdict lines alone, and no line of a
-cell that ended notrun.
+key stands in them. Where a call of two passes gave a verdict line it writes block.txt beside
+lines.txt: the commit, attempt, drive, reply, marks, count, records and verdict lines alone, and
+no line of a cell that ended notrun.
 
 --marks --standin is the control of that form: two passes of both tiers against the scripted
 host, which also answers the third ask for a reply body with a body that holds the head of a
@@ -201,8 +202,8 @@ if [ -n "$marks" ]; then
     passes=2
   fi
   case ${passes:=1} in
-    [123456789]) ;;
-    *) refuse usage "--passes takes 1 to 9" ;;
+    [12]) ;;
+    *) refuse usage "--passes takes 1 or 2" ;;
   esac
   tiers='frontier low_cost_hosted'
 else
@@ -493,12 +494,12 @@ answers_sha=$(sha_of "$dir/door-answers.jsonl") || notrun tmp
   grep '^verdict ' "$dir/drive-lines.txt"
 } >"$dir/lines.txt"
 cat "$dir/lines.txt"
-# THE BLOCK, written in this one place, where the round gave a verdict line: the eight kinds of line of
-# lines.txt in its order, and no other line. A cell's attempt, drive and reply lines are held until its marks
+# THE BLOCK, written in this one place, where a call of two passes gave a verdict line: the eight kinds of
+# line of lines.txt in its order, and no other line. A cell's attempt, drive and reply lines are held until its marks
 # line, which ends the cell, and are left out with it where the cell wrote a notrun line: every cell of a
 # block is whole.
 block_kinds='commit attempt drive reply marks count records verdict'
-if grep -q '^verdict ' "$dir/lines.txt"; then
+if [ "$passes" -eq 2 ] && grep -q '^verdict ' "$dir/lines.txt"; then
   awk -v kinds="$block_kinds" '
     BEGIN { n = split(kinds, k, " "); for (i = 1; i <= n; i++) kind[k[i]] = 1 }
     $1 == "notrun" { stopped = 1; next }

@@ -17,7 +17,7 @@ use lines::{Cell, Kind, Run};
 
 const USAGE: &str = "r3-drive --repo DIR --model TOKEN --weights FILE --child FILE --settings FILE --task bill|order|reply --seed 1|2|3 --browser PATH --port N --machine NAME --run-dir DIR [--compile-variant NAME]";
 
-const ROUND_USAGE: &str = "r3-drive --round --repo DIR --model TOKEN --settings FILE --browser PATH --port N --machine NAME --run-dir DIR --door FILE --tier low_cost_hosted|frontier --ceiling MINOR --key-file FILE --origin ORIGIN [--egress-list FILE] [--standin-host PORT] [--cell TASK:SEED] [--form marks --host-model WORD --adapter WORD [--passes N], with one value for each tier, joined by commas, in --tier, --model, --origin, --egress-list and --host-model]";
+const ROUND_USAGE: &str = "r3-drive --round --repo DIR --model TOKEN --settings FILE --browser PATH --port N --machine NAME --run-dir DIR --door FILE --tier low_cost_hosted|frontier --ceiling MINOR --key-file FILE --origin ORIGIN [--egress-list FILE] [--standin-host PORT] [--cell TASK:SEED] [--form marks --host-model WORD --adapter WORD [--passes 1|2], with one value for each tier, joined by commas, in --tier, --model, --origin, --egress-list and --host-model]";
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Args {
@@ -497,8 +497,8 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
                 r.passes = value
                     .parse()
                     .ok()
-                    .filter(|n| (1..=9).contains(n) && !value.starts_with('0'))
-                    .ok_or("--passes takes 1 to 9")?
+                    .filter(|n| (1..=2).contains(n) && !value.starts_with('0'))
+                    .ok_or("--passes takes 1 or 2")?
             }
             "--host-model" => r.host_models = list(value),
             "--adapter" => r.adapter = value.clone(),
@@ -1783,8 +1783,10 @@ mod tests {
     /// host; no request that the host received holds the text of a slot of a cell (each value of the
     /// fixture's bindings, the start address with the port); the made-up key stands in no line and in no
     /// file of the round, the two kept records among them, while the host did get it in a head; the kept
-    /// requests and the kept answers are as many as the requests that the host received; and the reply cell
-    /// whose first body holds a mark's head counts one body of two.
+    /// requests and the kept answers are as many as the requests that the host received; the reply cell
+    /// whose first body holds a mark's head counts one body of two; and in each of the four compiles the
+    /// refs of the kept requests go on from request to request, so that no snapshot holds a ref of an
+    /// earlier one.
     #[test]
     #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
     fn a_round_with_the_mask_sends_no_slot_text_and_no_key() {
@@ -1881,6 +1883,41 @@ mod tests {
             .filter(|l| l.starts_with("egress "))
             .map(|l| (word(l, "starts"), word(l, "runs"), word(l, "denied")))
             .collect();
+        // The refs of each compile's requests, from the kept requests: the numbers of each request's page
+        // lines, request by request, for each run that asked in the grammar `action`.
+        let kept_requests =
+            std::fs::read_to_string(b.dir.join(model::REQUESTS)).unwrap_or_default();
+        let kept_asks = std::fs::read_to_string(b.dir.join(model::ASKS)).unwrap_or_default();
+        let mut compiles: Vec<Vec<Vec<u64>>> = Vec::new();
+        for (request, ask) in kept_requests.lines().zip(kept_asks.lines()) {
+            if !ask.contains(" grammar=action ") {
+                continue;
+            }
+            if word(ask, "id") == "1" {
+                compiles.push(Vec::new());
+            }
+            let request: serde_json::Value = serde_json::from_str(request).expect("a request line");
+            let numbers: Vec<u64> = request["snapshot"]
+                .as_str()
+                .unwrap_or("")
+                .lines()
+                .filter_map(|l| l.split(' ').next()?.strip_prefix('e')?.parse().ok())
+                .collect();
+            compiles.last_mut().expect("a compile").push(numbers);
+        }
+        let never_twice = compiles.iter().all(|requests| {
+            let all: Vec<u64> = requests.iter().flatten().copied().collect();
+            requests.iter().all(|r| !r.is_empty()) && all.windows(2).all(|pair| pair[0] < pair[1])
+        });
+        let second_snapshots = compiles
+            .iter()
+            .filter(|requests| requests.len() > 1)
+            .count();
+        println!(
+            "refs: {} compiles, {second_snapshots} with a second snapshot; the first compile's requests begin at {:?}",
+            compiles.len(),
+            compiles.first().map(|r| r.iter().map(|n| n[0]).collect::<Vec<_>>())
+        );
         println!(
             "marks: {} cells, {handed} requests handed, {} received, {} texts searched, {} files read",
             marks.len(),
@@ -1906,6 +1943,7 @@ mod tests {
                 holding_the_key,
                 second_reply,
                 egress,
+                (compiles.len(), second_snapshots, never_twice),
             ),
             (
                 None,
@@ -1924,6 +1962,7 @@ mod tests {
                 Vec::<&PathBuf>::new(),
                 vec![("1", "1")],
                 vec![("4", "4", "0"), ("4", "4", "0")],
+                (4, 4, true),
             ),
             "lines: {lines:?}"
         );

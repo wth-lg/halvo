@@ -374,17 +374,26 @@ request made by the runner's own maker of a snapshot. Its rule is `docs/r3/trial
 
 ```sh
 sh tools/r3-trials/drive/hosted.sh --marks --standin --ceiling 2000     # the control: two passes, no host
-sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR [--passes N]    # the paid form: not run by this unit
+sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR [--passes 1|2]    # the paid form: not run by this unit
 ```
 
 - The mask is the runner's own file: the crate `../forms` brings `crates/halvo-runner/src/model/snapshot.rs` in
   by its path and holds no copy of it (the test `the_forms_are_the_runners_own_file`). `r3-drive` hands it a
   page's lines field for field, with the slots of the fixture's bindings of the task and seed, and for a write
-  the message's subject and body. The harness's own loop still reads each page, with the trial's own browser
-  library, and builds each request: the form reads the runner's mask and the door, and not the runner's own
-  reading of a page, its loop, its pick, its holds or its start of the door.
+  the message's subject and body.
+- The refs of a compile's requests are numbered by the runner's rule (`RefTable` of
+  `crates/halvo-web/src/cdp.rs`): a number is given out once in a run, and the refs of a request's page go on
+  from the last number of the request before (`Refs` of `src/drive.rs`, which keeps the way back from each ref
+  of the newest request to the trial library's own ref of the same line). A ref of an earlier request names no
+  line, and the model's action on it is refused as one that names no line of the page.
+- The harness's own loop still reads each page, with the trial's own browser library, and builds each request.
+  That library walks the browser's accessibility tree as the runner's does, but for its reading of a credential
+  field; and the harness's count of the refs takes no number for the runner's other readings of a page between
+  two requests, so the numbers of a request's refs are not the runner's. The form reads the runner's mask and
+  the door, and not the runner's own reading of a credential field, its loop, its pick, its holds or its start
+  of the door.
 - One call runs the tier `frontier` and then the tier `low_cost_hosted`, each `--passes` passes over the nine
-  cells (1 without the argument), under one ceiling: one count of `crates/halvo-route`, turned to the second
+  cells (1 or 2; 1 without the argument), under one ceiling: one count of `crates/halvo-route`, turned to the second
   tier with what the first spent (`Spend::turn_to`). A cell runs no recovery. The compile and the write of the
   pass p are written with `i=<p>`, the replays with `i` from 3(p-1)+1 on, and the `drive`, the `reply` and the
   `marks` line hold `i=<p>` behind `seed`. A tier makes at most 198 requests a pass.
@@ -392,8 +401,8 @@ sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR [--pa
   tier's list; the script writes the list of the paid form, its one entry, into the round's directory.
   `r3-drive`, its browser and the fixture server start outside the check, as in the hosted form.
 - The round keeps `door-requests.jsonl`, `door-answers.jsonl` and `door-asks.txt` in its directory
-  (`model::Records`), prints the lines `marks`, `count`, `records` and `verdict`, and where it gave a verdict line
-  writes `block.txt`, the eight kinds of line that the rule file names.
+  (`model::Records`), prints the lines `marks`, `count`, `records` and `verdict`, and where a call of two passes
+  gave a verdict line writes `block.txt`, the eight kinds of line that the rule file names.
 - The command refuses with `REFUSED tree` while a tracked file of the checkout is changed, and its first line
   names the commit.
 - `--marks --standin` is the control: the scripted host's walk `Marks` (the walk `Ends`, and a body with the head
