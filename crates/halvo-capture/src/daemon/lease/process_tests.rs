@@ -24,6 +24,7 @@ const MARKS: &str = "HALVO_LIFELINE_MARKS";
 const PARENT_OF: &str = "HALVO_LIFELINE_PARENT_OF";
 const CHILD: &str = "daemon::lease::process_tests::lifeline_child";
 const STAND_IN: &str = "daemon::lease::process_tests::lifeline_stand_in_parent";
+const ENDS_FIRST: &str = "HALVO_LIFELINE_ENDS_FIRST";
 const EVENTS: usize = 5;
 const READY_WITHIN: Duration = Duration::from_secs(60);
 
@@ -50,6 +51,10 @@ fn lifeline_child() {
         return;
     };
     let marks = PathBuf::from(marks);
+    let ends_first = std::env::var(ENDS_FIRST).ok();
+    if let Some(status) = ends_first.and_then(|status| status.parse().ok()) {
+        ended_with(&marks, status);
+    }
     let lifeline = match start_or_status(&mut std::io::stderr()) {
         Ok(lifeline) => lifeline,
         Err(status) => ended_with(&marks, status),
@@ -133,10 +138,55 @@ fn case_dirs(name: &str) -> (PathBuf, PathBuf) {
     (data, marks)
 }
 
-fn wait_for(path: &Path, within: Duration, what: &str) {
+fn seen(data: &Path, marks: &Path) -> String {
+    let mut names: Vec<String> = std::fs::read_dir(marks)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    let status = std::fs::read_to_string(marks.join("status")).ok();
+    let key = data.join("store").join("store.key").exists();
+    let made = std::fs::read_to_string(data.join("daemon-state.json"))
+        .is_ok_and(|text| text.contains("\"store_made\":true"));
+    format!("marks={names:?} status={status:?} store_key={key} store_made={made}")
+}
+
+fn wait_for(
+    mut started_by_the_test: Option<&mut Child>,
+    (data, marks): (&Path, &Path),
+    mark: &str,
+    within: Duration,
+    what: &str,
+) {
+    let path = marks.join(mark);
     let started = Instant::now();
     while !path.exists() {
-        assert!(started.elapsed() < within, "{what} within {within:?}");
+        let ended = started_by_the_test
+            .as_mut()
+            .and_then(|child| child.try_wait().unwrap());
+        if let Some(status) = ended {
+            if path.exists() {
+                return;
+            }
+            panic!(
+                "{what}: the process that the test started ended before it, with {status}; {}",
+                seen(data, marks)
+            );
+        }
+        let asked = if started_by_the_test.is_some() {
+            "the process that the test started still ran"
+        } else {
+            "the test held no process to ask"
+        };
+        assert!(
+            started.elapsed() < within,
+            "{what} within {within:?}: {asked}; {}",
+            seen(data, marks)
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
 }
@@ -168,7 +218,9 @@ fn a_lifeline_ends_the_daemon_with_0_inside_the_budget() {
     let (reader, writer) = std::io::pipe().unwrap();
     let mut child = child_command(&data, &marks).stdin(reader).spawn().unwrap();
     wait_for(
-        &marks.join("emitted"),
+        Some(&mut child),
+        (&data, &marks),
+        "emitted",
         READY_WITHIN,
         "the child's source emitted",
     );
@@ -196,7 +248,9 @@ fn a_lifeline_ends_the_daemon_with_0_inside_the_budget() {
         .spawn()
         .unwrap();
     wait_for(
-        &marks.join("emitted"),
+        Some(&mut stand_in),
+        (&data, &marks),
+        "emitted",
         READY_WITHIN,
         "the child's source emitted",
     );
@@ -204,7 +258,9 @@ fn a_lifeline_ends_the_daemon_with_0_inside_the_budget() {
     stand_in.kill().unwrap();
     stand_in.wait().unwrap();
     wait_for(
-        &marks.join("status"),
+        None,
+        (&data, &marks),
+        "status",
         budget + Duration::from_secs(10),
         "the child's status after its parent was killed",
     );
