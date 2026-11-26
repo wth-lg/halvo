@@ -1260,7 +1260,7 @@ fn u1110_the_row_says_that_halvo_guessed_the_letters_behind_the_line_of_the_run_
     let done = "Last time, it finished its task.";
     let failed = "Last time, it could not finish its task.";
     let step_failed = "It could not fill in the spreadsheet. Check the file, the sheet, the cells and the data file that you gave it. Then choose Change its answers.";
-    let note = "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. If a letter looks wrong in the spreadsheet, save the data file as CSV UTF-8 and choose Start now.";
+    let note = "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. In such a file Halvo writes a value with a sign such as € as text, not as a number. If a letter looks wrong in the spreadsheet or a sum leaves values out, save the data file as CSV UTF-8 and choose Start now.";
     let guessed = Notes {
         letters_guessed: true,
     };
