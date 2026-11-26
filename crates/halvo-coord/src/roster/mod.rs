@@ -155,8 +155,8 @@ fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
 /// r3 U7.2a, r3 U7.4 and r3 U7.2b): the person has not allowed the model, no key is saved, the person's spending limit
 /// is reached, or the router does not let the model that the agent may use do its task (`shortfall`). A row says the
 /// sentence of such a cause for a last run that ended `handed_back` while the agent rests (`crate::schedule::rests`,
-/// r3 U7.8; the coordinator's log line 22216); every other handed-back run, and such a run once its cause is gone,
-/// keeps the row line of a run that stopped early.
+/// r3 U7.8; the coordinator's log line 22216); every other handed-back run, and such a run once the agent no longer
+/// rests, keeps the row line of a run that stopped early.
 pub const MODEL_CAUSES: [LastCause; 4] = [
     LastCause::NoAgreement,
     LastCause::NoModelKey,

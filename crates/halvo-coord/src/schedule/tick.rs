@@ -13,10 +13,12 @@ use crate::types::{
 /// what the app handed beside its configuration at this list of the agents. `no_agreement` stands
 /// until the agent's yes stands for its tier, `no_model_key` until a key is saved, `over_cap` while
 /// the limit reads near or reached, and `shortfall` until a newer run ends, since the core does not
-/// read the router's table. Where the app hands no use of a model, or the key's state or the limit
-/// does not read, the agent rests. Nothing is stored, and the rest is no hold: the person's own
-/// start passes, and Start now stays offered. While it rests, a tick raises no `ready` for the agent
-/// and starts no run of it (`tick_step`), and its row says the sentence of the cause.
+/// read the router's table. Where the app hands no use of a model, the agent rests; so it does for
+/// `no_model_key` where the key's state does not read, and for `over_cap` where the limit does not
+/// read. Nothing is stored, and the rest is no hold: the person's own start passes, and Start now
+/// stays offered. While it rests, a tick raises no `ready` for the agent and starts no run of it
+/// (`tick_step`), and its row says the sentence of the cause where no line of
+/// `crate::roster::status_of` stands before it.
 pub(crate) fn rests<C: ConfigView>(facts: &Facts<C>) -> bool {
     if !facts.store_ended || facts.config.tier() == Tier::OnDevice {
         return false;

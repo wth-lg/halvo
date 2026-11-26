@@ -2899,7 +2899,7 @@ mod tests {
 
     /// r3 U7.8: the app hands the core a limit that reads near in the states `near` and `reached`
     /// of the limit's view alone, beside its amount and its period, so that an agent that stopped at
-    /// the limit rests until the limit's period ends or until the person raises the limit.
+    /// the limit rests while the limit reads near or reached.
     #[test]
     fn u78_a_limit_reads_near_in_the_states_near_and_reached_alone() {
         let rows = [

@@ -91,7 +91,8 @@ fn u78_handed_back(tier: Tier, cause: Option<LastCause>, model: Option<ModelUse>
 /// r3 U7.8: an agent whose newest run handed its work back for a cause of a hosted model rests
 /// while that cause stands by what the app hands at the tick: the tick raises no `ready` and starts
 /// nothing, and the person's own start passes; once the facts show the cause gone, the tick raises
-/// `ready` again. Where the use of a model, the key's state or the limit does not read, it rests.
+/// `ready` again. Where the app hands no use of a model, where the key's state does not read for
+/// `no_model_key`, or where the limit does not read for `over_cap`, it rests.
 #[test]
 fn u78_an_agent_that_handed_back_for_a_cause_of_a_hosted_model_asks_again_only_once_the_cause_is_gone(
 ) {
@@ -477,8 +478,8 @@ fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
 /// r3 U7.2a, as r3 U7.8 turns it: the row of an agent whose newest run ended `handed_back` with one
 /// of the causes of a hosted model says the ruled problem line of that cause, byte for byte, while
 /// the agent rests (`crate::schedule::rests`; the coordinator's log lines 22166 and 22216, and for
-/// `shortfall` line 22854); once the cause is gone, and for a handed-back run with another cause or
-/// with none, the row keeps the line of a run that stopped early.
+/// `shortfall` line 22854); once it no longer rests, and for a handed-back run with another cause
+/// or with none, the row keeps the line of a run that stopped early.
 #[test]
 fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_today() {
     let early =
