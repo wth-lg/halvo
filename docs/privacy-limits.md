@@ -362,15 +362,26 @@ test `u72b_a_messages_snapshot_names_no_sender_and_masks_its_subject_and_body`
 (`crates/halvo-runner/src/model/snapshot.rs`) holds them in a message.
 
 The mark stands only where a text holds an answer as the person gave it, in one
-of the forms above, so these can still leave with a request:
+of the forms above; an answer in any other form can still leave with a request,
+as in these cases:
 
 - another spelling of a number or a date: an answer `12345678` that the page
   shows as `1234 5678`, or `01/12/2026` that it shows as `1 December 2026`;
 - a part of an answer: of the payee `City Water Board`, a page that shows
   `City Water` alone; and of two senders or more whose mail the agent answers,
-  one address that the body of a message names alone;
+  one address that the subject or the body of a message names alone;
+- an answer that a message writes with two spaces where the answer has one, or
+  breaks at a line end: the two senders whose mail the agent answers, which
+  Halvo holds as the one text `ada@example.com, bob@example.com`, in a mail
+  that writes two spaces after the comma or starts a new line there;
+- an answer that a box holds with two spaces where the answer has one, or with
+  a no-break space, which looks like any other space: the payee
+  `City Water Board` in a box that holds two spaces after `City`;
 - a letter outside A to Z in the other case: an answer `Müller` that the page
   shows as `MÜLLER`;
+- the same letter stored in another way, which looks the same on the screen: an
+  answer `Müller` that a page or a message holds as a plain `u` with two dots
+  added to it;
 - in the subject or the body of a message, a double quote where the answer holds
   two single quotes: an answer `5'' pipe` that the message writes as `5" pipe`;
   and
@@ -382,12 +393,18 @@ of the forms above, so these can still leave with a request:
 These never leave with such a request:
 
 - a page on which the agent's own reading finds a field for a password or
-  another sign-in secret, with what that field holds: the agent hands the
-  browser to the person there, and its next request holds the page after the
-  sign-in. The tests
+  another sign-in secret, with what that field holds. Where the agent's browser
+  has its own window, the agent hands the browser to the person there, and its
+  next request holds the page after the sign-in; where it has no window, the run
+  ends at that field, and no further request is made. The tests
   `u72b_no_request_holds_a_snapshot_of_a_page_with_a_credential_field` and
   `u72b_a_line_with_the_credential_mark_hands_back_before_any_request`
-  (`crates/halvo-runner/src/compile/tests.rs`) hold it;
+  (`crates/halvo-runner/src/compile/tests.rs`) hold it where the browser has a
+  window. Where it has none, the test
+  `a_run_with_no_window_that_imported_nothing_ends_at_a_credential_field`
+  (`crates/halvo-runner/src/handback/tests.rs`) holds that end for a run that
+  repeats the steps that Halvo stored for the agent; for a run that works out
+  its steps, that end is read from the code, and no test runs it;
 - a word of a step that Halvo stored for the agent. The tests
   `u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_nothing_of_the_store`
   (`crates/halvo-runner/src/compile/tests.rs`) and
