@@ -167,7 +167,7 @@ fn table_refusals() {
         ),
         (
             "unknown source",
-            text(&[&cell(BILL_1, 15, "s3")]),
+            text(&[&cell(BILL_1, 15, "s4")]),
             fault(Fault::Cell, 2),
         ),
         (
