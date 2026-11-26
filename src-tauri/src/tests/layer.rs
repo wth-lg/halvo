@@ -176,6 +176,82 @@ fn an_install_that_fails_twice_and_then_stands_is_claimed_at_the_first_pass_behi
     );
 }
 
+/// The connector that the stand-in guard of the case of the held set-up reads.
+static HELD: OnceLock<ScriptedConnector> = OnceLock::new();
+
+/// The moments, from that guard's call on, at which it saw each Status that claims while it held
+/// the set-up; a claim made before its call counts at its first look.
+static CLAIMS_WHILE_HELD: Mutex<Vec<Duration>> = Mutex::new(Vec::new());
+
+/// An install of the tray that stands at its first try.
+fn tray_that_stands(
+    _: &tauri::AppHandle<tauri::test::MockRuntime>,
+) -> tauri::Result<tray::TrayInstalled> {
+    Ok(tray::installed_for_tests())
+}
+
+/// A guard that holds the set-up, on its thread right behind the window's build, until it has
+/// seen a Status that claims the lease's 10 s or more behind the first that it saw, or for 20 s,
+/// keeps the moments of the claims that it saw, and then answers installed.
+fn guard_held_until_a_claim_10_s_behind_the_first(
+    _: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+    _: crate::engine::EngineSite,
+    answer: std::sync::mpsc::Sender<crate::engine::GuardAnswer>,
+) {
+    let lease = Duration::from_millis(halvo_control::INDICATOR_LEASE_MS);
+    let held = Instant::now();
+    let mut seen: Vec<Duration> = Vec::new();
+    while held.elapsed() < Duration::from_secs(20) {
+        let count = HELD.get().map_or(0, |connector| {
+            claims(connector).into_iter().filter(|claim| *claim).count()
+        });
+        while seen.len() < count {
+            seen.push(held.elapsed());
+        }
+        if let (Some(first), Some(last)) = (seen.first(), seen.last()) {
+            if *last - *first >= lease {
+                break;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    *CLAIMS_WHILE_HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = seen;
+    let _ = answer.send(Ok(crate::engine::installed_for_tests()));
+}
+
+/// Test 2 of indicator-again: the tray and the poller come before the window and its engine.
+/// While the set-up is held right behind the window's build, a Status claims the indicator and
+/// claims again the lease's 10 s or more behind the first, and no two claims lie 10 s or more
+/// apart, so that the lease holds through the hold.
+#[test]
+fn while_the_set_up_is_held_behind_the_window_a_status_claims_and_claims_again_10_s_later() {
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    HELD.set(connector.clone())
+        .expect("no other case sets the connector");
+    let mut parts = test_parts(scratch_dir("held-set-up"), super::state_of(&connector));
+    parts.tray = Some(tray_that_stands);
+    parts.guard = guard_held_until_a_claim_10_s_behind_the_first;
+    parts.poll = true;
+    let _test = test_app_from(parts, app::context(), connector);
+    let seen = CLAIMS_WHILE_HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let lease = Duration::from_millis(halvo_control::INDICATOR_LEASE_MS);
+    assert!(
+        seen.last()
+            .zip(seen.first())
+            .is_some_and(|(last, first)| *last - *first >= lease),
+        "no Status claimed the lease's 10 s behind the first while the set-up was held: {seen:?}"
+    );
+    assert!(
+        seen.windows(2).all(|pair| pair[1] - pair[0] < lease),
+        "two claims lay 10 s or more apart while the set-up was held: {seen:?}"
+    );
+}
+
 #[test]
 fn a_stale_id_returns_already_deleted_and_deletes_nothing() {
     let test = app_on(macos_fixture_daemon(), "stale-id");
