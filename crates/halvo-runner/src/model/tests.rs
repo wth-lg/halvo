@@ -3,7 +3,9 @@
 //! them is a STAND-IN: this test binary started as the entry `stand_in_door` alone, which records what it got (its
 //! standard input, its arguments, its environment, its working directory and, on macOS, its open descriptors and
 //! whether its standard error is the null device) into a directory of the test, answers one line a request line, and
-//! opens no socket. No test here starts halvo-model.
+//! opens no socket. No test of this file starts halvo-model: the one test of the tree that starts it from the runner's
+//! own start stands in the child module real_door (r6 U5.4); a plain run ignores it, and
+//! scripts/r3/ci.d/64-model-egress.sh runs it in the macos job, under the egress check.
 
 use std::ffi::OsString;
 use std::io::{BufRead, Read, Write};
@@ -22,6 +24,9 @@ use super::ask::{Grammar, Level, ModelRequest, Place, OUTPUT_LIMIT};
 use crate::link::{encode, Link};
 use crate::route::{Call, Picked};
 use crate::run::Runner;
+
+#[cfg(unix)]
+mod real_door;
 
 /// The made-up key of these tests: visible ASCII, held by no file but this one.
 const KEY: &str = "made-up-key-u72a-Wq4Zp8Rk-3c1d";
@@ -249,6 +254,29 @@ fn run_once(
     record: &Path,
     data: &Path,
 ) -> Seen {
+    let mut before: Vec<OsString> = ["--exact", "--test-threads=1", "--quiet", STAND_IN, "--"]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+    before.push(record.as_os_str().to_owned());
+    let place = Place {
+        program: std::env::current_exe().expect("the test binary"),
+        before,
+    };
+    run_at(place, hosted, answers, drive, record, data)
+}
+
+/// One compile of the agent of `supervise` whose door stands at `place`, with `--hosted frontier` where `hosted`,
+/// whose stand-in drive asks `drive`; the supervisor reads the door's mark `ended` in `record`, and `data` is the
+/// run's data directory.
+fn run_at(
+    place: Place,
+    hosted: bool,
+    answers: Answers,
+    drive: Vec<(Picked, ModelRequest)>,
+    record: &Path,
+    data: &Path,
+) -> Seen {
     let run = RunId::from_random([0x81; 16]);
     let agent = AgentId::from_random([0x82; 16]);
     let workflow = WorkflowId::from_random([0x83; 16]);
@@ -284,15 +312,7 @@ fn run_once(
         supervise(from_runner, to_runner, agent, workflow, answers, kept)
     });
     let mut runner = Runner::new(args, link);
-    let mut before: Vec<OsString> = ["--exact", "--test-threads=1", "--quiet", STAND_IN, "--"]
-        .into_iter()
-        .map(OsString::from)
-        .collect();
-    before.push(record.as_os_str().to_owned());
-    runner.stand_in_door = Some(Place {
-        program: std::env::current_exe().expect("the test binary"),
-        before,
-    });
+    runner.stand_in_door = Some(place);
     runner.drive = drive;
     let _ = crate::tests_lines();
     let status = runner.run();
