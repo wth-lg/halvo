@@ -374,6 +374,8 @@ test("says-left-out: where the status's left_out holds secure_input, the line un
   }
   const off = { ...running, typing_switch: { ...running.typing_switch, on: false }, left_out: hold(["window_titles"]) };
   assert.equal((await page(off)).text("capture-reason"), said("window titles", "window titles"), "typing off, the input row running");
+  const refused = turned(running, "input", { state: "impaired", reason: "permission" });
+  assert.equal((await page({ ...refused, left_out: hold(["window_titles"]) })).text("capture-reason"), said("window titles", "window titles"), "typing on, the input row impaired by permission");
   assert.equal((await page(stopped({ ...kept, left_out: hold(["typing", "window_titles"]) }))).text("capture-reason"), "", "the app in front has stopped");
   assert.equal((await page(stopped(kept))).text("capture-reason"), "", "the app in front has stopped, a status without left_out");
   assert.equal((await page({ ...kept, left_out: [entry("doubt", ["everything"]), ...hold(["typing"])] })).text("capture-reason"), doubt, "the doubt beside it");
