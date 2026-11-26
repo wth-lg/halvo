@@ -324,6 +324,13 @@ pub struct AssessInput<'a> {
     pub screen_activity: bool,
 }
 
+/// The text of the one walkback step of Input Monitoring that the capture service adds behind
+/// [`assess`], beside the restart step's text below: the service ended its life once for a grant
+/// of Input Monitoring whose tap held no key type, the board reads that grant, and the tap of the
+/// new life still holds no key type. A quit is the one thing that a person can do there, and the
+/// page holds no control that starts Halvo anew.
+pub const KEYS_RESTART_DID_NOT_HELP: &str = "Halvo restarted its recorder, but macOS still does not let it record typing: quit Halvo, open it again and press Resume.";
+
 pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
     let mut permissions = Vec::with_capacity(input.required.len());
     let mut lost_grants = Vec::new();
