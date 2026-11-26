@@ -729,6 +729,7 @@ fn active_is_wanted_for_an_approved_agent_with_no_hold_and_for_web_after_a_compl
         day: 100,
         outcome,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     };
     let mut f = facts(&AUTO, done_before());
     f.workflow.state = WorkflowState::Approved;

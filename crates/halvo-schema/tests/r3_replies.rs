@@ -1405,7 +1405,7 @@ fn the_entry_of_agent_run_lists_the_keys_of_the_run_s_list_after_model_with_thei
         .position(|(key, _)| *key == "model")
         .unwrap();
     let after: Vec<&str> = entry.fields[at + 1..].iter().map(|(key, _)| *key).collect();
-    assert_eq!(after, RUN_LIST_KEYS);
+    assert_eq!(after, [RUN_LIST_KEYS, &["letters_guessed"]].concat());
     assert_eq!(list_keys().len(), RUN_LIST_KEYS.len());
     assert_eq!(check_entries(&[entry]), Vec::<String>::new());
     let read = AgentRun::parse(entry.example.as_bytes()).unwrap_or_else(|e| panic!("{e}"));

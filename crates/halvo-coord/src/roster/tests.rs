@@ -1082,6 +1082,7 @@ fn u329_the_card_says_what_the_page_after_a_payment_or_an_order_gave() {
                 day: base.today,
                 outcome: Outcome::Completed,
                 unknown: 0,
+                notes: crate::types::Notes::default(),
             },
             effects: vec![PastEffect {
                 effect: EffectId::parse(&format!("{:032x}", 0x7902)).unwrap(),
@@ -1138,6 +1139,7 @@ fn u329_ended(category: crate::types::Category, cause: LastCause, after: &[What]
             day: f.today,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: crate::types::Notes::default(),
         },
     );
     let mut whats = vec![
@@ -1245,4 +1247,144 @@ fn u329_the_row_and_the_run_say_how_a_payment_or_an_order_ended() {
         }
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// r3 U11.10, the coordinator's way (b): the row of an agent of the runtime file says the note of
+/// `line.note.letters_guessed` behind the line of its newest ended run, whatever its end, where
+/// that run's record holds `letters_guessed`: behind the done sentence, behind the line of a
+/// failed run and behind a last cause's sentence; with no key, also in a record of a build before
+/// the key stood, and behind a later run without it, the row says its line as before.
+#[test]
+fn u1110_the_row_says_that_halvo_guessed_the_letters_behind_the_line_of_the_run_that_did() {
+    use crate::types::{Failure, LastCause, Notes, Outcome, PastRun};
+    let done = "Last time, it finished its task.";
+    let failed = "Last time, it could not finish its task.";
+    let step_failed = "It could not fill in the spreadsheet. Check the file, the sheet, the cells and the data file that you gave it. Then choose Change its answers.";
+    let note = "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. In such a file Halvo writes a value with a sign such as € as text, not as a number. If a letter looks wrong in the spreadsheet or a sum leaves values out, save the data file as CSV UTF-8 and choose Start now.";
+    let guessed = Notes {
+        letters_guessed: true,
+    };
+    let none = Notes::default();
+    let base = facts(State::Ten).remove(0);
+    let older = RunId::parse(&format!("{:032x}", 0x1110_0001)).unwrap();
+    let newest = RunId::parse(&format!("{:032x}", 0x1110_0002)).unwrap();
+    // The state, the newest run's end and record, the record of the run before it, the last
+    // cause, and the line that the row says.
+    type Case<'a> = (
+        &'a str,
+        Outcome,
+        Notes,
+        Option<Notes>,
+        Option<&'a str>,
+        String,
+    );
+    let cases: [Case; 7] = [
+        (
+            "no note",
+            Outcome::Completed,
+            none,
+            None,
+            None,
+            done.to_owned(),
+        ),
+        (
+            "the note",
+            Outcome::Completed,
+            guessed,
+            None,
+            None,
+            format!("{done} {note}"),
+        ),
+        (
+            "a later run without it",
+            Outcome::Completed,
+            none,
+            Some(guessed),
+            None,
+            done.to_owned(),
+        ),
+        (
+            "a record of a build before the key stood",
+            Outcome::Completed,
+            Notes::default(),
+            None,
+            None,
+            done.to_owned(),
+        ),
+        (
+            "a failed run whose record holds the key",
+            Outcome::Failed,
+            guessed,
+            None,
+            None,
+            format!("{failed} {note}"),
+        ),
+        (
+            "a failed run whose record holds none",
+            Outcome::Failed,
+            none,
+            None,
+            None,
+            failed.to_owned(),
+        ),
+        (
+            "a failed run with a last cause whose record holds the key",
+            Outcome::Failed,
+            guessed,
+            None,
+            Some("step_failed"),
+            format!("{step_failed} {note}"),
+        ),
+    ];
+    for (state, outcome, notes, before, cause, want) in cases {
+        let mut f = base.clone();
+        f.config = config(Tier::OnDevice, Runtime::File, None);
+        f.store_ended = true;
+        let end = match outcome {
+            Outcome::Completed => RunEnd::Completed,
+            _ => RunEnd::from(Failure::Failed),
+        };
+        let mut runs = vec![PastRun {
+            run: newest.clone(),
+            day: f.today,
+            outcome,
+            unknown: 0,
+            notes,
+        }];
+        if let Some(notes) = before {
+            runs.push(PastRun {
+                run: older.clone(),
+                day: f.today,
+                outcome: Outcome::Completed,
+                unknown: 0,
+                notes,
+            });
+        }
+        f.runs = runs;
+        for what in [
+            What::RunStarted {
+                run: newest.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+            What::RunEnded {
+                run: newest.clone(),
+                cause: end,
+                defers: None,
+            },
+        ] {
+            f.events.push(Event {
+                workflow: f.workflow.id.clone(),
+                agent: f.agent.clone(),
+                seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+                day: f.today,
+                at: i64::from(f.today) * 86_400_000_000_000,
+                what,
+            });
+        }
+        f.last_cause = cause.and_then(|c| LastCause::parse(c).ok());
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        assert_eq!(r.line, want, "{state}");
+    }
 }

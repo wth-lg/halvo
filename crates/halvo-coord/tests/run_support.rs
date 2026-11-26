@@ -108,6 +108,7 @@ pub fn finished_run(n: usize) -> (PastRun, Vec<Event>) {
         day: DAY - 2,
         outcome: halvo_coord::types::Outcome::Completed,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     };
     (record, events)
 }
@@ -274,6 +275,7 @@ impl World {
                 day: self.board.day,
                 outcome,
                 unknown,
+                notes: halvo_coord::types::Notes::default(),
             },
         );
     }

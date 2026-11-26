@@ -59,6 +59,10 @@ macro_rules! agent_run {
             /// stands: `compile`, `replay`, or null in the record that the handler of `end_run` stores, whose outcome
             /// is `failed`; a null mode beside the outcome of a `finish` is refused. The keys of `RUN_LIST_KEYS`
             /// follow `model`, each always present with its value or null and held to its type alone.
+            /// `letters_guessed` (r3 U11.10) stands, as `yes`, in the record of a run whose file step read its data
+            /// file by the computer's code page, a guess of its letters, and whose write of the workbook then
+            /// answered well; it is missing from every other record, a record of a build before the key stood among
+            /// them, and `null` and `no` under it are refused.
             #[derive(Clone, Debug, PartialEq, Eq)]
             pub struct AgentRun {
                 pub v: V1 = "v" => from_json,
@@ -82,10 +86,16 @@ macro_rules! agent_run {
                 pub model: Option<Name> = "model" => opt(from_json),
                 $( $(#[$doc])* pub $field: $ty = $key => $read, )*
             }
+            absent {
+                pub letters_guessed: Option<YesNo> = "letters_guessed" => from_json,
+            }
             rules(r) {
                 let fail = |key, rule| Err(Refusal::malformed("AgentRun", rule).at(key));
                 if r.mode.is_none() && r.outcome != Outcome::Failed {
                     return fail("mode", "mode_null_after_finish");
+                }
+                if r.letters_guessed == Some(YesNo::No) {
+                    return fail("letters_guessed", "letters_guessed_no");
                 }
                 if u64::from(r.prompts) != u64::from(r.handbacks) + u64::from(r.confirmations) {
                     return fail("prompts", "prompts_sum");
@@ -136,6 +146,7 @@ macro_rules! agent_run {
                     wall_s: 0,
                     model: None,
                     $( $field: None, )*
+                    letters_guessed: None,
                 }
             }
         }

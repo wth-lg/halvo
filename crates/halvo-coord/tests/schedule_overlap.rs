@@ -1217,6 +1217,7 @@ fn due_beside_a_sharing_agent() -> Ports<Config> {
         day: DAY - 2,
         outcome: halvo_coord::types::Outcome::Completed,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     });
     let e = |seq: u32, what: What| Event {
         workflow: flow(0),

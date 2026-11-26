@@ -7,7 +7,7 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
-use halvo_schema::executable::names::{HandbackReason, LogEvent, Mode, Runtime, StepKind};
+use halvo_schema::executable::names::{HandbackReason, LogEvent, Mode, Runtime, StepKind, YesNo};
 use halvo_schema::executable::step::{Target, WebTarget};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
@@ -101,6 +101,9 @@ pub(crate) struct Runner {
     /// maker reads again right before the act of a web step of an effect class (crate::web::maker).
     pub(crate) extracts: HashMap<String, (WebTarget, String)>,
     pub(crate) read_under: Option<ReadUnder>,
+    /// Whether the run's file step read its data file by the computer's code page and the write of the workbook
+    /// then answered well (r3 U11.10): its record then holds `letters_guessed` `yes`.
+    pub(crate) letters_guessed: bool,
     /// The newest row of each checkpoint of the run that the store took, by the workbook's path as the rows name it.
     pub(crate) checkpoints: HashMap<String, Taken>,
     /// What the run's list and draft steps gave, for its record.
@@ -195,6 +198,7 @@ impl Runner {
             kept: HashMap::new(),
             extracts: HashMap::new(),
             read_under: None,
+            letters_guessed: false,
             checkpoints: HashMap::new(),
             lists: Lists::default(),
             web: None,
@@ -614,6 +618,8 @@ impl Runner {
             other_task: None,
             held_earlier: None,
             earlier_page: None,
+            letters_guessed: (self.letters_guessed && outcome != Outcome::EffectUnknown)
+                .then_some(YesNo::Yes),
         };
         self.lists.fill(&mut record);
         let call = RunnerCall::Finish(Finish {

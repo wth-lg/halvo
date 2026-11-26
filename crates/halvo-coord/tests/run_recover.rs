@@ -496,6 +496,7 @@ fn a_run_ended_of_recovery_that_the_owner_does_not_take_is_owed_and_holds_the_ag
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     w.ports.refuse(Method::Log, PortError::NoService);
@@ -528,6 +529,7 @@ fn an_owed_run_ended_that_the_owner_stored_with_a_lost_acknowledgement_is_paid_a
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     w.ports.refuse(Method::Log, PortError::NoService);
@@ -651,6 +653,7 @@ fn recover_step_owes_end_run_from_the_events_and_the_stores_last_record_alone() 
         day: DAY,
         outcome: Outcome::Completed,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     };
     let none = Earlier {
         agent: &a,
@@ -696,6 +699,7 @@ fn review_life_3() {
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     let seq_of = |w: &World| {
@@ -1168,6 +1172,7 @@ fn a_read_after_a_seq_refusal_of_recoverys_check_holds_no_item_of_the_earlier_li
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     let item = ItemId::parse(&format!("{:032x}", 0x7304)).unwrap();
@@ -1292,6 +1297,7 @@ fn review_w9_an_owed_run_ended_that_the_checks_read_brought_in_is_stored_once() 
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     w.ports.refuse(Method::Log, PortError::NoService);
@@ -1535,6 +1541,7 @@ fn a_check_stored_with_a_lost_acknowledgement_beside_an_owed_lapse_is_raised_onc
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     w.act(Act::Tick);
@@ -1580,6 +1587,7 @@ fn a_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowle
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     w.act(Act::Tick);
@@ -1681,6 +1689,7 @@ fn a_run_ended_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_los
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     relife_with(&mut w, vec![Turn::Refuse(PortError::NoService), Turn::Lose]);
@@ -2316,6 +2325,7 @@ fn u46d_the_row_shows_the_recorded_end_of_that_run_in_the_same_life_and_after_on
         day: DAY,
         outcome: Outcome::Completed,
         unknown: 0,
+        notes: halvo_coord::types::Notes::default(),
     };
     life.ports().ports.store_end(&agent(0), record);
     life.tick();

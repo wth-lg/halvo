@@ -60,6 +60,7 @@ fn history(n: u32, outcome: Outcome) -> RunHistory {
             day: 20_700 + n,
             outcome,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
         effects: vec![payment()],
     }
