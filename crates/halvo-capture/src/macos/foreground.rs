@@ -2293,6 +2293,16 @@ mod tests {
             }
         }
 
+        /// A stop of this source and a new start at the tick `began`, as a
+        /// pause and a resume make them: the stopped source is dropped, and
+        /// the new one has title rules of its own over the same reads of the
+        /// system.
+        fn starts_again(self, began: u64) -> Self {
+            let said = self.said.clone();
+            drop(self);
+            Self::new(None, &said, began)
+        }
+
         /// The app `front` in front at the tick `now`, its window titled
         /// `title`: the poll that asks for the title, the title thread's
         /// answer, the poll that takes it.
@@ -2576,6 +2586,29 @@ mod tests {
             through.shows(&chrome(45), title, at(110));
         }
         assert_eq!(through.made().1, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_browser_told_as_english_keeps_its_titles_behind_a_stop_and_a_new_start_of_the_source() {
+        let normal = "Quarterly plan - Google Docs - Google Chrome";
+        let private = "New Tab - Google Chrome (Incognito)";
+        let chrome = app("com.google.Chrome", 40);
+        let said = SaidLanguage::new(list_of("en-US"));
+        let mut through = Through::new(None, &said, at(0));
+        said.started(40, at(10));
+        for title in [normal, private] {
+            through.shows(&chrome, title, at(20));
+        }
+        let (_, before, _, _) = through.made();
+        let mut through = through.starts_again(at(30));
+        for title in [normal, private] {
+            through.shows(&chrome, title, at(40));
+        }
+        let (_, after, _, dropped) = through.made();
+        assert_eq!(
+            (before, after, dropped),
+            (vec![normal.to_string()], vec![normal.to_string()], 1)
+        );
     }
 
     #[test]
