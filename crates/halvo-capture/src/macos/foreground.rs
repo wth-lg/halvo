@@ -973,7 +973,7 @@ impl TitleRules {
     /// in English, or `None` where the read gives no answer: its bundle lies
     /// under an Applications folder, exactly one language file of that bundle
     /// is among the files that it holds open, by device and inode, the code of
-    /// that file is [`window_title::ENGLISH`], and its start reads as
+    /// that file is one of [`window_title::ENGLISH`], and its start reads as
     /// `started` behind the read too.
     fn first_title(&mut self, browser: &str, pid: libc::pid_t, started: u64) -> Option<bool> {
         let place = self.languages.place(pid, browser)?;
@@ -984,7 +984,7 @@ impl TitleRules {
         if self.languages.started(pid) != Some(started) {
             return None;
         }
-        Some(code == window_title::ENGLISH)
+        Some(window_title::ENGLISH.contains(&code.as_str()))
     }
 }
 
