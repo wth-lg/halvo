@@ -202,9 +202,11 @@ fn language_files(place: &str) -> Option<Vec<LanguageFile>> {
 /// The device and the inode of each file of a disk that the process `pid`
 /// holds open: the list of what it holds open, then, for each entry that is a
 /// file of a disk, the call that gives the info of an open file with no path.
-/// No call asks for the name of a file. `None` where the list does not answer
-/// or names more than [`OPEN_FILES_READ`] entries, or where the info of one
-/// file does not answer.
+/// No call asks for the name of a file. The list is asked twice: first for
+/// the bytes that it takes, then with room for that many entries and 64
+/// more. `None` where the list does not answer, fills that room, so that it
+/// may be cut, or names more than [`OPEN_FILES_READ`] entries, or where the
+/// info of one file does not answer.
 fn open_file_numbers(pid: libc::pid_t) -> Option<Vec<(u64, u64)>> {
     let entry = std::mem::size_of::<libc::proc_fdinfo>();
     // SAFETY: with a null buffer of no bytes the call writes nothing and
@@ -235,7 +237,7 @@ fn open_file_numbers(pid: libc::pid_t) -> Option<Vec<(u64, u64)>> {
         )
     };
     let listed = usize::try_from(wrote).ok().filter(|bytes| *bytes > 0)? / entry;
-    if listed > OPEN_FILES_READ {
+    if listed >= room || listed > OPEN_FILES_READ {
         return None;
     }
     list.truncate(listed);
