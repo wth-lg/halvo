@@ -401,7 +401,7 @@ shortcuts() {
 
 # Where a stage fails: every process whose name starts with halvo, with its path as the system gives
 # it and in its long form, the install directory as this check spells it, and the end of each
-# app's standard error.
+# app's standard error, or that the app wrote no line.
 show_found() {
   printf 'found: the install directory as this check spells it: %s\n' "${native_install:-none}"
   if list_all "${native_install:-.}" >"$work/found" 2>"$work/found.err"; then
@@ -412,7 +412,11 @@ show_found() {
   fi
   for label in app-1 app-2; do
     [ -f "$work/$label.out" ] || continue
-    tail -n 20 "$work/$label.out" | tr -d '\r' | LC_ALL=C tr -c '[:print:]\n' '?' | sed "s/^/found: $label err: /"
+    if [ -s "$work/$label.out" ]; then
+      tail -n 20 "$work/$label.out" | tr -d '\r' | LC_ALL=C tr -c '[:print:]\n' '?' | sed "s/^/found: $label err: /"
+    else
+      printf 'found: %s err: no line\n' "$label"
+    fi
   done
 }
 
@@ -590,7 +594,8 @@ end_installed() {
 # Takes away what the cycle planted, also where it fails: the apps it started, by their ids, and
 # every process from the install directory, the held file, the values pv, the Run value with its
 # own text, the uninstall entry, the shortcuts that its install made, its install and the default
-# data directory it made.
+# data directory it made; and it keeps the standard output and error of each app that it started
+# among the artifacts.
 cleanup() {
   trap - EXIT
   [ -n "${cycling:-}" ] || return 0
@@ -618,6 +623,11 @@ cleanup() {
   if [ -n "${aside:-}" ] && [ -e "$aside" ] && [ ! -e "$default" ]; then
     mv "$aside" "$default"
   fi
+  for label in app-1 app-2; do
+    if [ -n "${CI_D_ARTIFACTS:-}" ] && [ -f "$work/$label.out" ]; then
+      cp "$work/$label.out" "$CI_D_ARTIFACTS/$label.out" || printf 'cycle: %s.out could not be kept among the artifacts\n' "$label"
+    fi
+  done
   take_away "$work/installed"
 }
 
@@ -907,8 +917,10 @@ cycle() {
 
 # The cycle on the stand-ins of the self-test, in the directory $1: STUB_MODE names the fault,
 # STUB_BIN holds the stand-in programs, and the stand-ins keep their processes in procs/ (one file
-# per process id), the registry in reg/ (one file per value) and what they take away in gone/.
+# per process id), the registry in reg/ (one file per value) and what they take away in gone/. It
+# keeps no output of a stand-in among the artifacts.
 fixture() {
+  CI_D_ARTIFACTS=
   start_s=10
   answer_s=10
   lease_s=3

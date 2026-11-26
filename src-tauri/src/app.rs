@@ -2,8 +2,8 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
-use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
 
 use halvo_coord_app::{Agents, Core};
 use tauri::webview::PageLoadEvent;
@@ -52,6 +52,17 @@ pub struct Parts<R: Runtime> {
 pub const GUARD_WAIT: Duration = Duration::from_secs(20);
 
 pub const ENGINE_RULES_DIR: &str = "engine-rules";
+
+/// How long the app waits between two tries of the tray's install through the first
+/// `TRAY_FAST_FOR` behind a first try that failed.
+pub const TRAY_TRY_EVERY: Duration = Duration::from_secs(2);
+
+/// How long behind a first try that failed the tries of the tray's install come every
+/// `TRAY_TRY_EVERY`; from then on they come every `TRAY_TRY_LATER`.
+pub const TRAY_FAST_FOR: Duration = Duration::from_secs(60);
+
+/// How long the app waits between two tries of the tray's install after `TRAY_FAST_FOR`.
+pub const TRAY_TRY_LATER: Duration = Duration::from_secs(30);
 
 pub enum Opening {
     Load(GuardInstalled),
@@ -130,6 +141,13 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 start();
                 tick(&ticker)
             });
+            let tray = Arc::new(OnceLock::new());
+            let with_tray = parts
+                .tray
+                .is_some_and(|install| first_try(app.handle(), install, &tray));
+            if parts.poll {
+                poller::start(control, Arc::clone(&views), tray);
+            }
             let (sender, answer) = mpsc::channel();
             let window = main_window(
                 app.handle(),
@@ -151,22 +169,10 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                     ))));
                 }
             }
-            let tray = match parts.tray.map(|install| install(app.handle())) {
-                Some(Ok(installed)) => Some(installed),
-                Some(Err(e)) => {
-                    eprintln!("halvo: the app runs without a tray item: {e}");
-                    None
-                }
-                None => None,
-            };
-            let with_tray = tray.is_some();
             #[cfg(target_os = "macos")]
             if with_tray {
                 opened(app.handle());
             }
-            app.state::<AppState>()
-                .tray_installed
-                .store(with_tray, Ordering::SeqCst);
             let handle = app.handle().clone();
             let modules = commands::table::<R>()
                 .iter()
@@ -180,9 +186,6 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 }),
                 modules,
             ));
-            if parts.poll {
-                poller::start(control, views, tray);
-            }
             let visible = parts.window_visible;
             match answer.try_recv() {
                 Ok(answer) => open(app.handle(), decide(answer, with_tray), visible),
@@ -217,6 +220,72 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 }
             }
         })
+}
+
+/// The tray's first try, in the set-up, before the window. Where it stands, `tray` holds it; where
+/// it fails, the app says so on its standard error and a thread of its own tries again
+/// (`try_again`). It answers whether the tray stands.
+fn first_try<R: Runtime>(
+    app: &AppHandle<R>,
+    install: TrayInstall<R>,
+    tray: &Arc<OnceLock<TrayInstalled>>,
+) -> bool {
+    match install(app) {
+        Ok(installed) => {
+            stands(app, tray, installed);
+            true
+        }
+        Err(e) => {
+            eprintln!("halvo: the app runs without a tray item: {e}");
+            let (app, tray) = (app.clone(), Arc::clone(tray));
+            std::thread::spawn(move || try_again(&app, install, &tray));
+            false
+        }
+    }
+}
+
+/// The tries of the tray's install behind a first try that failed, until one stands: every
+/// `TRAY_TRY_EVERY` through the first `TRAY_FAST_FOR`, then every `TRAY_TRY_LATER`. A try that
+/// fails says nothing; the one that stands says at which try it stood. tauri runs the calls of
+/// each try on the main thread and waits for them, so a try waits while the main thread is held.
+fn try_again<R: Runtime>(
+    app: &AppHandle<R>,
+    install: TrayInstall<R>,
+    tray: &OnceLock<TrayInstalled>,
+) {
+    let first = Instant::now();
+    let mut tries = 1_u64;
+    loop {
+        std::thread::sleep(if first.elapsed() < TRAY_FAST_FOR {
+            TRAY_TRY_EVERY
+        } else {
+            TRAY_TRY_LATER
+        });
+        tries += 1;
+        if let Ok(installed) = install(app) {
+            eprintln!("halvo: the tray item stands at try {tries}");
+            stands(app, tray, installed);
+            #[cfg(target_os = "macos")]
+            {
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || opened(&handle));
+            }
+            return;
+        }
+    }
+}
+
+/// What the app keeps where a try of the tray's install stands: `tray`, which the poller reads at
+/// each pass, holds it, and the app's state records it.
+fn stands<R: Runtime>(
+    app: &AppHandle<R>,
+    tray: &OnceLock<TrayInstalled>,
+    installed: TrayInstalled,
+) {
+    let _ = tray.set(installed);
+    app.state::<AppState>()
+        .tray_installed
+        .store(true, Ordering::SeqCst);
 }
 
 /// What the close handler does once it has kept the window: it tells the page that the window
@@ -258,7 +327,8 @@ pub(crate) fn core_of<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<dyn Core>> {
 }
 
 /// `Core::tick`, called off the main thread: once at the start and at each draw of the view,
-/// which the poller makes at each of its passes. A tick that panics ends no later tick.
+/// which the poller makes at each of its passes once the set-up has given the views their drawer,
+/// behind the window. A tick that panics ends no later tick.
 pub(crate) fn tick<R: Runtime>(app: &AppHandle<R>) {
     let Some(hooks) = app.try_state::<Hooks>() else {
         return;
