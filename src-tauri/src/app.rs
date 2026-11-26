@@ -145,10 +145,6 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
             let with_tray = parts
                 .tray
                 .is_some_and(|install| first_try(app.handle(), install, &tray));
-            #[cfg(target_os = "macos")]
-            if with_tray {
-                opened(app.handle());
-            }
             if parts.poll {
                 poller::start(control, Arc::clone(&views), tray);
             }
@@ -172,6 +168,10 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                         "the window main cannot be built: {e}"
                     ))));
                 }
+            }
+            #[cfg(target_os = "macos")]
+            if with_tray {
+                opened(app.handle());
             }
             let handle = app.handle().clone();
             let modules = commands::table::<R>()
