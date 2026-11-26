@@ -12,8 +12,9 @@ use halvo_agent_client::{LinkError, OwnerLink, Secrets, MODEL_KEY};
 use halvo_route::policy::{cells, PickCell, Policy};
 use halvo_route::tier::CallKind;
 use halvo_schema::executable::frame::SecretReply;
-use halvo_schema::executable::names::Unreadable;
+use halvo_schema::executable::names::{Runtime, Unreadable};
 use halvo_schema::executable::text::{Name as WireName, SecretText};
+use halvo_schema::{AgentId, Category, WorkflowId};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -46,6 +47,30 @@ fn hands_back_in(policy: &Policy) -> bool {
     cells()
         .filter(|(_, kind)| *kind != CallKind::Replay)
         .all(|(category, kind)| policy.row(category, kind).pick == PickCell::HandBack)
+}
+
+/// Whether this build cannot do the task of a workflow of the category whose id is `category` (r3 U7.11): the build
+/// names a host, every compile, recover and write row of its router table hands back (`hands_back`), and the agent
+/// that an approval of such a workflow makes, the preset of its category on `on_device` with no playbook, is a web
+/// agent, whose start is a compile that the runner makes only at a hosted tier. The card of such a proposal says so
+/// and offers no Approve; an id that is not one of the ten is not such a category.
+pub fn cannot_do(category: &str) -> bool {
+    host().is_some() && hands_back() && preset_is_web(category)
+}
+
+/// Whether the preset of the category whose id is `category` has the runtime `web` (halvo-policy's `preset`).
+fn preset_is_web(category: &str) -> bool {
+    Category::ALL
+        .iter()
+        .find(|known| known.as_str() == category)
+        .and_then(|known| {
+            halvo_policy::preset(
+                *known,
+                WorkflowId::from_random([0; 16]),
+                AgentId::from_random([0; 16]),
+            )
+        })
+        .is_some_and(|preset| preset.runtime == Runtime::Web)
 }
 
 /// The host of `origins`, none where there is none or two of them differ.

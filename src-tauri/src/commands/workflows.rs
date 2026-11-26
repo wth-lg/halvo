@@ -161,8 +161,10 @@ pub fn proposals(listed: &[Listed]) -> Vec<&Listed> {
 }
 
 /// A row of the page: the workflow id, the category id, the app's display name, the site, the
-/// number of supporting summaries and whether the person set the workflow up by hand. The page
-/// composes the text from them.
+/// number of supporting summaries, whether the person set the workflow up by hand, and whether
+/// this build cannot do the task of its category (`halvo_coord_app::model_key::cannot_do`, r3
+/// U7.11), where the card of a proposal says so and offers Not now alone. The page composes the
+/// text from them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Row {
     pub id: String,
@@ -171,17 +173,20 @@ pub struct Row {
     pub site: Option<String>,
     pub count: usize,
     pub by_hand: bool,
+    pub cannot_do: bool,
 }
 
 impl Row {
     fn of(w: &Listed) -> Option<Row> {
+        let category = CATEGORY_TEXTS[category_rank(&w.category)?].0;
         Some(Row {
             id: w.id.clone(),
-            category: CATEGORY_TEXTS[category_rank(&w.category)?].0,
+            category,
             app: w.app.clone(),
             site: w.site.clone(),
             count: w.summaries.len(),
             by_hand: w.by_hand,
+            cannot_do: halvo_coord_app::model_key::cannot_do(category),
         })
     }
 }

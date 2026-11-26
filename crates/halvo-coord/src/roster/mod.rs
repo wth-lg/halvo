@@ -21,7 +21,9 @@ use crate::words;
 /// agent's category, and of a payment where it has none (r4 U3.29), the holds `not_yet`, `off`,
 /// `sign_in_refused` (ruling RD-73 4.3), `site_declined` (r4 U2.4a), `failures`, `check` and
 /// `amounts`, a live
-/// run with its phase, a queued start, a newest run that the agent store has not ended, a last
+/// run with its phase, a queued start, a newest run that the agent store has not ended, the rest
+/// of an agent whose start would be a compile, said by the fact of the router's table that the app
+/// hands (`rest_with_no_playbook`, r3 U7.11), a last
 /// run that ended with a cause of the failure class, said by the sentence of the facts'
 /// `last_cause` where they hold one that a row says for the agent's runtime (`FILE_CAUSES` for
 /// the runtime file alone, r4 U3.22a), a last run that ended `handed_back` with a cause of
@@ -97,6 +99,9 @@ pub fn status_of<C: ConfigView>(
     if !facts.store_ended {
         return StatusLine::Store;
     }
+    if let Some(line) = rest_with_no_playbook(facts) {
+        return line;
+    }
     let last = facts.events.iter().rev().find_map(|e| match e.what {
         What::RunEnded { cause, .. } => Some(cause),
         _ => None,
@@ -130,6 +135,33 @@ pub fn status_of<C: ConfigView>(
     }
 }
 
+/// The line of a resting agent whose start would be a compile (r3 U7.11; `crate::schedule::rests`
+/// and `compiles`), where the app hands its use of a model: while that use says that every
+/// compile, recover and write row of the router's table hands back (`ModelUse::hands_back`),
+/// `NotInThisVersion` for an agent that was never allowed a model and for one whose newest run
+/// ended `no_agreement` or `shortfall`; where such a row is open, `NeedsModel` for an agent that was
+/// never allowed a model. None otherwise, and the branches below say the line. It stands before the
+/// line of a failed run, which is what each start of an agent that was never allowed a model ends
+/// in.
+fn rest_with_no_playbook<C: ConfigView>(facts: &Facts<C>) -> Option<StatusLine> {
+    if !crate::schedule::compiles(&facts.config) || !crate::schedule::rests(facts) {
+        return None;
+    }
+    let model = facts.config.model()?;
+    let never = crate::schedule::never_allowed(&facts.config);
+    let cause = matches!(
+        facts.last_cause,
+        Some(LastCause::NoAgreement | LastCause::Shortfall)
+    );
+    if model.hands_back && (never || cause) {
+        Some(StatusLine::NotInThisVersion)
+    } else if never {
+        Some(StatusLine::NeedsModel)
+    } else {
+        None
+    }
+}
+
 /// Whether the agent's rows hold a set-up's `item_answered` behind the end of its newest run, as
 /// Use these answers stores it (r4 U3.22a, the fifth ruling): a row of a failed run then reads
 /// `problem.answers_saved` in place of the failed run's line and of a last cause's sentence, until
@@ -155,8 +187,9 @@ fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
 /// r3 U7.2a, r3 U7.4 and r3 U7.2b): the person has not allowed the model, no key is saved, the person's spending limit
 /// is reached, or the router does not let the model that the agent may use do its task (`shortfall`). A row says the
 /// sentence of such a cause for a last run that ended `handed_back` while the agent rests (`crate::schedule::rests`,
-/// r3 U7.8; the coordinator's log line 22216); every other handed-back run, and such a run once the agent no longer
-/// rests, keeps the row line of a run that stopped early.
+/// r3 U7.8; the coordinator's log line 22216), where `rest_with_no_playbook` gives no line before it (r3 U7.11); every
+/// other handed-back run, and such a run once the agent no longer rests, keeps the row line of a run that stopped
+/// early.
 pub const MODEL_CAUSES: [LastCause; 4] = [
     LastCause::NoAgreement,
     LastCause::NoModelKey,
