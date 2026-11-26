@@ -1,10 +1,10 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: the three page suites of the agents page (ui/tests/r4/agents/test.mjs, ui/tests/r4/confirm/test.mjs and ui/tests/r4/needs/needs.test.mjs) each run at least one test and pass, headless, in the browser that tools/r4-page/browser.txt names for the runner, which tools/r4-page/fetch.sh gets with its packages by the pins of tools/r4-page/files.tsv and tools/r4-page/package-lock.json
+# rule: the three page suites of the agents page (ui/tests/r4/agents/test.mjs, ui/tests/r4/confirm/test.mjs and ui/tests/r4/needs/needs.test.mjs) and the page test under the app's own policy (ui/tests/page/policy.test.mjs) each run at least one test and pass, headless, in the browser that tools/r4-page/browser.txt names for the runner, which tools/r4-page/fetch.sh gets with its packages by the pins of tools/r4-page/files.tsv and tools/r4-page/package-lock.json
 # lane: alone
 set -u
 name=30-r4-page-suites
-suites='agents=ui/tests/r4/agents/test.mjs confirm=ui/tests/r4/confirm/test.mjs needs=ui/tests/r4/needs/needs.test.mjs'
+suites='agents=ui/tests/r4/agents/test.mjs confirm=ui/tests/r4/confirm/test.mjs needs=ui/tests/r4/needs/needs.test.mjs policy=ui/tests/page/policy.test.mjs'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -22,7 +22,8 @@ native() {
 
 # Prints "<tests> <failed>" from the last line of a suite's standard output, its count line
 # (`agents tests passed=<p> failed=<f> states=<n>`, `confirm tests passed=<p> failed=<f>`,
-# `needs tests=<t> passed=<p> states=<n>`); exits 1 when that line is no count line of the suite.
+# `needs tests=<t> passed=<p> states=<n>`, `policy tests passed=<p> failed=<f> browser=<b>`); exits 1
+# when that line is no count line of the suite.
 counts() {
   awk -v suite="$1" '
     { sub(/\r$/, ""); last = $0 }
@@ -128,7 +129,7 @@ self_test() {
     printf 'FAIL self-test:%s (mktemp failed)\n' "$name"
     exit 1
   }
-  for f in ui/tests/r4/agents/test.mjs ui/tests/r4/confirm/test.mjs ui/tests/r4/needs/needs.test.mjs tools/r4-page/fetch.sh; do
+  for f in ui/tests/r4/agents/test.mjs ui/tests/r4/confirm/test.mjs ui/tests/r4/needs/needs.test.mjs ui/tests/page/policy.test.mjs tools/r4-page/fetch.sh; do
     [ -f "$f" ] || {
       printf 'FAIL self-test:%s (%s is missing)\n' "$name" "$f"
       exit 1

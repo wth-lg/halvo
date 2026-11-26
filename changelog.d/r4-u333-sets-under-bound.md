@@ -1,0 +1,1 @@
+- Changed: In scripts/ci/slices.txt the windows rows of 10-egress and 60-r6-egress move from the slice wed2 to the slices mon and tue, and the head names the windows job of wed as the one job whose newest reading stands over 1,000 s; the check 30-r4-page-suites runs ui/tests/page/policy.test.mjs beside its three suites, and that test's last line prints the check's count line.
