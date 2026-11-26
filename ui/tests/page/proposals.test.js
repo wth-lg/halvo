@@ -31,6 +31,27 @@ test("a proposal row says what was seen and how often, and its two controls send
   assert.equal(page.text("error"), "");
 });
 
+test("r3 U7.11: the card of a proposal that this version cannot do says so and offers Not now alone", async () => {
+  const cannot = { id: PROPOSED, category: "utility_bill_payment", app: null, site: "example.com", count: 3, cannot_do: true };
+  const can = { id: STORED, category: "utility_bill_payment", app: null, site: "example.org", count: 2, cannot_do: false };
+  const page = await openPage({ replies: { workflows: running([cannot, can], []), dismiss_workflow: () => null } });
+  const rows = page.byId("proposals-list").children;
+  assert.equal(rows.length, 2);
+  const texts = (row) => Array.from(row.querySelectorAll("p")).map((p) => p.textContent);
+  const buttons = (row) => Array.from(row.querySelectorAll("button"));
+  assert.deepEqual(texts(rows[0]), [
+    "Paying a utility bill on example.com",
+    "Seen 3 times.",
+    "This version of Halvo cannot do this task.",
+  ]);
+  assert.deepEqual(buttons(rows[0]).map((b) => b.textContent), ["Not now"]);
+  assert.deepEqual(texts(rows[1]), ["Paying a utility bill on example.org", "Seen 2 times."]);
+  assert.deepEqual(buttons(rows[1]).map((b) => b.textContent), ["Approve", "Not now"]);
+  await page.click(buttons(rows[0])[0]);
+  assert.deepEqual(page.calls("dismiss_workflow").map((c) => c.args), [{ workflow: PROPOSED }]);
+  assert.equal(page.calls("approve_workflow").length, 0);
+});
+
 test("a stored workflow is deleted only after the person confirms", async () => {
   const stored = { id: STORED, category: "ride_order", app: null, site: "example.org", count: 0 };
   const page = await openPage({ replies: { workflows: running([], [stored]), delete_workflow: () => null } });

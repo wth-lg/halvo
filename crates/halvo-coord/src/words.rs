@@ -235,6 +235,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "Last time, Halvo could not do this agent's task with the AI model that this agent may use. The agent waits until you choose Start now.",
     ),
     (
+        "line.problem.not_in_this_version",
+        "This version of Halvo cannot do this agent's task, so Halvo does not ask you to start it.",
+    ),
+    (
+        "line.problem.needs_model",
+        "This agent needs an AI model to do its task, so Halvo does not ask you to start it. To let it use one, choose Use an AI model.",
+    ),
+    (
         "line.problem.not_replaced",
         "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.",
     ),

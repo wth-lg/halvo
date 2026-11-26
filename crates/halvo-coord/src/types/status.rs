@@ -82,6 +82,15 @@ pub enum StatusLine {
     /// of the failure class (r4 U3.22a, the coordinator's fifth ruling on its words). `all` does
     /// not list it until its fixture state of I8.3 is written.
     AnswersSaved,
+    /// `problem.not_in_this_version`: an agent with no stored playbook that rests while the app
+    /// hands that every compile, recover and write row of the router's table hands back, because it
+    /// was never allowed a model or after a run of `no_agreement` or `shortfall` (r3 U7.11). `all`
+    /// does not list it until its fixture state of I8.3 is written.
+    NotInThisVersion,
+    /// `problem.needs_model`: an agent that rests because it was never allowed a model while the app
+    /// hands that a compile, recover or write row of the router's table is open (r3 U7.11). `all`
+    /// does not list it until its fixture state of I8.3 is written.
+    NeedsModel,
     /// `all_set.new`: no run of the agent has ended.
     New,
     /// `all_set.done`: the last run ended `completed`.
@@ -146,6 +155,8 @@ impl StatusLine {
             | StatusLine::LastCause(_)
             | StatusLine::Paid(..)
             | StatusLine::AnswersSaved
+            | StatusLine::NotInThisVersion
+            | StatusLine::NeedsModel
             | StatusLine::Record => Status::Problem,
             StatusLine::Starting
             | StatusLine::Working
@@ -202,6 +213,8 @@ impl StatusLine {
             StatusLine::Paid(end, _) => end.name(),
             StatusLine::Amounts(_) => "amounts",
             StatusLine::AnswersSaved => "answers_saved",
+            StatusLine::NotInThisVersion => "not_in_this_version",
+            StatusLine::NeedsModel => "needs_model",
             StatusLine::New => "new",
             StatusLine::Done => "done",
             StatusLine::Nothing => "nothing",

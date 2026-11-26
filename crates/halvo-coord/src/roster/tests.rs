@@ -178,11 +178,11 @@ fn u78_an_agent_that_handed_back_for_a_cause_of_a_hosted_model_asks_again_only_o
             true,
         ),
         (
-            "shortfall gone: the way back to on_device",
+            "shortfall gone at the way back to on_device, where the agent rests as one that was never allowed a model (r3 U7.11)",
             Tier::OnDevice,
             LastCause::Shortfall,
             Some(model(false)),
-            false,
+            true,
         ),
     ];
     let around = Around {
@@ -480,7 +480,9 @@ fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
 /// of the causes of a hosted model says the ruled problem line of that cause, byte for byte, while
 /// the agent rests (`crate::schedule::rests`; the coordinator's log lines 22166 and 22216, and for
 /// `shortfall` line 22854); once it no longer rests, and for a handed-back run with another cause
-/// or with none, the row keeps the line of a run that stopped early.
+/// or with none, the row keeps the line of a run that stopped early. At the way back to
+/// `on_device` the agent rests as one that was never allowed a model, and its row says so (r3
+/// U7.11; these rows hand a use of a model whose table has an open row).
 #[test]
 fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_today() {
     let early =
@@ -514,7 +516,12 @@ fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_tod
         (Tier::Frontier, Some(LastCause::NoAgreement), ok.clone(), early),
         (Tier::Frontier, Some(LastCause::NoModelKey), ok.clone(), early),
         (Tier::Frontier, Some(LastCause::OverCap), ok.clone(), early),
-        (Tier::OnDevice, Some(LastCause::Shortfall), model(false), early),
+        (
+            Tier::OnDevice,
+            Some(LastCause::Shortfall),
+            model(false),
+            "This agent needs an AI model to do its task, so Halvo does not ask you to start it. To let it use one, choose Use an AI model.",
+        ),
         (Tier::Frontier, Some(LastCause::NoBrowser), ok.clone(), early),
         (Tier::Frontier, None, ok, early),
     ];
@@ -523,6 +530,391 @@ fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_tod
         let line = status(&f, &Limits::PRODUCT, None);
         let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
         assert_eq!(r.line, want, "{tier:?} {cause:?} {model:?}");
+    }
+}
+
+/// r3 U7.11: an agent of `runtime` at `tier`, with a stored playbook or with none, beside whose
+/// configuration the app hands `model`, whose runs, each started by the person today, ended `ends`
+/// in their order, the newest with the last cause `cause`, and behind which the hold `failures` was
+/// set where `held` says so.
+fn u711_agent(
+    tier: Tier,
+    runtime: Runtime,
+    playbook: bool,
+    model: Option<ModelUse>,
+    ends: &[RunEnd],
+    cause: Option<LastCause>,
+    held: bool,
+) -> Facts<Config> {
+    let mut f = facts(State::Ten).remove(0);
+    let mut config = Config::parse(&format!(
+        "{{\"v\":1,\"workflow\":\"{:032x}\",\"agent\":\"{:032x}\",\"rev\":{},\"category\":\"utility_bill_payment\",\"tier\":\"{}\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"yes\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[],\"runtime\":\"{}\",\"playbook\":{}}}",
+        1,
+        2,
+        if playbook { 2 } else { 1 },
+        tier.name(),
+        runtime.name(),
+        if playbook { "1" } else { "null" }
+    ))
+    .unwrap();
+    config.set_model(model);
+    f.config = config;
+    f.events.clear();
+    f.runs.clear();
+    let mut whats = Vec::new();
+    for (n, end) in ends.iter().enumerate() {
+        let run = RunId::parse(&format!("{:032x}", 0x7b00 + n)).unwrap();
+        whats.push(What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        });
+        whats.push(What::RunEnded {
+            run,
+            cause: *end,
+            defers: None,
+        });
+    }
+    if held {
+        whats.push(What::HoldSet {
+            cause: HoldSetCause::Failures,
+        });
+    }
+    for what in whats {
+        f.events.push(Event {
+            workflow: f.workflow.id.clone(),
+            agent: f.agent.clone(),
+            seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+            day: f.today,
+            at: i64::from(f.today) * 86_400_000_000_000,
+            what,
+        });
+    }
+    f.last_cause = cause;
+    f
+}
+
+/// r3 U7.11, THE RULE OF THE REST: an agent also rests while its stored tier is `on_device`, its
+/// start would be a compile (runtime `web`, no stored playbook) and the app hands its use of a
+/// model, read from its configuration alone: before any run, after a failed run and at the way back
+/// from `shortfall`, whether every compile, recover and write row hands back or one is open. A tick
+/// raises no `ready` for it and the person's own start passes (the rulings of r3 U7.8). With no use
+/// of a model handed, with a stored playbook, for a mail agent and for an agent with its yes to a
+/// hosted tier and no run, the tick raises `ready` as before.
+#[test]
+fn u711_an_agent_that_was_never_allowed_a_model_rests_by_its_configuration() {
+    use crate::schedule::{start_step, tick_step, Around, Ask, Verdict};
+    let shut = ModelUse {
+        hands_back: true,
+        ..model(false)
+    };
+    let open = model(false);
+    let yes = ModelUse {
+        hands_back: true,
+        ..model(true)
+    };
+    let failed = [RunEnd::Failed];
+    let back = [RunEnd::HandedBack];
+    let rows = [
+        (
+            "on_device, web, no playbook, every compile, recover and write row hands back, no run",
+            Tier::OnDevice,
+            Runtime::Web,
+            false,
+            Some(shut.clone()),
+            &[][..],
+            None,
+            true,
+        ),
+        (
+            "on_device, web, no playbook, a row open, no run",
+            Tier::OnDevice,
+            Runtime::Web,
+            false,
+            Some(open.clone()),
+            &[][..],
+            None,
+            true,
+        ),
+        (
+            "on_device, web, no playbook, every compile, recover and write row hands back, after a failed run",
+            Tier::OnDevice,
+            Runtime::Web,
+            false,
+            Some(shut.clone()),
+            &failed[..],
+            Some(LastCause::StepFailed),
+            true,
+        ),
+        (
+            "on_device, web, no playbook, the way back from shortfall",
+            Tier::OnDevice,
+            Runtime::Web,
+            false,
+            Some(shut.clone()),
+            &back[..],
+            Some(LastCause::Shortfall),
+            true,
+        ),
+        (
+            "on_device, web, no playbook, no use of a model handed, after a failed run",
+            Tier::OnDevice,
+            Runtime::Web,
+            false,
+            None,
+            &failed[..],
+            Some(LastCause::StepFailed),
+            false,
+        ),
+        (
+            "on_device, web, a stored playbook, no run",
+            Tier::OnDevice,
+            Runtime::Web,
+            true,
+            Some(shut.clone()),
+            &[][..],
+            None,
+            false,
+        ),
+        (
+            "on_device, graph_mail, no run",
+            Tier::OnDevice,
+            Runtime::GraphMail,
+            false,
+            Some(shut.clone()),
+            &[][..],
+            None,
+            false,
+        ),
+        (
+            "frontier with its yes, web, no playbook, no run",
+            Tier::Frontier,
+            Runtime::Web,
+            false,
+            Some(yes),
+            &[][..],
+            None,
+            false,
+        ),
+    ];
+    let around = Around {
+        listed: true,
+        live: 0,
+        model_held: false,
+        queued: 0,
+        window: false,
+        from_queue: false,
+        owed: false,
+    };
+    for (row, tier, runtime, playbook, model, ends, cause, rests) in rows {
+        let f = u711_agent(tier, runtime, playbook, model, ends, cause, false);
+        let ask = tick_step(&f, true, &Limits::PRODUCT);
+        let start = start_step(&f, Trigger::Person, &Limits::PRODUCT, &around);
+        println!("row: {row}: tick {ask:?}, a start of the person {start:?}");
+        let want = if rests { Ask::Nothing } else { Ask::Ready };
+        assert_eq!(ask, want, "{row}");
+        assert!(matches!(start.verdict, Verdict::Go(_)), "{row}: {start:?}");
+    }
+}
+
+/// One row of the table of the test of the row's sentences below (r3 U7.11): its label, the facts,
+/// the line, the status word and the texts of the controls that the row offers.
+type U711Row<'a> = (&'a str, Facts<Config>, &'a str, &'a str, &'a [&'a str]);
+
+/// r3 U7.11, THE ROW'S SENTENCES, sign for sign (the coordinator's log line 23346): the row of a
+/// resting agent with no stored playbook says S1 while the app hands that every compile, recover
+/// and write row of the router's table hands back, for an agent that was never allowed a model and
+/// in the place of the sentences of `no_agreement` and `shortfall`; S2 for an agent that was never
+/// allowed a model where such a row is open, which then offers Use an AI model. Both have the
+/// status problem. A hold stands before them, a run of a hosted agent where a row is open keeps the
+/// line of its cause, and with no use of a model handed the failed run's line stands as before.
+#[test]
+fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_of_the_table() {
+    let s1 =
+        "This version of Halvo cannot do this agent's task, so Halvo does not ask you to start it.";
+    let s2 = "This agent needs an AI model to do its task, so Halvo does not ask you to start it. To let it use one, choose Use an AI model.";
+    let failed_line = "Last time, it could not finish its task.";
+    let paid = "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards.";
+    let failures = "Halvo switched it off after several tries in a row did not work. To try again, choose Switch on.";
+    let shortfall = "Last time, Halvo could not do this agent's task with the AI model that this agent may use. The agent waits until you choose Start now.";
+    let shut = ModelUse {
+        hands_back: true,
+        ..model(false)
+    };
+    let yes_shut = ModelUse {
+        hands_back: true,
+        ..model(true)
+    };
+    let plain = ["Start now", "Switch off", "Delete"];
+    let back = [
+        "Start now",
+        "Switch off",
+        "Use this computer only",
+        "Delete",
+    ];
+    let rows: [U711Row<'_>; 10] = [
+        (
+            "on_device, every compile, recover and write row hands back, no run",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(shut.clone()),
+                &[],
+                None,
+                false,
+            ),
+            s1,
+            "Problem",
+            &plain,
+        ),
+        (
+            "on_device, a row open, no run",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(model(false)),
+                &[],
+                None,
+                false,
+            ),
+            s2,
+            "Problem",
+            &["Start now", "Switch off", "Use an AI model", "Delete"],
+        ),
+        (
+            "on_device, every compile, recover and write row hands back, after a failed start of the person",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(shut.clone()),
+                &[RunEnd::Failed],
+                Some(LastCause::StepFailed),
+                false,
+            ),
+            s1,
+            "Problem",
+            &plain,
+        ),
+        (
+            "on_device, every compile, recover and write row hands back, three failed starts and the hold failures",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(shut.clone()),
+                &[RunEnd::Failed, RunEnd::Failed, RunEnd::Failed],
+                Some(LastCause::StepFailed),
+                true,
+            ),
+            failures,
+            "Problem",
+            &["Start now", "Switch on", "Delete"],
+        ),
+        (
+            "frontier with its yes, every compile, recover and write row hands back, shortfall",
+            u711_agent(
+                Tier::Frontier,
+                Runtime::Web,
+                false,
+                Some(yes_shut),
+                &[RunEnd::HandedBack],
+                Some(LastCause::Shortfall),
+                false,
+            ),
+            s1,
+            "Problem",
+            &back,
+        ),
+        (
+            "frontier whose yes does not stand, every compile, recover and write row hands back, no_agreement",
+            u711_agent(
+                Tier::Frontier,
+                Runtime::Web,
+                false,
+                Some(shut),
+                &[RunEnd::HandedBack],
+                Some(LastCause::NoAgreement),
+                false,
+            ),
+            s1,
+            "Problem",
+            &back,
+        ),
+        (
+            "frontier with its yes, a row open, shortfall",
+            u711_agent(
+                Tier::Frontier,
+                Runtime::Web,
+                false,
+                Some(model(true)),
+                &[RunEnd::HandedBack],
+                Some(LastCause::Shortfall),
+                false,
+            ),
+            shortfall,
+            "Problem",
+            &back,
+        ),
+        (
+            "on_device, no use of a model handed, after a failed run",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                None,
+                &[RunEnd::Failed],
+                Some(LastCause::StepFailed),
+                false,
+            ),
+            failed_line,
+            "Problem",
+            &plain,
+        ),
+        (
+            "on_device, every compile, recover and write row hands back, a run that paid ended amount_differs",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(ModelUse {
+                    hands_back: true,
+                    ..model(false)
+                }),
+                &[RunEnd::Failed],
+                Some(LastCause::AmountDiffers),
+                false,
+            ),
+            paid,
+            "Problem",
+            &plain,
+        ),
+        (
+            "on_device, a row open, a run that paid ended amount_differs",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(model(false)),
+                &[RunEnd::Failed],
+                Some(LastCause::AmountDiffers),
+                false,
+            ),
+            paid,
+            "Problem",
+            &["Start now", "Switch off", "Use an AI model", "Delete"],
+        ),
+    ];
+    for (row, f, line, word, controls) in rows {
+        let status_line = status(&f, &Limits::PRODUCT, None);
+        let r = super::row(&f, status_line, NAME, None, &Limits::PRODUCT).unwrap();
+        let shown: Vec<&str> = r.controls.iter().map(|c| c.text.as_str()).collect();
+        println!("row: {row}: {:?} {:?} {shown:?}", r.word, r.line);
+        assert_eq!(r.line, line, "{row}");
+        assert_eq!(r.word, word, "{row}");
+        assert_eq!(shown, controls, "{row}");
     }
 }
 

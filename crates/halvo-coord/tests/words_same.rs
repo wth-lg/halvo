@@ -335,6 +335,8 @@ fn expected_keys() -> BTreeSet<String> {
         "line.problem.no_model_key",
         "line.problem.over_cap",
         "line.problem.shortfall",
+        "line.problem.not_in_this_version",
+        "line.problem.needs_model",
         "line.problem.not_replaced",
         "line.problem.read_only",
         "line.problem.no_access_mac",
@@ -564,7 +566,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 413);
+    assert_eq!(seen.len(), 415);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
