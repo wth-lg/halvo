@@ -2010,6 +2010,10 @@ fn u710_compile(
     let mut sup = web_agent(n, &fixture);
     sup.mode = "compile";
     sup.config.tier = halvo_schema::executable::names::ModelTier::Frontier;
+    // The bill's row of the table of limits holds `model_tokens` 0 (halvo-policy's `PATH_B`), at which a compile
+    // ends `limit` with `tokens` before its first request; the test's agent holds 100,000, as the agents of the
+    // compile's unit tests do.
+    sup.config.limits.model_tokens = 100_000;
     sup.slots = vec![
         slot("start", &fixture.url("/pay")),
         slot("payee", "Larkspur Power"),
