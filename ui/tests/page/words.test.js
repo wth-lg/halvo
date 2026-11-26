@@ -36,6 +36,8 @@ const WORDS = {
   NO_KEY_ARRIVES: "Keys are being pressed on this Mac and none of them reaches Halvo, so Halvo is not recording typing right now. It records typing again by itself as soon as keys reach it.",
   LEFT_OUT_BEFORE_TODAY: "Today from {from} to {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
   LEFT_OUT_BEFORE: "From {from_date} at {from} to {until_date} at {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
+  KEPT_PRIVATE_BEFORE_TODAY: "Today from {from} to {until}, Halvo recorded no {parts_or}, because a password field or another app had asked your Mac to keep typing private.",
+  KEPT_PRIVATE_BEFORE: "From {from_date} at {from} to {until_date} at {until}, Halvo recorded no {parts_or}, because a password field or another app had asked your Mac to keep typing private.",
   FAULT_STORE: "Its store is not open.",
   FAULT_DRAIN: "It cannot save what it records.",
   FAULT_NO_SOURCE: "No part of capture could start.",
