@@ -615,9 +615,8 @@ pub fn number_texts(rows: &[Vec<Value>]) -> Vec<u32> {
 }
 
 /// Whether `text`, without the spaces (U+0020) at its ends, is of an amount's make (the
-/// coordinator's line 19953) and of a number's shape (r3 U11.10): around its digits at most three
-/// capital letters of a code of money at either end (`500 EUR`, `USD 1,234.50`, counted and never
-/// turned), brackets round it, a minus in front or behind, one sign of money at either end and a
+/// coordinator's line 19953) and of a number's shape (r3 U11.10): around its digits at most a code
+/// of money of `MONEY_CODES` at either end (`500 EUR`, `USD 1,234.50`, counted and never turned), brackets round it, a minus in front or behind, one sign of money at either end and a
 /// percent at its end, each with the spaces of `GAPS` or none between; its digits and the signs
 /// between them of a number's shape (`shape`). Not counted: a letter beyond such a code, a date,
 /// a phone number, a list of three values or more, the Indian grouping, digits with no sign
@@ -650,10 +649,35 @@ fn strip_minus(cell: &str) -> (&str, bool) {
     }
 }
 
-/// `cell` without three capital letters (A to Z) at its front or at its end with the spaces of
-/// `GAPS` or none between, and whether it had them.
+/// The codes of money that three capital letters beside an amount's digits may be (`without_code`,
+/// r3 U11.10, the coordinator's way (ii) of E3, log line 23652), sorted: the 159 codes of
+/// `Locale.commonISOCurrencyCodes` of Foundation on macOS 27.2 (build 26B123), read on 2026-11-26,
+/// the system's own table of the common codes of ISO 4217, a country's or a union's money. It holds
+/// no code of a precious metal (XAU, XAG, XPD, XPT), of a test (XTS), of no money (XXX), of a fund
+/// (BOV, CHE, CHW, CLF, COU, MXV, USN, UYI, UYW) or of a unit of account (XBA, XBB, XBC, XBD, XDR,
+/// XSU, XUA); it keeps five codes that the system still lists and that ISO may have withdrawn (ANG,
+/// CUC, HRK, SLL, VEF).
+const MONEY_CODES: [&str; 159] = [
+    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN", "BAM", "BBD", "BDT",
+    "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL", "BSD", "BTN", "BWP", "BYN", "BZD", "CAD",
+    "CDF", "CHF", "CLP", "CNY", "COP", "CRC", "CUC", "CUP", "CVE", "CZK", "DJF", "DKK", "DOP",
+    "DZD", "EGP", "ERN", "ETB", "EUR", "FJD", "FKP", "GBP", "GEL", "GHS", "GIP", "GMD", "GNF",
+    "GTQ", "GYD", "HKD", "HNL", "HRK", "HTG", "HUF", "IDR", "ILS", "INR", "IQD", "IRR", "ISK",
+    "JMD", "JOD", "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW", "KWD", "KYD", "KZT", "LAK",
+    "LBP", "LKR", "LRD", "LSL", "LYD", "MAD", "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU",
+    "MUR", "MVR", "MWK", "MXN", "MYR", "MZN", "NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR",
+    "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR",
+    "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SLL", "SOS", "SRD", "SSP", "STN", "SYP",
+    "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "USD",
+    "UYU", "UZS", "VEF", "VES", "VND", "VUV", "WST", "XAF", "XCD", "XCG", "XOF", "XPF", "YER",
+    "ZAR", "ZMW", "ZWG",
+];
+
+/// `cell` without a code of money of `MONEY_CODES` at its front or at its end with the spaces of
+/// `GAPS` or none between, and whether it had one; three other capital letters (a code of goods
+/// such as `ABC 123` or `INV 2031`) are no such code.
 fn without_code(cell: &str) -> (&str, bool) {
-    let code = |part: &str| part.len() == 3 && part.bytes().all(|b| b.is_ascii_uppercase());
+    let code = |part: &str| MONEY_CODES.binary_search(&part).is_ok();
     if cell.len() > 3 && cell.is_char_boundary(3) && code(&cell[..3]) {
         return (cell[3..].trim_start_matches(GAPS), true);
     }
@@ -2416,6 +2440,8 @@ mod tests {
             "Eur 500",
             "ABCD 500",
             "1,234,56",
+            "ABC 123",
+            "INV 2031",
         ];
         let mut wrong = Vec::new();
         for (cells, want) in [(&counted[..], 1), (&not_counted[..], 0)] {
