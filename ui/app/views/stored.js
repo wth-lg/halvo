@@ -105,7 +105,7 @@
         var cells = [
           [r.day, ""],
           [modalityNames[r.modality] || r.modality, ""],
-          [Number(r.events).toLocaleString(), "num"],
+          [Halvo.formatCount(r.events), "num"],
           [Halvo.formatBytes(r.bytes), "num"],
         ];
         return Halvo.el(
