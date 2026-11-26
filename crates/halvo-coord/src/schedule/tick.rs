@@ -1,25 +1,41 @@
 use super::{
-    clean, current_slot, finished, held_by_events, holds, needs_person, slot_due, slot_open, Board,
-    Hold,
+    clean, compiles, current_slot, finished, held_by_events, holds, needs_person, slot_due,
+    slot_open, Board, Hold,
 };
 use crate::types::{
     AgentId, AgentState, ConfigView, Doing, Facts, LastCause, Limits, Outcome, RunEnd, RunId,
     Runtime, SpendLimit, Tier, What, WorkflowId, WorkflowState,
 };
 
-/// Whether the agent of `facts` rests after a run that handed its work back for a cause of a
-/// hosted model (r3 U7.8): the agent store has ended its newest run, the newest `run_ended` of its
-/// events is `handed_back`, its stored tier is a hosted tier, and the last cause still stands by
-/// what the app handed beside its configuration at this list of the agents. `no_agreement` stands
-/// until the agent's yes stands for its tier, `no_model_key` until a key is saved, `over_cap` while
-/// the limit reads near or reached, and `shortfall` until a newer run ends, since the core does not
-/// read the router's table. Where the app hands no use of a model, the agent rests; so it does for
-/// `no_model_key` where the key's state does not read, and for `over_cap` where the limit does not
-/// read. Nothing is stored, and the rest is no hold: the person's own start passes, and Start now
-/// stays offered. While it rests, a tick raises no `ready` for the agent and starts no run of it
-/// (`tick_step`), and its row says the sentence of the cause where no line of
-/// `crate::roster::status_of` stands before it.
+/// Whether the agent of `facts` rests: it was never allowed a model (`never_allowed`, r3 U7.11), or
+/// it rests after a run that handed its work back for a cause of a hosted model (r3 U7.8): the
+/// agent store has ended its newest run, the newest `run_ended` of its events is `handed_back`, its
+/// stored tier is a hosted tier, and the last cause still stands by what the app handed beside its
+/// configuration at this list of the agents. `no_agreement` stands until the agent's yes stands for
+/// its tier, `no_model_key` until a key is saved, `over_cap` while the limit reads near or reached,
+/// and `shortfall` until a newer run ends, since the core does not read the router's table. Where
+/// the app hands no use of a model, such an agent rests; so it does for `no_model_key` where the
+/// key's state does not read, and for `over_cap` where the limit does not read. Nothing is stored,
+/// and the rest is no hold: the person's own start passes, and Start now stays offered. While it
+/// rests, a tick raises no `ready` for the agent and starts no run of it (`tick_step`), and its row
+/// says why where no line of `crate::roster::status_of` stands before it.
 pub(crate) fn rests<C: ConfigView>(facts: &Facts<C>) -> bool {
+    never_allowed(&facts.config) || rests_after_a_hand_back(facts)
+}
+
+/// Whether the agent of `config` was never allowed a model and so rests (r3 U7.11): its stored
+/// tier is `on_device`, its start would be a compile (`compiles`) and the app hands its use of a
+/// model. The runner compiles only at a hosted tier, so in every build each run of such an agent
+/// ends `failed` with `step_failed` before its browser starts. It reads the configuration alone: no
+/// run has to end first. It ends at the person's yes that stores a hosted tier, at a stored
+/// playbook, or with the agent. Where the app hands no use of a model it does not hold.
+pub(crate) fn never_allowed<C: ConfigView>(config: &C) -> bool {
+    config.tier() == Tier::OnDevice && compiles(config) && config.model().is_some()
+}
+
+/// The rest of r3 U7.8, after a run that handed its work back for a cause of a hosted model that
+/// still stands (`rests`).
+fn rests_after_a_hand_back<C: ConfigView>(facts: &Facts<C>) -> bool {
     if !facts.store_ended || facts.config.tier() == Tier::OnDevice {
         return false;
     }
@@ -107,8 +123,9 @@ pub enum Ask {
 }
 
 /// What one tick raises or starts for the agent of `facts` (I5.3, I5.9): nothing while its
-/// workflow is not `listed`, a hold stands, it rests after a run that handed its work back for
-/// a cause of a hosted model that still stands (`rests`, r3 U7.8), a run of it is live, a start
+/// workflow is not `listed`, a hold stands, it rests (`rests`: it was never allowed a model, r3
+/// U7.11, or a run handed its work back for a cause of a hosted model that still stands, r3
+/// U7.8), a run of it is live, a start
 /// of it is queued or an item of it is open; for an agent that needs the person, and for every
 /// agent with no finished run, `ready` when it has no clean run (`clean`) or its current slot is
 /// open, unless a `slot_skipped` event with a null slot stands: until a slot opens after that

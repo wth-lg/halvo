@@ -4,9 +4,9 @@ use halvo_control::model::{CaptureState, ObservationWindow, StorageCap, StoreId}
 use halvo_control::onboarding::{GrantState, OnboardingState, Permission};
 use halvo_control::proto::{
     Cap, Capture, CaptureReason, DaemonStatus, DeleteFields, DeleteReport, DrainError, ErrorCode,
-    ExpiryError, Health, InventoryReply, LastStop, Lease, LostRecord, OnOff, PasswordGuard,
-    Platform, Reason, RootDestroyed, Section, SourceName, SourceState, SourceStateName, StateFile,
-    StopKind, StoreErrorKind, StoreState, SwitchName,
+    ExpiryError, Health, InventoryReply, LastStop, Lease, LeftOut, LeftOutBefore, LostRecord,
+    OnOff, PasswordGuard, Platform, Reason, RootDestroyed, Section, SourceName, SourceState,
+    SourceStateName, StateFile, StopKind, StoreErrorKind, StoreState, SwitchName,
 };
 use halvo_control::texts::{
     first_run, texts, typing_switch, Recorded, Texts, TypingSwitch, TYPING_NOT_RECORDED,
@@ -149,6 +149,12 @@ pub struct RunningView {
     /// The status's left_out_in_doubt: the page then says, under its heading, that Halvo has
     /// recorded nothing since it could not tell whether to leave out the app in front.
     pub left_out_in_doubt: bool,
+    /// The status's left_out, as it stands: what the capture service leaves out now, by
+    /// cause, which the page says under its heading.
+    pub left_out: Vec<LeftOut>,
+    /// The status's left_out_before, as it stands: what the capture service left out
+    /// before, which the page says on a line of its own.
+    pub left_out_before: Vec<LeftOutBefore>,
     /// The first run's rows of what a start records, which the question of a reset of the
     /// settings shows: on a settings file that cannot be read alone.
     pub reset_recorded: Option<Vec<Recorded>>,
@@ -706,6 +712,10 @@ struct WireView<'a> {
     screen_not_renewed: bool,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     left_out_in_doubt: bool,
+    #[serde(skip_serializing_if = "<[LeftOut]>::is_empty")]
+    left_out: &'a [LeftOut],
+    #[serde(skip_serializing_if = "<[LeftOutBefore]>::is_empty")]
+    left_out_before: &'a [LeftOutBefore],
     #[serde(skip_serializing_if = "Option::is_none")]
     reset_recorded: Option<&'a [Recorded]>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -748,6 +758,8 @@ impl Serialize for StatusView {
                 state_file: view.state_file,
                 screen_not_renewed: view.screen_not_renewed,
                 left_out_in_doubt: view.left_out_in_doubt,
+                left_out: &view.left_out,
+                left_out_before: &view.left_out_before,
                 reset_recorded: view.reset_recorded.as_deref(),
                 typing_switch: view.typing_switch.as_ref(),
                 search: view.search,
@@ -785,6 +797,8 @@ impl Serialize for StatusView {
                 state_file: None,
                 screen_not_renewed: false,
                 left_out_in_doubt: false,
+                left_out: &[],
+                left_out_before: &[],
                 reset_recorded: None,
                 typing_switch: None,
                 search: None,
@@ -944,6 +958,8 @@ impl StatusView {
             login_item_written: None,
             screen_not_renewed: false,
             left_out_in_doubt: f.left_out_in_doubt,
+            left_out: f.left_out.clone(),
+            left_out_before: f.left_out_before.clone(),
             crash_reports_left: None,
         }))
     }

@@ -11,6 +11,7 @@
   var failed;
   var drain;
   var lostLine;
+  var beforeLine;
   var expiry;
   var screenLine;
   var crashLine;
@@ -67,6 +68,11 @@
     pointer: w.SOURCE_POINTER,
     window_title: w.KIND_WINDOW_TITLES,
   };
+  var PARTS = [
+    ["typing", w.PART_TYPING],
+    ["window_titles", w.PART_WINDOW_TITLES],
+    ["screen_activity", w.PART_SCREEN_ACTIVITY],
+  ];
 
   Halvo.service = function () {
     return shownService;
@@ -169,7 +175,8 @@
     if (s.hold) reason.textContent = heldReason(s);
     else if (s.service !== "running") reason.textContent = "";
     else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
-    else reason.textContent = leftOutInDoubt(s) ? w.LEFT_OUT_IN_DOUBT : keptPrivate(s) ? w.TYPING_KEPT_PRIVATE : "";
+    else reason.textContent = leftOutNow(s);
+    beforeLine.textContent = leftOutBefore(s);
     renderToggle(s);
     renderSources(s);
     var d = s.drain;
@@ -187,8 +194,84 @@
     renderFirstRun(s);
   }
 
+  function runs(s) {
+    return s.capture === "running" || s.capture === "partial";
+  }
+
+  function leftOutBy(list, cause) {
+    var entries = (Array.isArray(list) ? list : []).filter(function (entry) {
+      return entry && entry.cause === cause;
+    });
+    return entries.length > 0 ? entries[0] : null;
+  }
+
+  function leftOutNow(s) {
+    if (leftOutInDoubt(s)) return w.LEFT_OUT_IN_DOUBT;
+    if (!runs(s) || frontStopped(s)) return "";
+    return heldPrivate(s) || noKeyArrives(s) || (keptPrivate(s) ? w.TYPING_KEPT_PRIVATE : "");
+  }
+
+  function noKeyArrives(s) {
+    var entry = leftOutBy(s.left_out, "no_key_arrives");
+    var what = entry && Array.isArray(entry.what) ? entry.what : [];
+    return what.indexOf("typing") !== -1 ? w.NO_KEY_ARRIVES : "";
+  }
+
   function leftOutInDoubt(s) {
-    return (s.capture === "running" || s.capture === "partial") && s.left_out_in_doubt === true;
+    return runs(s) && (s.left_out_in_doubt === true || leftOutBy(s.left_out, "doubt") !== null);
+  }
+
+  function frontStopped(s) {
+    return (s.sources || []).some(function (src) {
+      return src.name === "foreground" && src.state === "failed";
+    });
+  }
+
+  function joined(parts, last) {
+    if (parts.length < 2) return parts.join("");
+    return parts.slice(0, -1).join(w.PARTS_THEN) + last + parts[parts.length - 1];
+  }
+
+  function heldPrivate(s) {
+    var entry = leftOutBy(s.left_out, "secure_input");
+    var what = entry && Array.isArray(entry.what) ? entry.what : [];
+    var parts = PARTS.filter(function (part) {
+      return what.indexOf(part[0]) !== -1;
+    }).map(function (part) {
+      return part[1];
+    });
+    if (parts.length === 0) return "";
+    return w.KEPT_PRIVATE.replace("{parts_or}", joined(parts, w.PARTS_OR)).replace("{parts_and}", joined(parts, w.PARTS_AND));
+  }
+
+  function localOf(ms) {
+    return new Date(ms - new Date(ms).getTimezoneOffset() * 60000);
+  }
+
+  function clockOf(ms) {
+    var local = localOf(ms);
+    var hh = local.getUTCHours();
+    var mm = local.getUTCMinutes();
+    return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+  }
+
+  function dayOf(ms) {
+    var local = localOf(ms);
+    return local.getUTCFullYear() * 10000 + local.getUTCMonth() * 100 + local.getUTCDate();
+  }
+
+  function dateOf(ms) {
+    return localOf(ms).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  }
+
+  function leftOutBefore(s) {
+    var entry = s.service === "running" ? leftOutBy(s.left_out_before, "doubt") : null;
+    var from = entry ? Date.parse(entry.from) : NaN;
+    var until = entry ? Date.parse(entry.until) : NaN;
+    if (isNaN(from) || isNaN(until)) return "";
+    var today = dayOf(Date.now());
+    if (dayOf(from) === today && dayOf(until) === today) return w.LEFT_OUT_BEFORE_TODAY.replace("{from}", clockOf(from)).replace("{until}", clockOf(until));
+    return w.LEFT_OUT_BEFORE.replace("{from_date}", dateOf(from)).replace("{from}", clockOf(from)).replace("{until_date}", dateOf(until)).replace("{until}", clockOf(until));
   }
 
   function partLost(s) {
@@ -201,7 +284,7 @@
     var kept = (s.sources || []).some(function (src) {
       return src.name === "input" && src.state === "impaired" && src.reason === "secure_input_elsewhere";
     });
-    return (s.capture === "running" || s.capture === "partial") && kept;
+    return runs(s) && kept;
   }
 
   function crashReportLeft(folder) {
@@ -366,6 +449,7 @@
       failed = Halvo.el("ul", { id: "failed-sources", class: "hidden" });
       drain = Halvo.el("p", { id: "drain-line" });
       lostLine = Halvo.el("p", { id: "lost-line" });
+      beforeLine = Halvo.el("p", { id: "left-out-before-line" });
       expiry = Halvo.el("p", { id: "expiry-line" });
       screenLine = Halvo.el("p", { id: "screen-line" });
       crashLine = Halvo.el("p", { id: "crash-report-line" });
@@ -396,6 +480,7 @@
       resetRow.classList.add("hidden");
       el.append(
         Halvo.el("div", { class: "row status-row" }, [dot, Halvo.el("p", { class: "state-line" }, [state, " ", reason]), toggle]),
+        beforeLine,
         failed,
         drain,
         lostLine,

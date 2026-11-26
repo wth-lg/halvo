@@ -147,6 +147,7 @@ targets halvo-model H macos 2 test targets, 8 tests in 2.62 s in the macos gate 
 targets halvo-route H macos 8 test targets, 38 tests in 1.87 s in the macos gate of the push run 45421682892; the windows gate runs them
 target generate_specimen H macos halvo-route-gate: 6 tests in 1.36 s in the macos gate of the push run 45421682892; the windows gate runs them
 target import_golden H macos halvo-route-gate: 2 tests in 0.09 s in the macos gate of the push run 45421682892; the windows gate runs them
+target import_hosted H macos halvo-route-gate: 3 tests in 0.01 s in the run of its unit on a Mac (r6 U5.6); the windows gate runs them
 target import_write H macos halvo-route-gate: 5 tests in 0.03 s in the macos gate of the push run 45421682892; the windows gate runs them
 target out_file H macos halvo-route-gate: 4 tests in 0.02 s in the macos gate of the push run 45421682892; the windows gate runs them
 target product_bar H macos halvo-route-gate: 1 tests in 0.00 s in the macos gate of the push run 45421682892; the windows gate runs them

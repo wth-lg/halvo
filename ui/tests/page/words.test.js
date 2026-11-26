@@ -25,6 +25,16 @@ const WORDS = {
   CAPTURE_UNKNOWN: "Halvo cannot tell whether capture runs",
   LEFT_OUT_IN_DOUBT: "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.",
   TYPING_KEPT_PRIVATE: "Halvo is not recording typing right now, because a password field or another app has asked your Mac to keep typing private. It records typing again by itself when that ends.",
+  KEPT_PRIVATE: "Halvo is not recording {parts_or} right now, because a password field or another app has asked your Mac to keep typing private. It records {parts_and} again by itself when that ends.",
+  PART_TYPING: "typing",
+  PART_WINDOW_TITLES: "window titles",
+  PART_SCREEN_ACTIVITY: "screen activity",
+  PARTS_THEN: ", ",
+  PARTS_OR: " or ",
+  PARTS_AND: " and ",
+  NO_KEY_ARRIVES: "Keys are being pressed on this Mac and none of them reaches Halvo, so Halvo is not recording typing right now. It records typing again by itself as soon as keys reach it.",
+  LEFT_OUT_BEFORE_TODAY: "Today from {from} to {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
+  LEFT_OUT_BEFORE: "From {from_date} at {from} to {until_date} at {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
   FAULT_STORE: "Its store is not open.",
   FAULT_DRAIN: "It cannot save what it records.",
   FAULT_NO_SOURCE: "No part of capture could start.",
@@ -220,6 +230,7 @@ const WORDS = {
   SEEN_WHERE: "{category} in {app} on {site}",
   SEEN_COUNT: "Seen {count} times.",
   SEEN_COUNT_DAYS: "Seen {count} times, from {first day} to {last day}.",
+  CANNOT_DO_TASK: "This version of Halvo cannot do this task.",
   APPROVE: "Approve",
   NOT_NOW: "Not now",
   STORED_WORKFLOWS: "Workflows stored on this computer",
@@ -364,6 +375,7 @@ const NOT_READ = [
   ["permissions.js", "muted why", "a class list"],
   ["permissions.js", "muted walkback-intro", "a class list"],
   ["status.js", "row status-row", "a class list"],
+  ["status.js", "UTC", "the time zone in which toLocaleDateString reads a date that is already shifted to the clock of this computer"],
 ];
 
 const READ = /[A-Z]|\p{L} \p{L}/u;

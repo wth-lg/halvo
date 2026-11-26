@@ -1095,7 +1095,19 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 .ctx
                 .as_ref()
                 .is_some_and(|ctx| ctx.floor().left_out_in_doubt()),
+            doubt_told: self
+                .floor_held()
+                .map(crate::floor::exclude::FloorHandle::doubt_told)
+                .unwrap_or_default(),
         }
+    }
+
+    /// The floor of the run's sources: of the context that they hold, or of the one that
+    /// the run serves while none is begun.
+    #[cfg(any(target_os = "macos", windows))]
+    fn floor_held(&self) -> Option<&crate::floor::exclude::FloorHandle> {
+        let served = self.served.as_ref().map(|(ctx, _)| ctx);
+        self.ctx.as_ref().or(served).map(SourceContext::floor)
     }
 
     /// The word of a Pause or a Resume of a client (contracts.md C2.5):
@@ -1471,7 +1483,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
     /// stop. The slot of a delete takes the loss of the last life back, so
-    /// that no status prints it behind a delete of everything.
+    /// that no status prints it behind a delete of everything, and has the
+    /// floor forget the last stretch that it left out by doubt.
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn set_slot_answering(
         &mut self,
@@ -1481,6 +1494,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     ) {
         if matches!(slot, Slot::Deleting) {
             self.board.last_life = None;
+            if let Some(floor) = self.floor_held() {
+                floor.forget_doubt_before();
+            }
         }
         self.slot = slot;
         if let Some(ending) = self.follow_the_run_condition(owner, reply) {
@@ -9976,5 +9992,131 @@ mod tests {
             (None, LostRecord::NONE),
             "behind the delete"
         );
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn the_status_tells_of_a_stretch_left_out_by_doubt_while_it_stands_and_behind_its_end_for_a_day_or_until_a_delete(
+    ) {
+        use crate::event::{AppIdentity, EventClock, FloorEvent};
+        use crate::floor::exclude::{
+            FloorHandle, Listing, Marks, NoCreationTime, NoLineage, PrivateWindow, ProcessId,
+            Subject, Verdict,
+        };
+        use crate::floor::kind;
+        use crate::secure_input::{FixedProbe, SecureInputReading};
+
+        static NOW: AtomicU64 = AtomicU64::new(1_800_000_000);
+        fn now() -> u64 {
+            NOW.load(Ordering::Relaxed)
+        }
+        let later = |seconds: u64| {
+            NOW.fetch_add(seconds, Ordering::Relaxed);
+        };
+
+        let marks = Arc::new(Marks::new(Box::new(NoCreationTime)));
+        let floor = FloorHandle::new(None, Arc::new(NoLineage), Switches::default())
+            .with_marks(Arc::clone(&marks))
+            .with_clock(now);
+        let mut f = fixture(Factory::new());
+        let ctx = SourceContext::with_floor(f.ctx.sink().clone(), floor.clone());
+        f.supervisor.start_sources(&ctx, &two());
+        let inactive = FixedProbe(SecureInputReading::Inactive);
+        let recorded = || {
+            let terminal = Subject::new(
+                AppIdentity::bundle_id("com.apple.Terminal".to_string()),
+                ProcessId::new(200),
+            );
+            match floor.decide::<kind::ForegroundApp>(terminal, PrivateWindow::Unknown, &inactive) {
+                Verdict::Keep(keep) => {
+                    let _ = FloorEvent::foreground_app(keep, None, EventClock::system());
+                    true
+                }
+                Verdict::Drop(_) => false,
+            }
+        };
+        let left_out_by_doubt = |seconds: u64| {
+            marks.take(Listing {
+                named: Vec::new(),
+                unread: true,
+            });
+            assert_eq!([recorded(), recorded(), recorded()], [false; 3]);
+            later(seconds);
+            marks.take(Listing::default());
+            assert!(recorded(), "the marks are read again");
+        };
+        let told = |f: &Fixture<Factory>| {
+            let status = super::super::server::status_of(
+                &f.supervisor.status_parts(None),
+                &facts_of_a_start(),
+            )
+            .expect("the status holds together");
+            (
+                super::super::server::written_list(&status, "left_out"),
+                super::super::server::written_list(&status, "left_out_before"),
+            )
+        };
+        let before = |from: &str, until: &str| {
+            Some(format!(
+                r#"[{{"cause":"doubt","what":["everything"],"from":"{from}","until":"{until}"}}]"#
+            ))
+        };
+
+        marks.take(Listing {
+            named: Vec::new(),
+            unread: true,
+        });
+        assert_eq!([recorded(), recorded()], [false; 2]);
+        assert_eq!(told(&f), (None, None), "two drops by doubt in a row");
+        later(10);
+        assert!(!recorded());
+        assert_eq!(
+            told(&f),
+            (
+                Some(
+                    r#"[{"cause":"doubt","what":["everything"],"since":"2027-01-15T08:00:00Z"}]"#
+                        .to_string()
+                ),
+                None
+            ),
+            "the third drop in a row: since the first drop of the row"
+        );
+        later(49);
+        marks.take(Listing::default());
+        assert!(recorded());
+        assert_eq!(told(&f), (None, None), "behind a stretch of 59 seconds");
+
+        later(1);
+        left_out_by_doubt(60);
+        let first = before("2027-01-15T08:01:00Z", "2027-01-15T08:02:00Z");
+        assert_eq!(
+            told(&f),
+            (None, first.clone()),
+            "behind a stretch of 60 seconds"
+        );
+        left_out_by_doubt(59);
+        assert_eq!(
+            told(&f),
+            (None, first.clone()),
+            "a stretch of 59 seconds behind it does not take its place"
+        );
+        later(24 * 60 * 60 - 60);
+        assert_eq!(
+            told(&f),
+            (None, first),
+            "a second less than 24 hours behind its end"
+        );
+        later(1);
+        assert_eq!(told(&f), (None, None), "24 hours behind its end");
+
+        left_out_by_doubt(60);
+        assert_eq!(
+            told(&f),
+            (None, before("2027-01-16T08:02:00Z", "2027-01-16T08:03:00Z")),
+            "a later stretch"
+        );
+        f.supervisor
+            .set_slot_answering(Slot::Deleting, None, &mut |_| {});
+        assert_eq!(told(&f), (None, None), "behind a delete of everything");
     }
 }

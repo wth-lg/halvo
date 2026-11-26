@@ -396,7 +396,22 @@ impl Runner {
         Runner::start_with_data_dir(args, scratch("data"), Browser::Found)
     }
 
+    /// Starts the program `program`, a copy of the built runner in a directory of the test's own (r3 U7.10: beside a
+    /// stand-in door named `halvo-model`, where the runner starts its door), as `start` starts the runner.
+    pub fn start_copy(args: &[String], program: &Path) -> Runner {
+        Runner::start_program(program, args, scratch("data"), Browser::Given)
+    }
+
     fn start_with_data_dir(args: &[String], data_dir: PathBuf, browser: Browser) -> Runner {
+        Runner::start_program(Path::new(RUNNER), args, data_dir, browser)
+    }
+
+    fn start_program(
+        program: &Path,
+        args: &[String],
+        data_dir: PathBuf,
+        browser: Browser,
+    ) -> Runner {
         let mut line = vec![
             "--data-dir".to_string(),
             data_dir.to_string_lossy().into_owned(),
@@ -407,7 +422,7 @@ impl Runner {
                 .any(|pair| pair[0] == "--data-dir" && !pair[1].is_empty()),
             "a runner of a test starts with --data-dir and a directory of its own"
         );
-        Runner::spawn(line, data_dir, browser)
+        Runner::spawn(program, line, data_dir, browser)
     }
 
     /// Starts the runner with `args` alone and no `--data-dir` (U4.7), its data directory in `Seen` empty. Its file
@@ -418,17 +433,22 @@ impl Runner {
             !args.iter().any(|a| a == "--data-dir"),
             "a start with no --data-dir"
         );
-        Runner::spawn(args.to_vec(), PathBuf::new(), Browser::Given)
+        Runner::spawn(
+            Path::new(RUNNER),
+            args.to_vec(),
+            PathBuf::new(),
+            Browser::Given,
+        )
     }
 
-    /// The one start of every runner of a test. A line with no `--browser` gets `--browser NO_BROWSER` in front,
-    /// unless the start is `start_finding_its_browser`'s.
-    fn spawn(mut line: Vec<String>, data_dir: PathBuf, browser: Browser) -> Runner {
+    /// The one start of every runner of a test: the built runner, or a copy of it (`start_copy`). A line with no
+    /// `--browser` gets `--browser NO_BROWSER` in front, unless the start is `start_finding_its_browser`'s.
+    fn spawn(program: &Path, mut line: Vec<String>, data_dir: PathBuf, browser: Browser) -> Runner {
         assert_loopback_runner();
         if matches!(browser, Browser::Given) && !line.iter().any(|a| a == "--browser") {
             line.splice(0..0, ["--browser".to_string(), NO_BROWSER.to_string()]);
         }
-        let mut command = Command::new(RUNNER);
+        let mut command = Command::new(program);
         command
             .args(&line)
             .env("TMPDIR", env!("CARGO_TARGET_TMPDIR"))
@@ -584,6 +604,9 @@ pub struct Supervisor {
     /// The session parts that a run before stored, which `load` lists and `load_session` answers; none unless a
     /// test gives them.
     pub kept: Vec<PutSession>,
+    /// Words that the runner's line ends with (r3 U7.10: `--hosted` and `--stand-in-policy`); none unless a test
+    /// gives them.
+    pub more: Vec<String>,
 }
 
 impl Supervisor {
@@ -604,6 +627,7 @@ impl Supervisor {
             headed: false,
             stand_in_person: true,
             kept: Vec::new(),
+            more: Vec::new(),
         }
     }
 
@@ -628,6 +652,7 @@ impl Supervisor {
         if self.stand_in_person {
             args.push("--stand-in-person".into());
         }
+        args.extend(self.more.iter().cloned());
         args
     }
 

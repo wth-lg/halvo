@@ -220,6 +220,17 @@ Where a sentence names a unit, that unit makes it true.
   reaches it in that time is not recorded and is only counted by type (macos-4).
   Line (c) of the gate is the check that shows it, and gate-3 builds that line
   (contract C4 item 13).
+- On a Mac, while a password field or another app holds secure input, Halvo records no
+  window title and no screen activity either. From 30 seconds of such a hold on, the
+  Status page says which of typing, window titles and screen activity Halvo is not
+  recording, until the hold ends; it does not say so while that line shows another
+  reason, while the page says that the app in front has stopped, or while capture
+  or the Mac's input source does not run; the first 30 seconds of a hold show
+  nothing, nor do the first 30 seconds after the Mac's input source starts during
+  a hold, and behind
+  its end nothing tells of it.
+- On a Mac, while Halvo records typing, it asks macOS how long ago a key was last pressed on the whole computer: at most once a second, and only in a second in which no key reached Halvo. The answer is a length of time alone: it names no key, no text and no app, and it is no number of keys. Halvo stores it nowhere. Halvo does not ask while a password field or another app keeps typing private, nor at its first reading behind that; behind such a hold the answer can be the time since the last key of a password, and Halvo only compares it with one second. It uses the answer for one thing: where through 30 seconds a key was pressed in ten or more of them and no key reached Halvo, the Status page says that Halvo is not recording typing.
+- On a Mac and on Windows, Halvo's search for repeated tasks asks the system how long ago the last input was: on a Mac the last input of any kind on the whole computer, on Windows the last input of your session. It asks at most once a second while Halvo's capture service runs and the search is switched on, also while a password is typed. The answer is a length of time alone: it names no key, no text and no app, and it is no number of inputs. Halvo stores it nowhere and only compares it with four minutes: the search runs only after four minutes with no input. In the same turn it reads whether the computer is on mains power and whether its low-power mode is on.
 - Characters and key codes are never stored: the types that core-2 builds have no
   field for them.
 - On a Mac, Halvo records nothing of an agent's own browser: no app in front, no
@@ -239,7 +250,11 @@ Where a sentence names a unit, that unit makes it true.
   Halvo has recorded nothing since it could not tell whether to leave out the app in
   use, and it says so until Halvo records again, its capture service starts anew or
   someone asks Halvo to delete everything; the first two such events show nothing,
-  behind a new start and behind such a delete too. The limits:
+  behind a new start and behind such a delete too. Where it left out events in this way
+  for a minute or more, the Status page afterwards says from when to when Halvo recorded
+  nothing, for 24 hours or until a later such stretch has ended, the capture service
+  starts anew or Halvo has deleted everything; for this the capture service keeps the two
+  times in its memory and in no file, and nothing else of the stretch. The limits:
   Halvo reads which app is in front every 0.4 seconds, so a click or a key in an
   agent's browser within 0.4 seconds after it comes to the front can be recorded for
   the app that was in front before; a capture service that the app did not start
