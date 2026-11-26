@@ -275,7 +275,8 @@ pub struct SourceCounters {
     /// A Windows service set alone: the events that the hand-offs of its sources dropped at a
     /// full queue in the life of the service, which the status adds to `events_lost`; a push
     /// into a hand-off that a stop has closed is not counted, and the slot of a delete of
-    /// everything takes the count back to nought. Nought from every other source and on a Mac.
+    /// everything takes the count back to nought, behind which a hand-off whose counts were made
+    /// before that slot counts nothing. Nought from every other source and on a Mac.
     pub handoff_full_drops: u64,
 }
 

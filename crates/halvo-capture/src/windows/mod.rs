@@ -235,21 +235,44 @@ struct Queue {
 /// The events that the hand-offs of a Windows service set's sources dropped at a full queue,
 /// over every source that the set makes in the life of the service: a push into a hand-off that
 /// a stop has closed is not counted, and the slot of a delete of everything takes the count
-/// back to nought.
+/// back to nought, behind which a hand-off whose counts were made before that slot counts
+/// nothing in it.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct FullDrops(Arc<AtomicU64>);
+pub(crate) struct FullDrops(Arc<Mutex<FullCount>>);
+
+/// The count of [`FullDrops`] and the number of its forgets, which change together.
+#[derive(Debug, Default)]
+struct FullCount {
+    drops: u64,
+    forgets: u64,
+}
 
 impl FullDrops {
     pub(crate) fn read(&self) -> u64 {
-        self.0.load(Ordering::Relaxed)
+        self.lock().drops
     }
 
     pub(crate) fn forget(&self) {
-        self.0.store(0, Ordering::Relaxed);
+        let mut count = self.lock();
+        count.drops = 0;
+        count.forgets = count.forgets.saturating_add(1);
     }
 
-    fn count(&self) {
-        self.0.fetch_add(1, Ordering::Relaxed);
+    fn forgets(&self) -> u64 {
+        self.lock().forgets
+    }
+
+    /// Counts one drop of a hand-off whose counts were made behind `forgets`
+    /// forgets, and none of one made before the last forget.
+    fn count(&self, forgets: u64) {
+        let mut count = self.lock();
+        if count.forgets == forgets {
+            count.drops = count.drops.saturating_add(1);
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, FullCount> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -259,13 +282,16 @@ pub(crate) struct LossCounts {
     coalesced: AtomicU64,
     dropped_at_stop: AtomicU64,
     full: FullDrops,
+    full_since: u64,
 }
 
 impl LossCounts {
-    /// The counts of a hand-off whose drops at a full queue also count in `full`.
+    /// The counts of a hand-off whose drops at a full queue also count in
+    /// `full`, until the next forget of `full`.
     pub(crate) fn counting_full_drops_in(full: &FullDrops) -> Self {
         Self {
             full: full.clone(),
+            full_since: full.forgets(),
             ..Self::default()
         }
     }
@@ -373,7 +399,7 @@ impl Producer {
         }
         if queue.events.len() >= HANDOFF_CAPACITY {
             self.shared.counts.lose(1);
-            self.shared.counts.full.count();
+            self.shared.counts.full.count(self.shared.counts.full_since);
             return;
         }
         queue.events.push_back(event);
