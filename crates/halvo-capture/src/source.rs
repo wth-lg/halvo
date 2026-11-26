@@ -256,6 +256,10 @@ pub struct SourceCounters {
     /// The Windows keyboard source's reading of whether typing is being noted right now;
     /// none from every other source.
     pub typing_gate: Option<halvo_control::proto::TypingGate>,
+    /// A Mac's input source alone: the second, counted from 1970, of the first reading of a
+    /// row of readings of the system's secure input that has read on for 30 seconds or more,
+    /// whatever types its tap asked for; none while no such row stands.
+    pub secure_hold_since: Option<u64>,
 }
 
 /// Key events suppressed in the held phase, by type.
@@ -952,6 +956,7 @@ mod tests {
             secure_window_pointer: 0,
             secure_window_keys_typed: false,
             typing_gate: None,
+            secure_hold_since: None,
         };
         assert_eq!(SourceCounters::default(), zero);
         let health = SourceHealth::default();

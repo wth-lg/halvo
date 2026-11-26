@@ -6,7 +6,8 @@
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::kind::Recorded;
 use super::{switch_of, Switch, Switches};
@@ -22,6 +23,13 @@ pub const LINEAGE_WALK_MAX_STEPS: usize = 64;
 /// by doubt is ordinary on Windows, as where no app is known in front at a switch.
 pub const DOUBT_DROPS_IN_A_ROW: u64 = 3;
 
+/// How long a row of drops by doubt has stood, from its first drop to the record that ends
+/// it, for a status to tell of it behind its end.
+pub const DOUBT_TOLD_FROM_SECONDS: u64 = 60;
+
+/// For how long behind its end a status tells of such a row.
+pub const DOUBT_TOLD_FOR_SECONDS: u64 = 24 * 60 * 60;
+
 /// What a status tells of the drops by doubt of a handle and of its clones, in whole
 /// seconds since 1970 by the handle's clock: the first drop of a row that stands, and the
 /// first drop and the end of the last row that ended.
@@ -29,6 +37,89 @@ pub const DOUBT_DROPS_IN_A_ROW: u64 = 3;
 pub struct DoubtTold {
     pub since: Option<u64>,
     pub before: Option<(u64, u64)>,
+}
+
+/// The whole seconds since 1970 by the system's clock; 0 where that clock reads earlier.
+pub(crate) fn unix_seconds_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
+}
+
+/// The row of drops by doubt that a handle and its clones share: its count, the time of
+/// its first drop, and the first drop and the end of the last row that a status tells of
+/// behind its end. It holds times alone, and nothing of an event that was left out.
+struct Doubt {
+    count: AtomicU64,
+    times: Mutex<DoubtTimes>,
+    clock: fn() -> u64,
+}
+
+#[derive(Default)]
+struct DoubtTimes {
+    first: Option<u64>,
+    before: Option<(u64, u64)>,
+}
+
+impl Default for Doubt {
+    /// A row with no drop, on the system's clock.
+    fn default() -> Doubt {
+        Doubt::new(unix_seconds_now)
+    }
+}
+
+impl Doubt {
+    fn new(clock: fn() -> u64) -> Doubt {
+        Doubt {
+            count: AtomicU64::new(0),
+            times: Mutex::new(DoubtTimes::default()),
+            clock,
+        }
+    }
+
+    fn times(&self) -> MutexGuard<'_, DoubtTimes> {
+        self.times.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// One more drop by doubt: the first of a row sets the row's time.
+    fn note(&self) {
+        let mut times = self.times();
+        if self.count.fetch_add(1, Ordering::Relaxed) == 0 {
+            times.first = Some((self.clock)());
+        }
+    }
+
+    /// A record was built, which ends a row. A row that held [`DOUBT_DROPS_IN_A_ROW`] drops
+    /// or more and stood for [`DOUBT_TOLD_FROM_SECONDS`] or more is kept as the last one.
+    fn end(&self) {
+        if self.count.load(Ordering::Relaxed) == 0 {
+            return;
+        }
+        let mut times = self.times();
+        let stood = self.count.swap(0, Ordering::Relaxed) >= DOUBT_DROPS_IN_A_ROW;
+        let Some(from) = times.first.take() else {
+            return;
+        };
+        let until = (self.clock)();
+        if stood && until.saturating_sub(from) >= DOUBT_TOLD_FROM_SECONDS {
+            times.before = Some((from, until));
+        }
+    }
+
+    fn stands(&self) -> bool {
+        self.count.load(Ordering::Relaxed) >= DOUBT_DROPS_IN_A_ROW
+    }
+
+    fn told(&self) -> DoubtTold {
+        let times = self.times();
+        let now = (self.clock)();
+        DoubtTold {
+            since: times.first.filter(|_| self.stands()),
+            before: times
+                .before
+                .filter(|(_, until)| now.saturating_sub(*until) < DOUBT_TOLD_FOR_SECONDS),
+        }
+    }
 }
 
 /// Password managers and Halvo's own app, by bundle id (macOS). Only
@@ -235,12 +326,12 @@ pub enum DropReason {
 pub struct Keep<K> {
     subject: Subject,
     site_read: bool,
-    built: Arc<AtomicU64>,
+    built: Arc<Doubt>,
     kind: PhantomData<K>,
 }
 
 impl<K: Recorded> Keep<K> {
-    fn issue(subject: Subject, site_read: bool, built: Arc<AtomicU64>) -> Keep<K> {
+    fn issue(subject: Subject, site_read: bool, built: Arc<Doubt>) -> Keep<K> {
         Keep {
             subject,
             site_read,
@@ -252,7 +343,7 @@ impl<K: Recorded> Keep<K> {
     /// The parts of the record that is built from this verdict; the build ends the row of
     /// drops by doubt of the handle that issued the verdict and of its clones.
     pub(crate) fn into_parts(self) -> (Subject, bool) {
-        self.built.store(0, Ordering::Relaxed);
+        self.built.end();
         (self.subject, self.site_read)
     }
 }
@@ -279,7 +370,7 @@ pub struct FloorHandle {
     lineage: Arc<dyn Lineage>,
     switches: Switches,
     marks: Arc<Marks>,
-    doubt: Arc<AtomicU64>,
+    doubt: Arc<Doubt>,
 }
 
 impl Default for FloorHandle {
@@ -312,7 +403,7 @@ impl FloorHandle {
             lineage,
             switches,
             marks: Arc::new(Marks::new(Box::new(NoCreationTime))),
-            doubt: Arc::new(AtomicU64::new(0)),
+            doubt: Arc::default(),
         }
     }
 
@@ -323,8 +414,11 @@ impl FloorHandle {
 
     /// The same handle with `clock` as the clock of its drops by doubt.
     #[cfg(test)]
-    pub(crate) fn with_clock(self, _clock: fn() -> u64) -> FloorHandle {
-        self
+    pub(crate) fn with_clock(self, clock: fn() -> u64) -> FloorHandle {
+        FloorHandle {
+            doubt: Arc::new(Doubt::new(clock)),
+            ..self
+        }
     }
 
     pub fn switches(&self) -> Switches {
@@ -393,14 +487,27 @@ impl FloorHandle {
     /// be followed, or while the set of the runs' marks is unread. A record built from a
     /// verdict of this handle or of a clone sets the count to zero.
     pub(crate) fn note_doubt(&self) {
-        self.doubt.fetch_add(1, Ordering::Relaxed);
+        self.doubt.note();
     }
 
     /// Whether [`DOUBT_DROPS_IN_A_ROW`] or more events were left out by doubt since the last
     /// record built from a verdict of this handle or of a clone; a drop on purpose between
     /// them neither counts nor ends the row.
     pub fn left_out_in_doubt(&self) -> bool {
-        self.doubt.load(Ordering::Relaxed) >= DOUBT_DROPS_IN_A_ROW
+        self.doubt.stands()
+    }
+
+    /// What a status tells of the drops by doubt of this handle and of its clones: since
+    /// when a row stands that [`FloorHandle::left_out_in_doubt`] reads, and the last row
+    /// that ended after it had stood for [`DOUBT_TOLD_FROM_SECONDS`] or more, for
+    /// [`DOUBT_TOLD_FOR_SECONDS`] behind its end.
+    pub fn doubt_told(&self) -> DoubtTold {
+        self.doubt.told()
+    }
+
+    /// Forgets the last row of drops by doubt that ended, as a delete of everything asks.
+    pub(crate) fn forget_doubt_before(&self) {
+        self.doubt.times().before = None;
     }
 
     fn rules<'a>(&'a self, marks: &'a Listing) -> Rules<'a> {

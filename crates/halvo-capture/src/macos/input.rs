@@ -223,6 +223,7 @@ struct InputFigures {
     keys_withheld: AtomicBool,
     stalled: AtomicBool,
     kept_private: AtomicBool,
+    secure_hold_since: AtomicU64,
     secure_released_keystrokes: AtomicU64,
     secure_held_keystrokes: AtomicU64,
     secure_held_suppressed_down: AtomicU64,
@@ -344,6 +345,15 @@ impl InputCounters {
         self.0.kept_private.load(Ordering::Relaxed)
     }
 
+    /// Marks the second, counted from 1970, of the first reading of a row that has read on
+    /// for [`KEPT_PRIVATE_AFTER`] or more, whatever types the tap asked for, or takes the
+    /// mark back.
+    fn set_secure_hold(&self, since: Option<u64>) {
+        self.0
+            .secure_hold_since
+            .store(since.unwrap_or(0), Ordering::Relaxed);
+    }
+
     /// Key downs that came in time and were read while secure input was on; each
     /// was suppressed and never emitted. A modifier press after a reading of on is
     /// a reading alone and is not counted, and a late or untimed press under
@@ -378,6 +388,7 @@ impl InputCounters {
             secure_window_pointer: read(&f.secure_window_pointer),
             secure_window_keys_typed: f.secure_window_keys_typed.load(Ordering::Relaxed),
             typing_gate: None,
+            secure_hold_since: Some(read(&f.secure_hold_since)).filter(|since| *since > 0),
         }
     }
 }
@@ -597,13 +608,6 @@ fn monotonic_raw() -> Monotonic {
 fn uptime_raw() -> Uptime {
     // SAFETY: as in `monotonic_raw`.
     Uptime::from_nanos(unsafe { clock_gettime_nsec_np(libc::CLOCK_UPTIME_RAW) })
-}
-
-/// The whole seconds since 1970 by the system's clock; 0 where that clock reads earlier.
-fn unix_seconds_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs())
 }
 
 const CLOCKS: Clocks = Clocks {
@@ -898,8 +902,9 @@ struct TapContext {
     folds: Mutex<Folds>,
     fold_timer: Mutex<Option<ReadingTimer>>,
     /// The stamp of the first reading of a row that read on at the fold timer's fires
-    /// ([`TapContext::read_kept_private`]); none after a reading of off or unknown.
-    private_since: Mutex<Option<Monotonic>>,
+    /// ([`TapContext::read_kept_private`]), with that reading's second by the clock `wall`;
+    /// none after a reading of off or unknown.
+    private_since: Mutex<Option<(Monotonic, u64)>>,
     /// The clock of the second that a status names for a hold of secure input: whole
     /// seconds since 1970.
     wall: fn() -> u64,
@@ -1515,6 +1520,7 @@ impl Drop for TapContext {
             .unwrap_or_else(PoisonError::into_inner)
             .take();
         self.counters.count_folds_dropped_at_stop(&left);
+        self.counters.set_secure_hold(None);
     }
 }
 
@@ -1550,26 +1556,31 @@ impl TapContext {
     }
 
     /// One reading of the secure-input state at a fire of the fold timer, once a second
-    /// ([`POINTER_FOLD_INTERVAL`]), for a context whose start asked for the key types: the
-    /// input figures are marked once every reading since the first of a row that read on has
-    /// read on for [`KEPT_PRIVATE_AFTER`] or more, and a reading of off or unknown takes the
-    /// mark back. It runs on the tap thread, whose stop a shutdown waits for
-    /// [`INPUT_STOP_DEADLINE`] at most.
+    /// ([`POINTER_FOLD_INTERVAL`]), whatever types the context's start asked for. Once every
+    /// reading since the first of a row that read on has read on for [`KEPT_PRIVATE_AFTER`]
+    /// or more, the input figures carry the second of that first reading, and for a context
+    /// whose start asked for the key types they carry the mark that the source's health
+    /// reads; a reading of off or unknown takes both back. It runs on the tap thread, whose
+    /// stop a shutdown waits for [`INPUT_STOP_DEADLINE`] at most.
     fn read_kept_private(&self) {
-        if !self.keys_asked {
-            return;
-        }
         let on = (self.secure)((self.session)()) == Reading::On;
         let now = (self.clocks.stamps)();
         let mut since = self
             .private_since
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        *since = if on { Some(since.unwrap_or(now)) } else { None };
-        let kept = since.is_some_and(|first| {
+        *since = match (on, *since) {
+            (false, _) => None,
+            (true, None) => Some((now, (self.wall)())),
+            (true, first) => first,
+        };
+        let kept = since.filter(|(first, _)| {
             Duration::from_nanos(now.nanos().saturating_sub(first.nanos())) >= KEPT_PRIVATE_AFTER
         });
-        self.counters.set_kept_private(kept);
+        self.counters
+            .set_kept_private(kept.is_some() && self.keys_asked);
+        self.counters
+            .set_secure_hold(kept.map(|(_, second)| second));
     }
 }
 
@@ -1820,7 +1831,7 @@ fn tap_context(
         folds: Mutex::new(Folds::default()),
         fold_timer: Mutex::new(None),
         private_since: Mutex::new(None),
-        wall: unix_seconds_now,
+        wall: crate::floor::exclude::unix_seconds_now,
         held_phase: Arc::new(AtomicBool::new(false)),
         keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -2443,6 +2454,7 @@ impl InputSource {
         *self.released.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
         self.counters.set_kept_private(false);
+        self.counters.set_secure_hold(None);
         self.keys_missing.store(false, Ordering::SeqCst);
         let events = self.start_events();
         self.off = events.is_empty();
@@ -7193,7 +7205,6 @@ mod tests {
         fire();
         assert!(!held.counters.kept_private(), "a reading of unknown");
         held.ctx.keys_asked = false;
-        let before = asked();
         answer(Reading::On);
         fire();
         advance(30_000);
@@ -7201,11 +7212,6 @@ mod tests {
         assert!(
             !held.counters.kept_private(),
             "a tap that asked no key type"
-        );
-        assert_eq!(
-            asked(),
-            before,
-            "a tap that asked no key type reads nothing"
         );
 
         let (handle, _writer) = sink::channel(8);

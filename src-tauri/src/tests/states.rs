@@ -1188,7 +1188,10 @@ fn the_view_hands_the_two_lists_of_what_is_left_out_to_the_page_as_a_status_line
     assert_eq!(both.get("left_out"), Some(&list(left_out)));
     assert_eq!(both.get("left_out_before"), Some(&list(left_out_before)));
     let none = view(line(""));
-    assert_eq!((none.get("left_out"), none.get("left_out_before")), (None, None));
+    assert_eq!(
+        (none.get("left_out"), none.get("left_out_before")),
+        (None, None)
+    );
     let later = view(line(
         r#","left_out":[{"cause":"a_later_cause","what":["typing","a_later_part"],"since":"2027-01-15T08:00:00Z"}]"#,
     ));

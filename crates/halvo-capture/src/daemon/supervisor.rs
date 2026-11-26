@@ -944,8 +944,19 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 .ctx
                 .as_ref()
                 .is_some_and(|ctx| ctx.floor().left_out_in_doubt()),
-            doubt_told: crate::floor::exclude::DoubtTold::default(),
+            doubt_told: self
+                .floor_held()
+                .map(crate::floor::exclude::FloorHandle::doubt_told)
+                .unwrap_or_default(),
         }
+    }
+
+    /// The floor of the run's sources: of the context that they hold, or of the one that
+    /// the run serves while none is begun.
+    #[cfg(any(target_os = "macos", windows))]
+    fn floor_held(&self) -> Option<&crate::floor::exclude::FloorHandle> {
+        let served = self.served.as_ref().map(|(ctx, _)| ctx);
+        self.ctx.as_ref().or(served).map(SourceContext::floor)
     }
 
     /// The word of a Pause or a Resume of a client (contracts.md C2.5):
@@ -1321,7 +1332,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
     /// stop. The slot of a delete takes the loss of the last life back, so
-    /// that no status prints it behind a delete of everything.
+    /// that no status prints it behind a delete of everything, and has the
+    /// floor forget the last stretch that it left out by doubt.
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn set_slot_answering(
         &mut self,
@@ -1331,6 +1343,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     ) {
         if matches!(slot, Slot::Deleting) {
             self.board.last_life = None;
+            if let Some(floor) = self.floor_held() {
+                floor.forget_doubt_before();
+            }
         }
         self.slot = slot;
         if let Some(ending) = self.follow_the_run_condition(owner, reply) {
@@ -9814,7 +9829,11 @@ mod tests {
         later(1);
         left_out_by_doubt(60);
         let first = before("2027-01-15T08:01:00Z", "2027-01-15T08:02:00Z");
-        assert_eq!(told(&f), (None, first.clone()), "behind a stretch of 60 seconds");
+        assert_eq!(
+            told(&f),
+            (None, first.clone()),
+            "behind a stretch of 60 seconds"
+        );
         left_out_by_doubt(59);
         assert_eq!(
             told(&f),
@@ -9822,17 +9841,18 @@ mod tests {
             "a stretch of 59 seconds behind it does not take its place"
         );
         later(24 * 60 * 60 - 60);
-        assert_eq!(told(&f), (None, first), "a second less than 24 hours behind its end");
+        assert_eq!(
+            told(&f),
+            (None, first),
+            "a second less than 24 hours behind its end"
+        );
         later(1);
         assert_eq!(told(&f), (None, None), "24 hours behind its end");
 
         left_out_by_doubt(60);
         assert_eq!(
             told(&f),
-            (
-                None,
-                before("2027-01-16T08:02:00Z", "2027-01-16T08:03:00Z")
-            ),
+            (None, before("2027-01-16T08:02:00Z", "2027-01-16T08:03:00Z")),
             "a later stretch"
         );
         f.supervisor
