@@ -164,11 +164,15 @@ pub trait SourceFactory {
 /// source with no hold planned (ruling MA-9 part (3)) and the product's
 /// bound. The factory keeps the writer and gives each foreground source it
 /// makes a share of it, so that a source started after a lapse and a renewal
-/// writes the app in front again.
+/// writes the app in front again. It keeps one handle of what its foreground
+/// sources have told of the processes of Chrome and Edge and gives each of
+/// them a share of it too, so that a source started after a stop finds the
+/// decisions of the sources before it.
 #[cfg(target_os = "macos")]
 pub struct ServiceSources {
     foreground_writer: crate::macos::foreground::ForegroundWriter,
     foreground_reader: crate::macos::foreground::ForegroundReader,
+    browsers_told: crate::macos::foreground::BrowsersTold,
     turns: crate::macos::run_loop::RunLoopTurns,
     input_counters: crate::macos::input::InputCounters,
     keys_refused: bool,
@@ -186,6 +190,7 @@ impl ServiceSources {
         ServiceSources {
             foreground_writer: writer,
             foreground_reader: reader,
+            browsers_told: crate::macos::foreground::BrowsersTold::default(),
             turns,
             input_counters: crate::macos::input::InputCounters::new(),
             keys_refused: false,
@@ -215,18 +220,22 @@ impl SourceFactory for ServiceSources {
         use crate::macos::{foreground, input, screen};
         match name {
             #[cfg(test)]
-            SourceName::Foreground if self.stand_in_titles => {
-                Some(Box::new(foreground::ForegroundSource::with_stand_in_title(
+            SourceName::Foreground if self.stand_in_titles => Some(Box::new(
+                foreground::ForegroundSource::with_stand_in_title(
                     foreground::FOREGROUND_POLL,
                     self.foreground_writer.share(),
                     self.turns.clone(),
-                )))
-            }
-            SourceName::Foreground => Some(Box::new(foreground::ForegroundSource::new(
-                foreground::FOREGROUND_POLL,
-                self.foreground_writer.share(),
-                self.turns.clone(),
-            ))),
+                )
+                .sharing(&self.browsers_told),
+            )),
+            SourceName::Foreground => Some(Box::new(
+                foreground::ForegroundSource::new(
+                    foreground::FOREGROUND_POLL,
+                    self.foreground_writer.share(),
+                    self.turns.clone(),
+                )
+                .sharing(&self.browsers_told),
+            )),
             SourceName::Screen => Some(Box::new(screen::ScreenSource::new(
                 screen::SCREEN_FRAME_CAP,
                 self.foreground_reader.clone(),
@@ -1044,6 +1053,27 @@ pub(crate) mod tests {
             stopped.len(),
             1,
             "the held source is asked again: {stopped:?}"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_service_s_factory_gives_each_foreground_source_a_share_of_its_one_handle_of_browsers_told(
+    ) {
+        let (writer, reader) = crate::macos::foreground::foreground_state_for_test();
+        let mut factory = ServiceSources::new(
+            writer,
+            reader,
+            crate::macos::run_loop::RunLoopTurns::for_test(Instant::now()),
+        );
+        assert_eq!(factory.browsers_told.holders(), 1, "the factory alone");
+        let first = factory.make(SourceName::Foreground);
+        let second = factory.make(SourceName::Foreground);
+        assert!(first.is_some() && second.is_some());
+        assert_eq!(
+            factory.browsers_told.holders(),
+            3,
+            "the factory and the two sources that it made"
         );
     }
 

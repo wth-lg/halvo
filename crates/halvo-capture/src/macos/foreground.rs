@@ -597,12 +597,54 @@ impl Place {
 
 /// The decision for one process of Chrome or Edge, found by the browser, the
 /// pid and the start of the process in ticks: taken at its first title
-/// request and kept until another process of that browser is decided.
+/// request and kept, by the sources that share one [`BrowsersTold`], until
+/// another process of that browser is decided.
 struct Decided {
     browser: &'static str,
     pid: libc::pid_t,
     started: u64,
     english: bool,
+}
+
+/// What title rules have told of the processes of Chrome and of Edge: at most
+/// one decision for each browser. The foreground sources that share one handle
+/// find each other's decisions, so that a decision outlives the source that
+/// took it. It holds no reading of a language and no epoch: each source reads
+/// both places anew at its start, so a process that started while no source
+/// ran has no decision here and is told as one that started before the
+/// readings.
+#[derive(Clone, Default)]
+pub(crate) struct BrowsersTold(Arc<Mutex<Vec<Decided>>>);
+
+impl BrowsersTold {
+    fn decisions(&self) -> std::sync::MutexGuard<'_, Vec<Decided>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The decision kept for the process `pid` of `browser` that started at
+    /// the tick `started`; `None` where the kept decision of that browser is
+    /// of another pid or of another start.
+    fn of(&self, browser: &str, pid: libc::pid_t, started: u64) -> Option<bool> {
+        self.decisions()
+            .iter()
+            .find(|decided| {
+                decided.browser == browser && decided.pid == pid && decided.started == started
+            })
+            .map(|decided| decided.english)
+    }
+
+    /// Keeps `decided` in the place of the decision of its browser.
+    fn keep(&self, decided: Decided) {
+        let mut decisions = self.decisions();
+        decisions.retain(|kept| kept.browser != decided.browser);
+        decisions.push(decided);
+    }
+
+    /// How many hold this handle: the one that made it and each share of it.
+    #[cfg(test)]
+    pub(crate) fn holders(&self) -> usize {
+        Arc::strong_count(&self.0)
+    }
 }
 
 /// The rules that tell, on the title thread, whether the title of the app in
@@ -622,7 +664,7 @@ pub(crate) struct TitleRules {
     list: Option<Option<Vec<String>>>,
     global: Option<Place>,
     own: Vec<(&'static str, Place)>,
-    decided: Vec<Decided>,
+    told: BrowsersTold,
 }
 
 impl TitleRules {
@@ -638,8 +680,16 @@ impl TitleRules {
             list: None,
             global: None,
             own: Vec::new(),
-            decided: Vec::new(),
+            told: BrowsersTold::default(),
         }
+    }
+
+    /// These rules with `told` in the place of their own: they keep there
+    /// what they tell of a browser's process, and find there what the rules
+    /// of the other sources that share `told` have told.
+    fn sharing(mut self, told: &BrowsersTold) -> Self {
+        self.told = told.clone();
+        self
     }
 
     fn system() -> Self {
@@ -736,19 +786,17 @@ impl TitleRules {
 
     /// Whether the process `pid` of `browser` runs in English: its start is
     /// read at each title request, and a decision is found by the browser, the
-    /// pid and that start; another start is decided anew.
+    /// pid and that start, also one that another source took which shares
+    /// what these rules have told; another start is decided anew.
     fn english(&mut self, browser: &'static str, id: &str, pid: libc::pid_t) -> bool {
         let Some(started) = self.languages.started(pid) else {
             return false;
         };
-        if let Some(decided) = self.decided.iter().find(|decided| {
-            decided.browser == browser && decided.pid == pid && decided.started == started
-        }) {
-            return decided.english;
+        if let Some(english) = self.told.of(browser, pid, started) {
+            return english;
         }
         let english = self.first_title(browser, id, pid, started);
-        self.decided.retain(|decided| decided.browser != browser);
-        self.decided.push(Decided {
+        self.told.keep(Decided {
             browser,
             pid,
             started,
@@ -1249,6 +1297,16 @@ impl ForegroundSource {
             #[cfg(test)]
             real: false,
         }
+    }
+
+    /// This source with `told` in the place of its own: it keeps there what
+    /// it tells of a process of Chrome or Edge, and finds there what the
+    /// sources before it that shared `told` have told.
+    pub(crate) fn sharing(mut self, told: &BrowsersTold) -> Self {
+        if let Some((read_front, read_title, rules, writer)) = self.readers.take() {
+            self.readers = Some((read_front, read_title, rules.sharing(told), writer));
+        }
+        self
     }
 
     fn running_state(&self) -> SourceState {
@@ -2276,10 +2334,22 @@ mod tests {
         /// a failed read), `language` for the reads of a language; the source
         /// began at the tick `began`.
         fn new(handlers: Option<&[&str]>, language: &SaidLanguage, began: u64) -> Self {
+            Self::sharing(handlers, language, began, &BrowsersTold::default())
+        }
+
+        /// [`Through::new`] for a source that shares `told`, as each source
+        /// that the service's factory makes shares the factory's.
+        fn sharing(
+            handlers: Option<&[&str]>,
+            language: &SaidLanguage,
+            began: u64,
+            told: &BrowsersTold,
+        ) -> Self {
             let list: Option<Vec<String>> =
                 handlers.map(|places| places.iter().map(|place| place.to_string()).collect());
             let mut rules =
-                TitleRules::new(Box::new(move || list.clone()), Box::new(language.clone()));
+                TitleRules::new(Box::new(move || list.clone()), Box::new(language.clone()))
+                    .sharing(told);
             language.said().clock = began;
             rules.begin();
             let (poller, handle, writer) = poller_with(FloorHandle::default());
@@ -2296,11 +2366,11 @@ mod tests {
         /// A stop of this source and a new start at the tick `began`, as a
         /// pause and a resume make them: the stopped source is dropped, and
         /// the new one has title rules of its own over the same reads of the
-        /// system.
+        /// system, which share what the stopped source's rules have told.
         fn starts_again(self, began: u64) -> Self {
-            let said = self.said.clone();
+            let (said, told) = (self.said.clone(), self.rules.told.clone());
             drop(self);
-            Self::new(None, &said, began)
+            Self::sharing(None, &said, began, &told)
         }
 
         /// The app `front` in front at the tick `now`, its window titled
@@ -2608,6 +2678,37 @@ mod tests {
         assert_eq!(
             (before, after, dropped),
             (vec![normal.to_string()], vec![normal.to_string()], 1)
+        );
+    }
+
+    #[test]
+    fn a_browser_that_started_while_no_source_ran_keeps_no_title_behind_the_new_start() {
+        let normal = "Quarterly plan - Google Docs - Google Chrome";
+        let private = "New Tab - Google Chrome (Incognito)";
+        let chrome = |pid| app("com.google.Chrome", pid);
+        let said = SaidLanguage::new(list_of("en-US"));
+        let mut through = Through::new(None, &said, at(0));
+        said.started(40, at(10));
+        through.shows(&chrome(40), normal, at(20));
+        let (_, before, _, _) = through.made();
+
+        // While no source runs: the language changes and changes back, and
+        // two processes start, the first with the pid of the process that was
+        // told as English.
+        said.set(list_of("de-DE"));
+        said.started(40, at(32));
+        said.started(41, at(34));
+        said.set(list_of("en-US"));
+        let mut through = through.starts_again(at(40));
+        for pid in [40, 41] {
+            for title in [normal, private] {
+                through.shows(&chrome(pid), title, at(50));
+            }
+        }
+        let (_, after, reads, dropped) = through.made();
+        assert_eq!(
+            (before, after, reads, dropped),
+            (vec![normal.to_string()], Vec::new(), 0, 0)
         );
     }
 
