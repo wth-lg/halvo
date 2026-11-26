@@ -27,6 +27,10 @@ pub struct ModelUse {
     pub key: Option<bool>,
     /// The person's spending limit as the reply of the limit's view gives it.
     pub limit: SpendLimit,
+    /// Whether every compile, recover and write row of the router's table hands back, as the app's
+    /// one function `model_key::hands_back` reads it (r4 U3.34): while it does, no agent of the
+    /// build asks a model, and a row offers no Use an AI model.
+    pub hands_back: bool,
 }
 
 /// The person's spending limit as the reply of the limit's view gives it (r7 8.1L).
