@@ -8,6 +8,8 @@ name=59-windows-noticing
 target=windows_noticing
 walk_test=the_walk_takes_its_steps_from_the_check
 state_file='daemon-state.json'
+slow_list=scripts/ci/slow-tests.txt
+programs='halvo halvo-capture halvo-owner halvo-analysis'
 service_s=60
 title_s=20
 clicks_s=20
@@ -548,15 +550,18 @@ walk_on() {
 }
 
 # Whether the $1 titles that a return gained, of $2 bytes together, are all titles of the
-# workbook's window: each within 8 bytes of the title record of occasion 1, whose bytes
-# book_bytes holds. The title of the second program's window is 40 signs longer. It sets books
-# to the words that the stage line prints, and books_hold to yes where every title is the
-# workbook's.
+# workbook's window: their bytes lie within 4 a title of the title record of occasion 1, whose
+# bytes book_bytes holds. The inventory gives the sum alone, so two titles may lie 8 bytes off
+# together: the title of the walk's second window is 14 signs shorter than the workbook's and
+# that of the second program's window 40 signs longer, and neither passes beside a title of the
+# workbook. A title record of one window differed by 1 byte on a hosted machine (311 and 312).
+# It sets books to the words that the stage line prints, and books_hold to yes where every
+# title is the workbook's.
 books_of() {
   books_hold=no
   if [ "$1" -lt 1 ]; then
     books='no title'
-  elif [ "$2" -ge $(($1 * (book_bytes - 8))) ] && [ "$2" -le $(($1 * (book_bytes + 8))) ]; then
+  elif [ "$2" -ge $(($1 * (book_bytes - 4))) ] && [ "$2" -le $(($1 * (book_bytes + 4))) ]; then
     books="the titles are the workbook's"
     books_hold=yes
   else
@@ -857,6 +862,68 @@ cases() {
   end_all
 }
 
+# The packages whose test targets the merge gate's 12-test leaves out in the windows job, as
+# --exclude words: the lines "targets <package> <group>" of the slow list, read as 12-test reads
+# them, without the lines whose fourth word is macos. A line that names halvo-capture is passed
+# over, so that the call still builds the walk's target.
+gate_excludes() {
+  tr -d '\r' <"$slow_list" | awk '$1 == "targets" && $4 != "macos" && $2 != "halvo-capture" { printf " --exclude %s", $2 }'
+}
+
+# Prints the executable that the build's JSON $1 names for the target of the kind $2 (test or
+# bin) and of the name $3, with / between its parts: nothing where the build named none.
+named_exe() {
+  sed -n 's/.*"kind":\["'"$2"'"\][^}]*"name":"'"$3"'".*"executable":"\([^"]*\)".*/\1/p' "$1" | sed 's/\\\\/\//g'
+}
+
+# Prints the features that the build's JSON $1 names for the program $2, with a comma between
+# them: nothing where the program has none or the build named no such program.
+named_features() {
+  sed -n 's/.*"kind":\["bin"\][^}]*"name":"'"$2"'".*"features":\[\([^]]*\)\].*/\1/p' "$1" | tr -d '"'
+}
+
+# Behind the first call: notes into $2 each of the four programs that the call's JSON $1 names,
+# with its features and the checksum of its file. A test build writes the programs of the
+# package of its test target.
+first_programs() {
+  : >"$2"
+  for program in $programs; do
+    path=$(named_exe "$1" bin "$program")
+    [ -n "$path" ] || continue
+    features=$(named_features "$1" "$program")
+    sum=$(cksum <"$path") || fail "the program $program that the first call wrote cannot be read: $path"
+    printf '%s features=%s %s\n' "$program" "$features" "$sum" >>"$2"
+  done
+}
+
+# Behind the plain call, by cargo's own words: each of the four programs is named by that
+# call's JSON $1 and stands in the directory $3; and where the first call wrote a program of
+# the same name with other features ($2 holds its notes), the file there is now another one, so
+# no program of the first call is started.
+plain_programs_hold() {
+  here=$(cd "$3" && pwd -P) || fail "the builds left no directory $3"
+  for program in $programs; do
+    path=$(named_exe "$1" bin "$program")
+    [ -n "$path" ] || fail "the plain build named no program $program; see build.txt"
+    there=$(cd "${path%/*}" && pwd -P) || fail "the directory of the program $program cannot be read: $path"
+    [ "$there" = "$here" ] || fail "cargo put the program $program outside $3: $path"
+    features=$(named_features "$1" "$program")
+    sum=$(cksum <"$path") || fail "the program $program cannot be read: $path"
+    note=
+    while read -r first_name first_features first_crc first_size; do
+      [ "$first_name" = "$program" ] || continue
+      if [ "$first_features" = "features=$features" ]; then
+        note='; the first call built the same program'
+      elif [ "$first_crc $first_size" = "$sum" ]; then
+        fail "the program $program in $3 is still the one that the test build wrote ($first_features), not the plain one (features=$features)"
+      else
+        note="; it took the place of the program that the test build wrote under that name ($first_features)"
+      fi
+    done <"$2"
+    printf 'program %s: of the plain build, features=%s, %s/%s%s\n' "$program" "$features" "$3" "${path##*/}" "$note"
+  done
+}
+
 measure() {
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   cd "$repo" || exit 2
@@ -868,35 +935,51 @@ measure() {
   cr=$(printf '\r')
   now
   built=$stamp
-  # Both builds take the feature set of the whole workspace, as the --workspace calls of the
-  # merge gate's 12-test do, so that the build cache that the job restored serves the crates of
-  # crates.io. A call that names packages with -p resolves other features for crates that
-  # much depends on (windows-sys, syn, proc-macro2, serde, tokio), and cargo then compiles
-  # those and everything behind them again.
-  # The test build stands first and the plain build of the four programs last: halvo-capture
-  # depends on itself for its tests with two seams, and the programs that the run starts are
-  # those of the plain build.
-  cargo test --locked --workspace --test "$target" --no-run --message-format json >"$work/build.json" 2>"$artifacts/build.txt" ||
+  # Two calls. The first builds the walk's test target, and it is the target call of the merge
+  # gate's 12-test narrowed to that one target: it leaves the same packages out, so cargo
+  # resolves the same features and plans the same builds, and the build cache that the job
+  # restored, which a push run of main saved behind that call, holds each crate of crates.io
+  # that it needs. With another selection (the whole workspace, or -p halvo-capture) cargo
+  # plans another build of syn 2 and of what stands on it, the windows crate among them: 14
+  # crates of crates.io in the hosted run 45821167654.
+  # The second call is the plain build of the four programs, and it stands LAST. A build with
+  # no test target is resolved with no dev-dependency, and no call of the merge gate builds a
+  # plain program of the four, so the cache holds little of it: cargo compiled 100 crates of
+  # crates.io for it in 137 s in that run.
+  # The first call writes one program too, for its test target: halvo-capture with the two
+  # seams that the package turns on for its own tests, as target/debug/halvo-capture. The plain
+  # call puts its own program there, and plain_programs_hold holds that: the programs that the
+  # walk starts are the plain ones.
+  excludes=$(gate_excludes) || fail "$slow_list cannot be read"
+  [ -n "$excludes" ] || fail "$slow_list names no package whose test targets the merge gate leaves out"
+  # shellcheck disable=SC2086
+  cargo test --workspace $excludes --locked --test "$target" --no-run --message-format json >"$work/build.json" 2>"$artifacts/build.txt" ||
     fail "the build of the test target $target failed; see build.txt"
-  exe=$(sed -n 's/.*"name":"'"$target"'".*"executable":"\([^"]*\)".*/\1/p' "$work/build.json")
+  exe=$(named_exe "$work/build.json" test "$target")
   [ -n "$exe" ] || fail "cargo named no executable for the test target $target"
   case $exe in
     *"
 "*) fail "cargo named more than one executable for the test target $target" ;;
   esac
-  exe=$(printf '%s\n' "$exe" | sed 's/\\\\/\//g')
   [ -f "$exe" ] || fail "the test executable that cargo named does not exist"
+  cp "$exe" "$work/EXCEL.EXE" || fail "the walk's program cannot be copied to EXCEL.EXE"
+  cp "$exe" "$work/noticing-pass.exe" || fail "the walk's program cannot be copied to noticing-pass.exe"
+  first_programs "$work/build.json" "$work/first-programs.txt"
   now
   test_built=$stamp
   test_crates=$(grep -c '^ *Compiling ' "$artifacts/build.txt") || test_crates=0
-  cargo build --locked --workspace --bin halvo --bin halvo-capture --bin halvo-owner --bin halvo-analysis >>"$artifacts/build.txt" 2>&1 ||
+  test_outside=$(grep -c '^ *Compiling [^(]*$' "$artifacts/build.txt") || test_outside=0
+  cargo build --locked --workspace --bin halvo --bin halvo-capture --bin halvo-owner --bin halvo-analysis --message-format json >"$work/programs.json" 2>>"$artifacts/build.txt" ||
     fail "cargo build --locked --workspace --bin halvo --bin halvo-capture --bin halvo-owner --bin halvo-analysis failed; see build.txt"
   both_crates=$(grep -c '^ *Compiling ' "$artifacts/build.txt") || both_crates=0
-  cp "$exe" "$work/EXCEL.EXE" || fail "the walk's program cannot be copied to EXCEL.EXE"
-  cp "$exe" "$work/noticing-pass.exe" || fail "the walk's program cannot be copied to noticing-pass.exe"
+  both_outside=$(grep -c '^ *Compiling [^(]*$' "$artifacts/build.txt") || both_outside=0
+  plain_programs_hold "$work/programs.json" "$work/first-programs.txt" target/debug
   now
-  printf 'build seconds: %s (the test target: %s s, %s crates compiled; the four programs: %s s, %s crates compiled)\n' \
-    "$((stamp - built))" "$((test_built - built))" "$test_crates" "$((stamp - test_built))" "$((both_crates - test_crates))"
+  printf 'build seconds: %s (the test target: %s s, %s crates compiled, %s of them of crates.io; the four programs: %s s, %s crates compiled, %s of them of crates.io)\n' \
+    "$((stamp - built))" "$((test_built - built))" "$test_crates" "$test_outside" \
+    "$((stamp - test_built))" "$((both_crates - test_crates))" "$((both_outside - test_outside))"
+  [ "$test_outside" = 0 ] ||
+    printf 'note: the build cache of the job did not hold %s crates of crates.io that the build of the test target needs; build.txt names them\n' "$test_outside"
   cases target/debug "$work"
   git diff --quiet HEAD -- || fail "a tracked file differs from HEAD after the builds and the walk"
   printf 'PASS %s\n' "$name"
@@ -932,6 +1015,7 @@ fixture() {
   w_batches=0
   w_front=halvo
   w_last_title=none
+  w_second_due=
   to_native() {
     native=$1
   }
@@ -945,6 +1029,10 @@ fixture() {
   }
   pause() {
     w_clock=$((w_clock + $1))
+    if [ -n "$w_second_due" ] && [ "$w_clock" -ge "$w_second_due" ]; then
+      w_second_due=
+      world_second_pair
+    fi
     world_search
   }
   start_app() {
@@ -986,8 +1074,17 @@ fixture() {
         return 0
         ;;
     esac
+    printf 'halvo-capture: analysis end=committed code=0 peak_bytes=1048576\n' >>"$err"
+    if [ "$mode" = second-pair-comes-late ]; then
+      w_second_due=$((w_clock + 2))
+      return 0
+    fi
+    world_second_pair
+  }
+  # The second worker's batch line, with no record, and its commit line. In the mode
+  # second-pair-comes-late the world writes them 2 s behind the first pair, as a machine did.
+  world_second_pair() {
     {
-      printf 'halvo-capture: analysis end=committed code=0 peak_bytes=1048576\n'
       printf 'batch end=newest run_open=no start_first=no records=0 episodes=0\n'
       printf 'halvo-capture: analysis end=committed code=0 peak_bytes=524288\n'
     } >>"$err"
@@ -1082,6 +1179,11 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
         case $mode in
           return-own-no-title) ;;
           two-titles-at-each-return) world_adds title 2 120 ;;
+          a-shorter-title-beside-the-workbooks) world_adds title 2 106 ;;
+          return-own-two-records)
+            world_adds fa 1
+            world_adds title 1 60
+            ;;
           *) world_adds title 1 60 ;;
         esac
         world_adds pointer 1
@@ -1181,6 +1283,7 @@ self_test() {
   rejected=0
   run_case green PASS 'stage row occasion=3 ok state=running proposals=1 stored=1 category=spreadsheet_fill count=3 by_hand=no'
   run_case two-titles-at-each-return PASS 'stage return-short occasion=2 ok foreground_app=+2 window_title=+2 title_bytes=+120, the titles are the workbook'"'"'s, wanted +2 and +1 or +2;'
+  run_case second-pair-comes-late PASS 'second worker occasion=3: 1 batch lines behind the own one, 1 commit lines behind its commit, waited 2 s'
   run_case service-no-fresh-lease FAIL '(occasion 0, stage service: within 4 s ctl status read desired=running capture=running capture_reason=- lease=none'
   run_case service-no-window-of-the-app FAIL '(occasion 0, stage service: no window of the app'
   run_case no-title-count FAIL '(occasion 1, stage title: window_title=+0 within 4 s behind the click into the window; pointer=+1 foreground_app=+1; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at='
@@ -1196,6 +1299,8 @@ self_test() {
   run_case one-empty-batch-line FAIL '(occasion 1, stage episode: the product'"'"'s fault: the pause shows one batch line with records=0 and the records counted in the store: pointer=+12 behind the occasion'"'"'s baseline; batch end=newest run_open=no start_first=no records=0 episodes=0)'
   run_case a-window-passes-behind-the-clicks FAIL '(occasion 2, stage carry: not walked: foreground_app=+1 window_title=+0 behind its clicks' "$row_three"
   run_case return-own-no-title FAIL '(occasion 2, stage return-own: foreground_app=+1 window_title=+0 title_bytes=+0, no title, wanted +1 and +1 or +2; walk away=call fg_events=2 stay_ms=3004;' "$row_three"
+  run_case return-own-two-records FAIL '(occasion 2, stage return-own: foreground_app=+2 window_title=+1 title_bytes=+60, the titles are the workbook'"'"'s, wanted +1 and +1 or +2; walk away=call fg_events=2 stay_ms=3004;' "$row_three"
+  run_case a-shorter-title-beside-the-workbooks FAIL '(occasion 2, stage return-own: foreground_app=+1 window_title=+2 title_bytes=+106, a title of another window is among them, wanted +1 and +1 or +2; walk away=call fg_events=2 stay_ms=3004;' "$row_three"
   run_case return-short-no-title FAIL '(occasion 2, stage return-short: foreground_app=+2 window_title=+0 title_bytes=+0, no title, wanted +2 and +1 or +2; walk fg_events=2 stay_ms=1 try=1;' "$row_three"
   run_case return-short-not-met-in-three-tries FAIL '(occasion 2, stage return-short: return-short=not-met in 3 tries: foreground_app=+2 window_title=+2' "$row_three"
   run_case order-O4 FAIL '(occasion 2, stage return-short: order=O4 foreground_app=+2 window_title=+0' "$row_three"

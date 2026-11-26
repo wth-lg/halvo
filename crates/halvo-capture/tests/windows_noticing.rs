@@ -73,8 +73,8 @@ const WORKBOOK_TITLE: &str = "Budget.xlsx - Excel";
 const NOTES_TITLE: &str = "Notes";
 const PASS_TITLE: &str = "Pass - the second program of the check hands the front back";
 
-// The check reads a title record as the workbook's where its bytes are within 8 of the
-// workbook's first one, at each of two titles of a return at most.
+// The check reads the titles of a return as the workbook's where their bytes lie within 4 a
+// title of the workbook's first title record; a return gains two titles at most.
 const _: () = assert!(PASS_TITLE.len() == WORKBOOK_TITLE.len() + 40);
 const APP_FILE: &str = "halvo.exe";
 
