@@ -331,14 +331,14 @@ impl Runner {
 
     /// `mail_draft_reply_each` of the messages that the list kept, each with its body, all of them before the first
     /// draft: for a message whose draft of an earlier run waits, the text that the store keeps for that draft
-    /// (`load_reply_body`, r3 U7.9) with the source `model`, else the const text, and no request to a model; for
-    /// every other message the body that the writer gives it (crate::model::write): the writer model's text cut at
+    /// (`load_reply_body`, r3 U7.9) with the source `model`, else the const text, and no request to a model; for every
+    /// other message the body that the writer gives it (crate::model::write): the writer model's text cut at
     /// `reply_body`, or the const text. The rows of each draft are stored as the adapter hands it over, before it
     /// drafts the next message, so that a run cut in this step leaves at most one draft with no row: `drafted` for a
-    /// new draft, with the writer model's text beside it where the body is one (r3 U7.9), then `withheld` for one
-    /// that the adapter held back, and `lost` for a draft of an earlier run that the adapter found lost; a draft of an
-    /// earlier run that passed gets no row. A failed call leaves the row of the draft whose PATCH gave no answer that
-    /// passed.
+    /// new draft, with the writer model's text beside it where the body is one and the adapter did not hold the draft
+    /// back (r3 U7.9), then `withheld` for one that the adapter held back, and `lost` for a draft of an earlier run
+    /// that the adapter found lost; a draft of an earlier run that passed gets no row. A failed call leaves the row of
+    /// the draft whose PATCH gave no answer that passed.
     fn draft_replies(
         &mut self,
         step: &ExecutableStep,

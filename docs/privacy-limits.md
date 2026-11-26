@@ -421,12 +421,13 @@ These never leave with such a request:
 Halvo keeps the text of a reply that an AI model wrote for an agent, so that,
 while the draft of that reply waits in the person's mailbox for an answer on its
 card, the agent's next card shows the same text and the draft keeps it. It keeps
-that text as the card showed it, and nothing else that the model wrote, in its
-store on this computer, for 35 days from the day of the draft. A draft that
-still waits when those 35 days have passed gets, at the agent's next task, the
-text that Halvo sets itself in the place of the model's, on its card and in the
-mailbox. Deleting the agent, or Delete everything, takes the kept text away with
-the agent's other records. After the reply was sent, after Halvo found that its
+that text as the agent prepared it for the draft, also where the task ended
+before a card showed it, and nothing else that the model wrote, in its store on
+this computer, for 35 days from the day of the draft. A draft that still waits
+when those 35 days have passed gets, at the agent's next task, the text that
+Halvo sets itself in the place of the model's, on its card and in the mailbox.
+Deleting the agent, or Delete everything, takes the kept text away with the
+agent's other records. After the reply was sent, after Halvo found that its
 draft was removed from the mailbox or no longer answers the sender alone, and
 where Halvo could not tell whether it was sent, no task of the agent reads that
 text again, and it stays in the store until its 35 days have passed. The test

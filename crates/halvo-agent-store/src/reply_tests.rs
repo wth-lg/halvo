@@ -134,6 +134,11 @@ fn u79_a_kept_reply_text_reads_while_its_draft_waits_and_no_read_hands_it_out_af
         runner(&mut store, beside_begun).is_err(),
         "a text beside begun"
     );
+    runner(&mut store, row(1, "m4", "drafted", None)).expect("a first drafted row");
+    assert!(
+        runner(&mut store, row(2, "m4", "begun", Some(TEXT))).is_err(),
+        "a text beside begun after drafted"
+    );
     let over = "x".repeat(3_100);
     assert!(
         runner(&mut store, row(1, "m3", "drafted", Some(&over))).is_err(),
@@ -141,4 +146,5 @@ fn u79_a_kept_reply_text_reads_while_its_draft_waits_and_no_read_hands_it_out_af
     );
     assert_eq!(kept_rows(&store), 2, "a refused body stores nothing");
     assert_eq!(kept(&mut store, 1, "m3"), Value::Null);
+    assert_eq!(kept(&mut store, 1, "m4"), Value::Null);
 }
