@@ -413,7 +413,7 @@ pub(in crate::executable) fn reply_body_fits(
 object_type! {
     /// The text of a reply that a writer model wrote, kept beside its reply row for 35 days (r3 U7.9), kind
     /// `agent_reply_body`: ids, the day and the instant of the request that stored the first `drafted` row of the
-    /// draft, the message's id, the draft's id, and under `body` the text as the draft step cut it and wrote it into
+    /// draft, the message's id, the draft's id, and under `body` the text as the draft step cut it and prepared it for
     /// the draft, in the pieces of `OwnValue`, never empty and its JSON at most `REPLY_BODY_JSON_MAX` bytes. No
     /// address, no subject and no text of a message. The handler of `reply_row` stores it in the commit of that
     /// `drafted` row, and the handler of `load_reply_body` hands it to the agent's own run alone while the agent's
