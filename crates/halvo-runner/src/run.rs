@@ -127,7 +127,8 @@ pub(crate) struct Runner {
     /// The origin of the bindings to which such a click or press sent the state-changing request that the rule
     /// failed, which the drive takes to write the effect step.
     pub(crate) effect_origin: Option<WebOrigin>,
-    /// The stand-in door that a unit test gives in the place of halvo-model beside the runner.
+    /// The door that a unit test gives in the place of halvo-model beside the runner: a stand-in, or in the one test
+    /// of crate::model::tests::real_door a script that starts the built door with its loopback port.
     #[cfg(test)]
     pub(crate) stand_in_door: Option<crate::model::ask::Place>,
     /// The requests that a unit test of crate::model asks through `ask`, each with the pick of a test

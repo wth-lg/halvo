@@ -10,7 +10,7 @@ on:
       slice:
         description: The slice of scripts/ci/slices.txt to run
         type: choice
-        options: [mon, tue, tue2, wed, wed2, thu, fri, sat, sun]
+        options: [mon, tue, tue2, wed, wed2, thu, fri, sat, sun, pages]
         default: mon
       checks:
         description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)
@@ -53,9 +53,9 @@ jobs:
           CHECKS: ${{ inputs.checks }}
         run: |
           case $SLICE in
-            mon | tue | tue2 | wed | wed2 | thu | fri | sat | sun) slice=$SLICE ;;
+            mon | tue | tue2 | wed | wed2 | thu | fri | sat | sun | pages) slice=$SLICE ;;
             *)
-              echo "Slice: '$SLICE' is no slice of scripts/ci/slices.txt. Fix: run the workflow by hand with the input slice set to mon, tue, tue2, wed, wed2, thu, fri, sat or sun, or name checks with the input checks."
+              echo "Slice: '$SLICE' is no slice of scripts/ci/slices.txt. Fix: run the workflow by hand with the input slice set to mon, tue, tue2, wed, wed2, thu, fri, sat, sun or pages, or name checks with the input checks."
               exit 1
               ;;
           esac
@@ -222,9 +222,9 @@ jobs:
           CHECKS: ${{ inputs.checks }}
         run: |
           case $SLICE in
-            mon | tue | tue2 | wed | wed2 | thu | fri | sat | sun) slice=$SLICE ;;
+            mon | tue | tue2 | wed | wed2 | thu | fri | sat | sun | pages) slice=$SLICE ;;
             *)
-              echo "Slice: '$SLICE' is no slice of scripts/ci/slices.txt. Fix: run the workflow by hand with the input slice set to mon, tue, tue2, wed, wed2, thu, fri, sat or sun, or name checks with the input checks."
+              echo "Slice: '$SLICE' is no slice of scripts/ci/slices.txt. Fix: run the workflow by hand with the input slice set to mon, tue, tue2, wed, wed2, thu, fri, sat, sun or pages, or name checks with the input checks."
               exit 1
               ;;
           esac

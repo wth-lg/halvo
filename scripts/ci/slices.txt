@@ -1,11 +1,11 @@
-# The nine slices: what CI runs outside the merge gate. A slice runs only by hand: the event
+# The ten slices: what CI runs outside the merge gate. A slice runs only by hand: the event
 # workflow_dispatch of .github/workflows/ci.yml with the input slice, one slice a run.
 # sh scripts/ci/run-ci-d.sh <job> --slice <slice> runs the lines of its slice and job: first the
 # self-tests, then the checks. A check or a self-test that no line here and no line of
 # scripts/ci/merge-gate.txt names runs in no run of CI.
 #
 # A line is: <slice> <job> <kind> <name>
-#   slice  mon, tue, tue2, wed, wed2, thu, fri, sat or sun
+#   slice  mon, tue, tue2, wed, wed2, thu, fri, sat, sun or pages
 #   job    macos or windows
 #   kind   check      the check of that name
 #          self-test  the self-test of the check of that name (no line names one since r8 cut-2: a run by
@@ -91,3 +91,11 @@ sun macos check 64-model-egress
 sun windows check 62-build
 sun windows check 70-package-windows
 sun windows check 64-model-egress
+
+# The slice pages runs the three browser suites of the agents page. 30-r4-page-suites took 460 s
+# and 431 s in the macos job and 642 s and 583 s in the windows job in its runs by hand
+# 45705544364 and 45733611573. It has a slice of its own: added to the shortest windows job of the
+# other slices in their runs of 2026-11-25 (415 s, the slice mon), its 642 s pass 1,000 s.
+pages macos check 30-r4-page-suites
+pages macos check 25-advisories
+pages windows check 30-r4-page-suites

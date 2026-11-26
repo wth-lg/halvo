@@ -16,7 +16,7 @@
 #                       test: 12-test runs it in the group form, by its group in scripts/ci/slow-tests.txt)
 #            by-hand    no run of CI runs it: the carrier of a unit that touches its part runs it, and the
 #                       coordinator before a build is named (scripts/ci/README.md, The merge gate)
-#   clause   for scheduled, first the slice (mon, tue, tue2, wed, wed2, thu, fri, sat or sun), then the job when the
+#   clause   for scheduled, first the slice (mon, tue, tue2, wed, wed2, thu, fri, sat, sun or pages), then the job when the
 #            jobs differ, then the reason; for gate, the job when one job alone has the check or the group
 #
 # A check has one line for each place: a check that is in the gate of one job alone has a second
@@ -26,7 +26,7 @@
 # where the job has room. What holds the rule on egress in the gate: 21-tree-bans in the windows
 # job, 60-r6-egress and 61-r6-senders-egress in the macos job and the tests of 12-test; 10-egress,
 # 80-r6-absent, 38-app-engine-routes and 20-r6-gateway run in slices.
-# Before a release the nine slices are run by hand at the commit of the release
+# Before a release the ten slices are run by hand at the commit of the release
 # (scripts/ci/README.md, The slices). The seconds of a check are those of the pull request run
 # 44877874023, which ran the whole table, unless the clause names another run; those of a group of
 # unit tests are the gaps before its lines in a job of the push run 44893237714.
@@ -121,8 +121,8 @@ egress target halvo-route/no_grant_in_release gate windows job (r8 cut-2, rule R
 egress units halvo-route::leave gate windows job (r8 cut-2, rule R4: its code holds no cfg by system, so the macos gate leaves it to the windows gate); under a hosted ruling a grant is made for the origin of the row of its tier alone, by equal bytes, and names that row
 egress units halvo-route::ruling gate windows job (r8 cut-2, rule R4: its code holds no cfg by system, so the macos gate leaves it to the windows gate); ruling=hosted over a table of hosts with no row reads as none
 egress target halvo-model/door gate windows job (r8 cut-2, rule R4: its code holds no cfg by system, so the macos gate leaves it to the windows gate); the door halvo-model holds a grant before any byte leaves and sends one request to the granted origin alone; what leaves is the closed fields alone; no line of the door holds a byte of a key or of a refused request; each row of the release table names an adapter of the door; the adapter's one operation stands in the door's files alone, and no file of the runner names a grant
-egress check 64-model-egress scheduled sun the macos job, 33 s there in the run by hand 45105491927; the built door in its stand-in form reaches the granted loopback origin alone under the egress check
-egress check 64-model-egress scheduled sun the windows job, 39 s there in the run by hand 45105491927
+egress check 64-model-egress scheduled sun the macos job, 33 s there in the run by hand 45105491927, before its second call (r6 U5.4), whose seconds there stand in the run by hand of the slice sun at the head of the pull request that added the call, and 7 s with that call on a developer's Mac with everything built; the built door in its stand-in form reaches the granted loopback origin alone under the egress check, and in the second call one ignored unit test of halvo-runner starts that door from the runner's own start, under the egress check's mode sandbox, where it sends its requests to a stand-in host on 127.0.0.1 alone
+egress check 64-model-egress scheduled sun the windows job, 39 s there in the run by hand 45105491927; that job makes the check's first call alone
 egress check 62-build scheduled sun the macos job and sun the windows job (its run of thu left with r8 cut-2), 566 s and 474 s in the two jobs of the slice sun in the run by hand 45105491927, 52 s and 68 s of them the build call of halvo-model; no shipped file, the door halvo-model's among them, holds the marker of the loopback route of halvo-connect
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
 egress check 10-egress scheduled wed2 the windows job, 215 s on an AMD EPYC 7763 in the slice thu of the run 45086425387

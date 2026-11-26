@@ -11,7 +11,7 @@ usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]
        sh scripts/ci/run-ci-d.sh <job> --checks '<NAME> [<NAME>...]'
        sh scripts/ci/run-ci-d.sh --list [<job>]
        sh scripts/ci/run-ci-d.sh --rules
-<job> is macos or windows. <slice> is mon, tue, tue2, wed, wed2, thu, fri, sat or sun.
+<job> is macos or windows. <slice> is mon, tue, tue2, wed, wed2, thu, fri, sat, sun or pages.
 Start it at the repo root.
 scripts/ci/README.md states the interface.
 EOF
@@ -58,7 +58,7 @@ case ${1:-} in
         plan=${1#--}
         plan_arg=$2
         case $plan:$plan_arg in
-          slice:mon | slice:tue | slice:tue2 | slice:wed | slice:wed2 | slice:thu | slice:fri | slice:sat | slice:sun) ;;
+          slice:mon | slice:tue | slice:tue2 | slice:wed | slice:wed2 | slice:thu | slice:fri | slice:sat | slice:sun | slice:pages) ;;
           slice:* | checks: | checks:*[!a-z0-9\ -]*) usage >&2; exit 64 ;;
         esac
         shift 2
@@ -144,7 +144,7 @@ plan_slice() {
     esac
     plan_ok=
     case $#:$1 in
-      4:mon | 4:tue | 4:tue2 | 4:wed | 4:wed2 | 4:thu | 4:fri | 4:sat | 4:sun) plan_ok=yes ;;
+      4:mon | 4:tue | 4:tue2 | 4:wed | 4:wed2 | 4:thu | 4:fri | 4:sat | 4:sun | 4:pages) plan_ok=yes ;;
     esac
     case ${2:-} in
       macos | windows) ;;
@@ -156,7 +156,7 @@ plan_slice() {
       *) plan_ok= ;;
     esac
     [ -n "$plan_ok" ] ||
-      plan_fail "$plan_list line $plan_n is not a slice (mon, tue, tue2, wed, wed2, thu, fri, sat or sun), a job (macos or windows), a kind (check, self-test or tests) and a name: the name of a check, or after tests the capital letter of a group of scripts/ci/slow-tests.txt"
+      plan_fail "$plan_list line $plan_n is not a slice (mon, tue, tue2, wed, wed2, thu, fri, sat, sun or pages), a job (macos or windows), a kind (check, self-test or tests) and a name: the name of a check, or after tests the capital letter of a group of scripts/ci/slow-tests.txt"
     [ "$1" = "$plan_arg" ] && [ "$2" = "$job" ] || continue
     case $3 in
       check) plan_ck="$plan_ck $4" ;;
