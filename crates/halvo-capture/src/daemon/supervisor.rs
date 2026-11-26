@@ -244,6 +244,10 @@ pub trait SystemSources: SourceFactory {
     fn refuse_keys(&mut self, refused: bool) {
         let _ = refused;
     }
+
+    /// Forgets what the factory's sources have told of the processes of a
+    /// browser: the supervisor's word at the slot of a delete of everything.
+    fn forget_browsers(&mut self) {}
 }
 
 /// The answer of a client's request for the system's question about one
@@ -1483,8 +1487,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
     /// stop. The slot of a delete takes the loss of the last life back, so
-    /// that no status prints it behind a delete of everything, and has the
-    /// floor forget the last stretch that it left out by doubt.
+    /// that no status prints it behind a delete of everything, has the floor
+    /// forget the last stretch that it left out by doubt, and has the factory
+    /// forget what its sources have told of a browser's processes.
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn set_slot_answering(
         &mut self,
@@ -1497,6 +1502,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if let Some(floor) = self.floor_held() {
                 floor.forget_doubt_before();
             }
+            self.factory.forget_browsers();
         }
         self.slot = slot;
         if let Some(ending) = self.follow_the_run_condition(owner, reply) {
@@ -10118,5 +10124,27 @@ mod tests {
         f.supervisor
             .set_slot_answering(Slot::Deleting, None, &mut |_| {});
         assert_eq!(told(&f), (None, None), "behind a delete of everything");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_delete_of_everything_has_a_browser_that_was_told_and_one_with_a_count_looked_at_anew() {
+        use crate::macos::foreground::tests_support::looks;
+        let (writer, reader) = crate::macos::foreground::foreground_state_for_test();
+        let factory = crate::daemon::sources::ServiceSources::new(
+            writer,
+            reader,
+            crate::macos::run_loop::RunLoopTurns::for_test(Instant::now()),
+        );
+        let told = factory.browsers_told();
+        let mut f = fixture(factory);
+        // A process that told its language: one look, and none behind it.
+        let answered = (looks(&told, 40, Some("en")), looks(&told, 40, Some("en")));
+        // A process with no answer: 25 looks in all, and none behind them.
+        let unanswered: usize = (0..30).map(|_| looks(&told, 41, None)).sum();
+        f.supervisor
+            .set_slot_answering(Slot::Deleting, None, &mut |_| {});
+        let anew = (looks(&told, 40, Some("en")), looks(&told, 41, None));
+        assert_eq!((answered, unanswered, anew), ((1, 0), 25, (1, 1)));
     }
 }
