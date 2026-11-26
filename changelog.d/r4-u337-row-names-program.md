@@ -1,0 +1,1 @@
+- Changed: (interface run, U3.37) On Windows the row of a task noticed in Excel names Microsoft Excel.
