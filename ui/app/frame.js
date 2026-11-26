@@ -123,7 +123,7 @@
     writeLine(wordsOf(e), null, false);
   };
 
-  /** A list read that failed writes its line, unless the line has taken the outcome of a newer read of that list, or a Dismiss took the same text away while that list's reads failed and none of them has succeeded since. */
+  /** A list read that failed writes its line, unless the line has taken the outcome of a newer read of that list, or a Dismiss took the same text away while that list's reads failed and none of them has succeeded or failed in another way since. */
   Halvo.readFailed = function (name, n, e) {
     if (!newest(name, n)) return;
     var text = wordsOf(e);
