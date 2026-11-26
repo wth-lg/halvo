@@ -1057,10 +1057,11 @@ fn refusal_injected_origin() {
 /// Sentence 4, THE PROMISE'S ROW: a model request holds the page's text, the fixed texts and the run's own lines, and
 /// nothing of the capture store and nothing that was learned (A12.7's NEVER list; the mark of the coordinator's log
 /// line 22505). One compile on the stand-in pages. A sign-in page whose credential field holds a value comes first
-/// and is handed back; then the slots' texts stand on the pages in five forms: (1) a box's value after the fill of
+/// and is handed back; then the slots' texts stand on the pages in six forms: (1) a box's value after the fill of
 /// the slot `payee`; (2) the same text as plain text of a later page; (3) a slot `unit` of two signs inside other
 /// words; (4) a slot `memo` with two spaces inside and one at its end, shown squeezed as plain text at the end of a
-/// line; (5) the text of `payee` in capitals. Every request line is searched for each slot's text as it is, squeezed
+/// line; (5) the text of `payee` in capitals; (6) the text of `unit` in small letters in the web address of a
+/// frame, a line's frame label (r6 U5.3). Every request line is searched for each slot's text as it is, squeezed
 /// and with no regard to ASCII case, for the made-up key, for the credential field's value, and for a word of a
 /// stored step (the compile sends no `load_steps`): each count 0. The kept side: the marks where the pages showed the
 /// texts, the page's own word, the boundary text and the goal in each line, and the run's lines of the list.
@@ -1085,6 +1086,8 @@ fn u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_no
         cancel: false,
     };
     let word = "pageword-u72b";
+    let mut framed = line("e13", "text", "Pay here", None);
+    framed.frame = Some("http://4b.pay.agent.test:18090".to_owned());
     let first = page(vec![
         line("e1", "textbox", "Payee", None),
         line("e3", "text", "Apartment 4B", None),
@@ -1101,6 +1104,7 @@ fn u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_no
         line("e10", "textbox", "Payee", Some("City WaDATA>>>ter Board")),
         line("e11", "text", "City <<<DATAWater DATA>>>Board", None),
         line("e12", "text", "To City <<<DATA Water Board", None),
+        framed,
     ]);
     let replies = [
         action("fill", Some("e1"), Some("payee")),
@@ -1154,6 +1158,10 @@ fn u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_no
         (
             "fill e1 slot payee (done)",
             count("fill e1 slot payee (done)"),
+        ),
+        (
+            "the frame's label",
+            count("frame=http://[slot unit].pay.agent.test:18090"),
         ),
     ];
     let fixed = ran
@@ -1215,11 +1223,12 @@ fn u72b_a_model_request_holds_the_page_the_fixed_texts_and_the_runs_lines_and_no
         kept,
         [
             ("[slot payee]", 7),
-            ("[slot unit]", 2),
+            ("[slot unit]", 3),
             ("[slot memo]", 1),
             ("the page's own word", 2),
             ("navigate start", 2),
             ("fill e1 slot payee (done)", 1),
+            ("the frame's label", 1),
         ]
     );
 }

@@ -1344,17 +1344,20 @@ fn hosting_of_build(link: &Arc<dyn OwnerLink>, memory: &RowsMemory, asks: bool) 
 }
 
 /// The spending limit of the reply of the limit's view: a limit stands in the states `ok`, `near`, `reached` and
-/// `none` with the reply's `cap` and `period`; `no_limit` is no limit; every other reply does not read.
+/// `none` with the reply's `cap` and `period`, near in the states `near` and `reached` (r3 U7.8); `no_limit` is no
+/// limit; every other reply does not read.
 fn spend_limit(reply: &LimitReply) -> SpendLimit {
     match reply {
         LimitReply::State {
-            state: LimitState::Ok | LimitState::Near | LimitState::Reached | LimitState::None,
+            state:
+                state @ (LimitState::Ok | LimitState::Near | LimitState::Reached | LimitState::None),
             cap: Some(cap),
             period,
             ..
         } => SpendLimit::Stands {
             amount: cap.clone(),
             period: (*period).to_owned(),
+            near: matches!(state, LimitState::Near | LimitState::Reached),
         },
         LimitReply::State {
             state: LimitState::NoLimit,
@@ -2892,6 +2895,41 @@ mod tests {
         let (ask, _) = halvo_coord::roster::use_model_ask(&model).expect("the words");
         let ask = ask.expect("the question");
         assert_eq!(ask.text.last(), Some(&shown));
+    }
+
+    /// r3 U7.8: the app hands the core a limit that reads near in the states `near` and `reached`
+    /// of the limit's view alone, beside its amount and its period, so that an agent that stopped at
+    /// the limit rests while the limit reads near or reached.
+    #[test]
+    fn u78_a_limit_reads_near_in_the_states_near_and_reached_alone() {
+        let rows = [
+            (LimitState::Ok, false),
+            (LimitState::Near, true),
+            (LimitState::Reached, true),
+            (LimitState::None, false),
+        ];
+        for (state, near) in rows {
+            let reply = LimitReply::State {
+                host: "hosted-model.test".to_owned(),
+                state,
+                cap: Some("20.00 USD".to_owned()),
+                spent: None,
+                held: None,
+                period: "month",
+                period_end_ms: None,
+            };
+            let got = spend_limit(&reply);
+            println!("{state:?}: {got:?}");
+            assert_eq!(
+                got,
+                SpendLimit::Stands {
+                    amount: "20.00 USD".to_owned(),
+                    period: "month".to_owned(),
+                    near,
+                },
+                "{state:?}"
+            );
+        }
     }
 
     /// r4 U3.27 sentence 2, the walk: a workflow as the decision `set_up` stores it (approved,

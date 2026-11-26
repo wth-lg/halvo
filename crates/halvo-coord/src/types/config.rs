@@ -33,12 +33,15 @@ pub struct ModelUse {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpendLimit {
     /// A limit stands (the states `ok`, `near`, `reached` and `none`): its amount and the word of
-    /// its period, as the reply writes them.
+    /// its period, as the reply writes them, and whether the room left is at most a fifth of the
+    /// limit (`near`, for the states `near` and `reached`; r3 U7.8).
     Stands {
         /// The amount, as the reply's `cap` writes it.
         amount: String,
         /// The word of the period, as the reply's `period` writes it.
         period: String,
+        /// Whether the reply's state is `near` or `reached`.
+        near: bool,
     },
     /// No limit is set (the state `no_limit`).
     NotSet,

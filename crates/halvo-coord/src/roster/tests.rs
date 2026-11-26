@@ -29,7 +29,182 @@ fn model(stands: bool) -> ModelUse {
         limit: SpendLimit::Stands {
             amount: "20.00 USD".to_owned(),
             period: "month".to_owned(),
+            near: false,
         },
+    }
+}
+
+/// What the app hands of a host with one model, with `stands`, the key's state `key` and the limit
+/// `limit` (r3 U7.8).
+fn model_with(stands: bool, key: Option<bool>, limit: SpendLimit) -> ModelUse {
+    ModelUse {
+        key,
+        limit,
+        ..model(stands)
+    }
+}
+
+/// A limit of 20.00 USD a month that reads near or not (r3 U7.8).
+fn limit(near: bool) -> SpendLimit {
+    SpendLimit::Stands {
+        amount: "20.00 USD".to_owned(),
+        period: "month".to_owned(),
+        near,
+    }
+}
+
+/// A web agent at `tier` with no playbook, whose one run, started by the person today, ended
+/// `handed_back` with the last cause `cause`, and beside whose configuration the app hands `model`
+/// (r3 U7.8).
+fn u78_handed_back(tier: Tier, cause: Option<LastCause>, model: Option<ModelUse>) -> Facts<Config> {
+    let mut f = facts(State::Ten).remove(0);
+    f.config = config(tier, Runtime::Web, model);
+    f.events.clear();
+    f.runs.clear();
+    let run = RunId::parse(&format!("{:032x}", 0x7880)).unwrap();
+    let whats = [
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run,
+            cause: RunEnd::HandedBack,
+            defers: None,
+        },
+    ];
+    for what in whats {
+        f.events.push(Event {
+            workflow: f.workflow.id.clone(),
+            agent: f.agent.clone(),
+            seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+            day: f.today,
+            at: i64::from(f.today) * 86_400_000_000_000,
+            what,
+        });
+    }
+    f.last_cause = cause;
+    f
+}
+
+/// r3 U7.8: an agent whose newest run handed its work back for a cause of a hosted model rests
+/// while that cause stands by what the app hands at the tick: the tick raises no `ready` and starts
+/// nothing, and the person's own start passes; once the facts show the cause gone, the tick raises
+/// `ready` again. Where the app hands no use of a model, where the key's state does not read for
+/// `no_model_key`, or where the limit does not read for `over_cap`, it rests.
+#[test]
+fn u78_an_agent_that_handed_back_for_a_cause_of_a_hosted_model_asks_again_only_once_the_cause_is_gone(
+) {
+    use crate::schedule::{start_step, tick_step, Around, Verdict};
+    let ok = model_with(true, Some(true), limit(false));
+    let rows = [
+        (
+            "no_agreement stands",
+            Tier::Frontier,
+            LastCause::NoAgreement,
+            Some(model(false)),
+            true,
+        ),
+        (
+            "no_agreement, no use of a model handed",
+            Tier::Frontier,
+            LastCause::NoAgreement,
+            None,
+            true,
+        ),
+        (
+            "no_agreement gone: the yes stands",
+            Tier::Frontier,
+            LastCause::NoAgreement,
+            Some(ok.clone()),
+            false,
+        ),
+        (
+            "no_model_key stands",
+            Tier::Frontier,
+            LastCause::NoModelKey,
+            Some(model_with(true, Some(false), limit(false))),
+            true,
+        ),
+        (
+            "no_model_key, the key's state does not read",
+            Tier::Frontier,
+            LastCause::NoModelKey,
+            Some(model_with(true, None, limit(false))),
+            true,
+        ),
+        (
+            "no_model_key gone: a key is saved",
+            Tier::Frontier,
+            LastCause::NoModelKey,
+            Some(ok.clone()),
+            false,
+        ),
+        (
+            "over_cap stands: the limit reads near",
+            Tier::Frontier,
+            LastCause::OverCap,
+            Some(model_with(true, Some(true), limit(true))),
+            true,
+        ),
+        (
+            "over_cap, the limit does not read",
+            Tier::Frontier,
+            LastCause::OverCap,
+            Some(model_with(true, Some(true), SpendLimit::Unread)),
+            true,
+        ),
+        (
+            "over_cap gone: the limit does not read near",
+            Tier::Frontier,
+            LastCause::OverCap,
+            Some(ok.clone()),
+            false,
+        ),
+        (
+            "over_cap gone: no limit is set",
+            Tier::Frontier,
+            LastCause::OverCap,
+            Some(model_with(true, Some(true), SpendLimit::NotSet)),
+            false,
+        ),
+        (
+            "shortfall stands",
+            Tier::Frontier,
+            LastCause::Shortfall,
+            Some(ok.clone()),
+            true,
+        ),
+        (
+            "shortfall gone: the way back to on_device",
+            Tier::OnDevice,
+            LastCause::Shortfall,
+            Some(model(false)),
+            false,
+        ),
+    ];
+    let around = Around {
+        listed: true,
+        live: 0,
+        model_held: false,
+        queued: 0,
+        window: false,
+        from_queue: false,
+        owed: false,
+    };
+    for (row, tier, cause, model, rests) in rows {
+        let f = u78_handed_back(tier, Some(cause), model);
+        let ask = tick_step(&f, true, &Limits::PRODUCT);
+        let start = start_step(&f, Trigger::Person, &Limits::PRODUCT, &around);
+        println!("row: {row}: tick {ask:?}, a start of the person {start:?}");
+        let want = if rests {
+            crate::schedule::Ask::Nothing
+        } else {
+            crate::schedule::Ask::Ready
+        };
+        assert_eq!(ask, want, "{row}");
+        assert!(matches!(start.verdict, Verdict::Go(_)), "{row}: {start:?}");
     }
 }
 
@@ -300,39 +475,53 @@ fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
     }
 }
 
-/// r3 U7.2a: the row of an agent whose newest run ended `handed_back` with one of the causes of a
-/// hosted model says the ruled problem line of that cause, byte for byte (the coordinator's log
-/// lines 22166 and 22216, and for `shortfall` of r3 U7.2b line 22454); a handed-back run with
-/// another cause, or with none, keeps the line of a run that stopped early.
+/// r3 U7.2a, as r3 U7.8 turns it: the row of an agent whose newest run ended `handed_back` with one
+/// of the causes of a hosted model says the ruled problem line of that cause, byte for byte, while
+/// the agent rests (`crate::schedule::rests`; the coordinator's log lines 22166 and 22216, and for
+/// `shortfall` line 22854); once it no longer rests, and for a handed-back run with another cause
+/// or with none, the row keeps the line of a run that stopped early.
 #[test]
 fn u72a_a_run_handed_back_before_its_model_says_why_and_every_other_reads_as_today() {
     let early =
         "Last time, it stopped before the task was done, and it needs nothing from you now.";
+    let ok = model_with(true, Some(true), limit(false));
     let rows = [
         (
+            Tier::Frontier,
             Some(LastCause::NoAgreement),
+            model(false),
             "This agent may use an AI model only after you allow it. To allow it, choose Use an AI model.",
         ),
         (
+            Tier::Frontier,
             Some(LastCause::NoModelKey),
+            model_with(true, Some(false), limit(false)),
             "This agent needs a key for its AI model, and no key is saved. Save a key under AI model, then run the agent again.",
         ),
         (
+            Tier::Frontier,
             Some(LastCause::OverCap),
+            model_with(true, Some(true), limit(true)),
             "This agent stopped at your spending limit. It waits until the limit's period ends or until you raise the limit under AI model.",
         ),
         (
+            Tier::Frontier,
             Some(LastCause::Shortfall),
-            "Halvo cannot do this agent's task with the AI model that this agent may use. The agent hands its work back to you each time it starts.",
+            ok.clone(),
+            "Last time, Halvo could not do this agent's task with the AI model that this agent may use. The agent waits until you choose Start now.",
         ),
-        (Some(LastCause::NoBrowser), early),
-        (None, early),
+        (Tier::Frontier, Some(LastCause::NoAgreement), ok.clone(), early),
+        (Tier::Frontier, Some(LastCause::NoModelKey), ok.clone(), early),
+        (Tier::Frontier, Some(LastCause::OverCap), ok.clone(), early),
+        (Tier::OnDevice, Some(LastCause::Shortfall), model(false), early),
+        (Tier::Frontier, Some(LastCause::NoBrowser), ok.clone(), early),
+        (Tier::Frontier, None, ok, early),
     ];
-    for (cause, want) in rows {
-        let f = u323_day(1, RunEnd::HandedBack, cause, &[]);
+    for (tier, cause, model, want) in rows {
+        let f = u78_handed_back(tier, cause, Some(model.clone()));
         let line = status(&f, &Limits::PRODUCT, None);
         let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
-        assert_eq!(r.line, want, "{cause:?}");
+        assert_eq!(r.line, want, "{tier:?} {cause:?} {model:?}");
     }
 }
 
