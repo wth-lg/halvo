@@ -116,9 +116,23 @@ Where a sentence names a unit, that unit makes it true.
   the one that the browser is set to, or else from the list of languages that you
   prefer, and from the languages that the browser comes in. Where it cannot tell that
   the browser shows English, it records no title of that browser, so under any other
-  language it records none. A Chrome or Edge that was already open when Halvo started,
-  or when you last changed one of those languages, has no title recorded until you quit
-  it and open it again. Halvo records no title of any other browser that it knows by
+  language it records none. A Chrome or Edge that was already open when Halvo's capture
+  service last started, that you opened while Halvo was paused or was not recording,
+  that had not yet been in front when Halvo was paused, or that was open when you last
+  changed one of those languages, has no title recorded until you quit it and open it
+  again. Halvo's capture service starts when you open Halvo; when you resume capture
+  while no capture service runs; when Halvo starts the service again by itself after it
+  ended, which it does after a fault, after an update of Halvo, after the service gave
+  no answer in time, behind a "Delete everything" that Halvo carried out while no
+  service ran, and once a capture service that Halvo did not start has ended; when you
+  turn on "Record typing" in a Halvo that you opened with it off; when you give Halvo
+  the Screen Recording or the Input Monitoring permission while it runs; and when you
+  press "Reset settings". Halvo reads the language from those settings and not from how
+  a browser was started: a Chrome or Edge that was started with a language of its own on
+  its command line (the argument `-AppleLanguages`) can show another language than the
+  one that Halvo reads, and where Halvo reads English for such a browser it would record
+  the title of a private window too, since that title does not end as the English one
+  does. Halvo records no title of any other browser that it knows by
   name, such as Safari, Firefox, Brave, Opera or Vivaldi, with their beta, developer,
   nightly and test builds, and none of an app that your Mac lists as one that can open
   web links. Where Halvo cannot read that list, or cannot tell where such an app lies on
