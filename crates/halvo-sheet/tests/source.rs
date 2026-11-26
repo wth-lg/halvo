@@ -1,7 +1,7 @@
 mod common;
 
 use common::Scratch;
-use halvo_sheet::{Cause, Error, Folder, SourceRefusal, Value};
+use halvo_sheet::{Cause, Error, Folder, Letters, SourceRefusal, Value};
 
 fn read(scratch: &Scratch, bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     scratch.write("source.csv", bytes);
@@ -146,13 +146,17 @@ fn a_source_out_of_the_form_is_refused_and_names_no_cell() {
         Ok(vec![vec![n(1.0), t(&long)]]),
         "a field too long for a number is a text"
     );
-    let cases: [(&[u8], SourceRefusal); 5] = [
+    let mut cases: Vec<(&[u8], SourceRefusal)> = vec![
         (b"secret,1\r", SourceRefusal::CarriageReturn),
         (b"\"secret,1", SourceRefusal::Quote { line: 1 }),
-        (b"secret,\xff\n", SourceRefusal::Encoding),
         (b"secret,1\nsecret\n", SourceRefusal::Ragged { line: 2 }),
         (b"a,b\nsecret,1,2\n", SourceRefusal::Ragged { line: 2 }),
     ];
+    // r3 U11.10: on a Mac a file that is not UTF-8 is refused with `data_encoding`; on Windows the reader
+    // reads it by the computer's code page where that page reads its bytes (below).
+    if !cfg!(windows) {
+        cases.push((b"secret,\xff\n", SourceRefusal::Encoding));
+    }
     let mut wrong = Vec::new();
     for (bytes, want) in cases {
         match read(&scratch, bytes) {
@@ -170,6 +174,31 @@ fn a_source_out_of_the_form_is_refused_and_names_no_cell() {
                 }
             }
             other => wrong.push(format!("{want:?}: got {other:?}")),
+        }
+    }
+    if cfg!(windows) {
+        // r3 U11.10: on Windows the same file reads by the computer's code page where that page reads the
+        // byte FF, which `read_data` names (`Letters::Page`), its second cell a text; where the page reads
+        // no FF it is refused with `data_encoding` and names no cell. So this side holds under each of the
+        // fourteen ANSI pages, and the run says which way the hosted runner's page went.
+        scratch.write("source.csv", b"secret,\xff\n");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
+        match folder.read_data(std::path::Path::new("source.csv")) {
+            Ok(data) => {
+                let text = matches!(
+                    data.rows.as_slice(),
+                    [row] if matches!(row.as_slice(), [Value::Text(a), Value::Text(_)] if a == "secret")
+                );
+                if !matches!(data.letters, Letters::Page(_)) || !text {
+                    wrong.push(format!("the page's reading: {:?}", data.letters));
+                }
+            }
+            Err(error) if error == Error::Source(SourceRefusal::Encoding) => {
+                if format!("{error} {error:?}").contains("secret") {
+                    wrong.push("the page's refusal shows a cell".to_owned());
+                }
+            }
+            Err(error) => wrong.push(format!("the page's reading: {error:?}")),
         }
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
