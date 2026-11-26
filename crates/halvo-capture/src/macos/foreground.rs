@@ -2702,6 +2702,25 @@ mod tests {
     }
 
     #[test]
+    fn a_browser_whose_process_gives_no_answer_is_read_25_times_in_all_across_two_starts_of_the_source(
+    ) {
+        let normal = "Quarterly plan - Google Docs - Google Chrome";
+        let said = SaidLanguage::untold();
+        said.started(40, at(5));
+        let chrome = app("com.google.Chrome", 40);
+        let mut through = Through::new(None, &said);
+        for _ in 0..10 {
+            through.shows(&chrome, normal);
+        }
+        let mut through = through.starts_again();
+        for _ in 0..40 {
+            through.shows(&chrome, normal);
+        }
+        let (_, titles, _, _) = through.made();
+        assert_eq!((titles, said.reads_of(40)), (Vec::<String>::new(), 25));
+    }
+
+    #[test]
     fn a_failed_title_read_is_counted_and_asked_again_on_the_next_tick() {
         let (mut poller, handle, _writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
