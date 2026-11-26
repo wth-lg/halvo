@@ -976,8 +976,9 @@ pub fn with_end<C: Clone>(facts: &Facts<C>, run: &RunId, end: RunEnd) -> Facts<C
 
 /// The row of an agent whose newest run a Quit named as not stopped (`not_stopped_at_quit`;
 /// ruling RD-150): the status `problem` with `line.problem.quit`, that its task was still
-/// running when Halvo quit and may have gone on, and `offered`, the controls; the row of an
-/// agent of a gone workflow passes none and has no next day.
+/// running when Halvo quit and may have gone on, and behind it the sentence of
+/// `line.note.close_first` where `line_offering` puts it, and `offered`, the controls; the row
+/// of an agent of a gone workflow passes none and has no next day.
 pub fn quit_row<C: ConfigView>(
     facts: &Facts<C>,
     name: &str,
