@@ -1516,6 +1516,96 @@ mod tests {
         );
     }
 
+    #[test]
+    fn behind_an_end_with_4_a_pass_reads_connecting_until_the_next_end_and_1_and_7_as_before() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let ends = [
+            Later::default(),
+            Later::default(),
+            Later::default(),
+            Later::default(),
+        ];
+        let spawner = StandInSpawner {
+            children: ends
+                .iter()
+                .zip(1000..)
+                .map(|(later, pid)| StandInChild {
+                    later: Some(Arc::clone(later)),
+                    ..StandInChild::new(pid, &clock, &record)
+                })
+                .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::default(),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let no_service = Recording::new(&record, None);
+        let read = || {
+            pass(&no_service, &views, None);
+            let wire = serde_json::to_value(views.view()).unwrap();
+            (wire["service"].clone(), wire["last_exit"].clone())
+        };
+        let a_held_wait_since =
+            |waits: usize| clock.waits()[waits..].iter().any(|wait| *wait > CHILD_POLL);
+
+        until("the first child lives", || views.hold().life() == Some(1));
+        clock.advance(BACKOFF_MAX);
+        *ends[0].lock().unwrap() = Some(Ending::Status(4));
+        until("the start at once behind a 4 after a minute", || {
+            views.hold().life() == Some(2)
+        });
+        assert!(!a_held_wait_since(0), "no wait before that start");
+        assert_eq!(
+            read().0,
+            "connecting",
+            "a 4 behind a life of 60 s: before the new child's channel stands"
+        );
+
+        *clock.long_waits_held.lock().unwrap() = true;
+        let waits = clock.waits().len();
+        *ends[1].lock().unwrap() = Some(Ending::Status(4));
+        until("the held wait behind a 4 within the minute", || {
+            a_held_wait_since(waits)
+        });
+        assert_eq!(
+            read().0,
+            "connecting",
+            "a 4 within the minute: in the held wait"
+        );
+        *clock.long_waits_held.lock().unwrap() = false;
+
+        until("the start behind that wait", || {
+            views.hold().life() == Some(3)
+        });
+        *clock.long_waits_held.lock().unwrap() = true;
+        let waits = clock.waits().len();
+        *ends[2].lock().unwrap() = Some(Ending::Status(1));
+        until("the held wait behind a 1", || a_held_wait_since(waits));
+        assert_eq!(
+            read(),
+            (serde_json::json!("not_running"), serde_json::json!(1)),
+            "a 1: in the held wait, as before"
+        );
+        *clock.long_waits_held.lock().unwrap() = false;
+
+        until("the start behind that wait", || {
+            views.hold().life() == Some(4)
+        });
+        *ends[3].lock().unwrap() = Some(Ending::Status(7));
+        until("the 7 read", || views.hold().life().is_none());
+        assert_eq!(
+            read(),
+            (serde_json::json!("not_running"), serde_json::json!(7)),
+            "a 7: a wait for a press, as before"
+        );
+        drop(supervisor.close());
+    }
+
     #[cfg(unix)]
     const STUB: &str = "daemon_child::tests::stub_child";
     type Row = (&'static str, Vec<(Ending, u64)>, usize, Vec<Duration>);
