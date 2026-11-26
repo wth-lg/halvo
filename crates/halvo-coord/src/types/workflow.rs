@@ -191,6 +191,21 @@ pub struct Notes {
     /// `letters_guessed` `yes`: the run read its data file by the computer's code page, and its
     /// write of the workbook answered well.
     pub letters_guessed: bool,
+    /// `number_texts`, `number_text_columns` and `number_text_column`: the cells that the run's
+    /// write of the workbook wrote as texts of a number's shape, where it answered well.
+    pub texts: Option<NumberTexts>,
+}
+
+/// How many cells a run wrote as texts of a number's shape, in how many columns, and the first of
+/// those columns of the workbook, A being 1 (r3 U11.10): counts alone, never a value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NumberTexts {
+    /// `number_texts`: the cells.
+    pub cells: u32,
+    /// `number_text_columns`: the columns that hold them.
+    pub columns: u32,
+    /// `number_text_column`: the first of those columns, A being 1.
+    pub first: u32,
 }
 
 /// An effect of an unknown outcome in the reply of I6.1.

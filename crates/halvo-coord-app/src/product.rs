@@ -61,10 +61,10 @@ use halvo_coord::types::{
     Cleared, ConfigView, ConfirmAsk, Decision, DecisionEntry, Defers, Digest, DismissedWorkflow,
     DoneAnswer, EffectAnswer, EffectId, Event, FullWorkflow, HandbackAsk, HandbackReason,
     HandbackResult, HoldSetCause, ItemId, ItemKind, Kept, LapseCause, Lapsed, LastCause,
-    LinkAnswer, Name, Notes, Origin, OtherLapse, Outcome, PageCause, PastEffect, PastRun, Progress,
-    Raised, ReadyAnswer, Reply, ReplyRow, RunEnd as CoordRunEnd, RunEvent, RunHistory, RunId,
-    RunSpec, SetupAnswer, SheetAnswers, SignInAnswer, Slot, Trigger, Unknown, What, Workflow,
-    WorkflowId, WorkflowState, WorkflowTrigger,
+    LinkAnswer, Name, Notes, NumberTexts, Origin, OtherLapse, Outcome, PageCause, PastEffect,
+    PastRun, Progress, Raised, ReadyAnswer, Reply, ReplyRow, RunEnd as CoordRunEnd, RunEvent,
+    RunHistory, RunId, RunSpec, SetupAnswer, SheetAnswers, SignInAnswer, Slot, Trigger, Unknown,
+    What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{Autonomy, Budget, Limits, Permission, Reasoning, Runtime, Tier};
 use halvo_coord::types::{ModelUse, SpendLimit};
@@ -1187,7 +1187,24 @@ fn past_run(record: &Value) -> Option<PastRun> {
         unknown: u32::try_from(record["unknown"].as_u64().unwrap_or(0)).ok()?,
         notes: Notes {
             letters_guessed: record["letters_guessed"].as_str() == Some("yes"),
+            texts: number_texts_of(record),
         },
+    })
+}
+
+/// The three counts of a run record's `number_texts`, `number_text_columns` and `number_text_column` (r3 U11.10):
+/// none where a key is missing (a record of a build before the keys stood), or is no count of 1 or more.
+fn number_texts_of(record: &Value) -> Option<NumberTexts> {
+    let count = |key: &str| {
+        record[key]
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .filter(|&n| n > 0)
+    };
+    Some(NumberTexts {
+        cells: count("number_texts")?,
+        columns: count("number_text_columns")?,
+        first: count("number_text_column")?,
     })
 }
 

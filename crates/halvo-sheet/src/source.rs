@@ -161,42 +161,56 @@ fn four_byte(bytes: &[u8]) -> bool {
     false
 }
 
-/// The rows of a file that the computer's page reads as `text` (r3 U11.10, the coordinator's rule
-/// of log line 23819, R1 to R3, with the builder's reading X of its line RULE): R2, the separator
-/// that `reading` tells for the text with every sign beyond ASCII taken as a plain letter
+/// The rows of a file that the computer's page reads as `text` (r3 U11.10, the coordinator's rules
+/// of log lines 23819 and 24070, R1 to R4, with the builder's reading X of its line RULE): R2, the
+/// separator that `reading` tells for the text with every sign beyond ASCII taken as a plain letter
 /// (`letters`), for the text with every run of such signs taken as one sign of money (`as_money`)
 /// and for the page's own text must be one, else the file is refused with `data_encoding`: the
 /// separator rises with signs taken as money and falls with signs taken as letters, so under every
-/// page that keeps ASCII the file reads by that one separator. R1, every number is that of the
-/// rows with every sign beyond ASCII a plain letter (`rows`), so a cell that holds such a sign is a
-/// text, and every text is the page's own field. R3 follows: under every page that keeps ASCII, in
-/// the list or outside it, the same cells and the same numbers.
+/// page that keeps ASCII the file reads by that one separator. R4, a cell is a number only where the
+/// rows of the text with every sign beyond ASCII taken as a plain letter and the rows of the text
+/// with every run of such signs taken as one sign of money give it the same number (`rows`); every
+/// other cell is a text, the page's own field, so a cell that holds such a sign is a text (R1). The
+/// two texts keep every separator, quote and line end of the page's text in its order and make no
+/// other sign one, so their rows hold the same cells. No cell is one number under one page and
+/// another number under another, in the list or outside it (R3); whether it is a number at all can
+/// differ between a page of one-byte letters and a page of two-byte letters, since `as_money` drops
+/// one sign of 40 to 7E behind a sign beyond ASCII.
 fn page_rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
     let letters: String = text
         .chars()
         .map(|c| if c.is_ascii() { c } else { 'a' })
         .collect();
+    let money = as_money(text);
     let separator = |text: &str| reading(text).map(|(sign, _)| sign);
     let told = separator(&letters)?;
-    if separator(&as_money(text))? != told || separator(text)? != told {
+    if separator(&money)? != told || separator(text)? != told {
         return Err(encoding());
     }
     let numbers = rows(&letters)?;
+    let others = rows(&money)?;
     let (_, fields) = reading(text)?;
     let shape = numbers.len() == fields.len()
-        && numbers.iter().zip(&fields).all(|(a, b)| a.len() == b.len());
+        && others.len() == fields.len()
+        && numbers
+            .iter()
+            .zip(&others)
+            .zip(&fields)
+            .all(|((a, b), c)| a.len() == c.len() && b.len() == c.len());
     if !shape {
         return Err(encoding());
     }
     Ok(numbers
         .into_iter()
+        .zip(others)
         .zip(fields)
-        .map(|(row, cells)| {
+        .map(|((row, other), cells)| {
             row.into_iter()
+                .zip(other)
                 .zip(cells)
-                .map(|(value, cell)| match value {
-                    Value::Number(x) => Value::Number(x),
-                    Value::Text(_) => Value::Text(cell.into_owned()),
+                .map(|((value, other), cell)| match (value, other) {
+                    (Value::Number(x), Value::Number(y)) if x == y => Value::Number(x),
+                    _ => Value::Text(cell.into_owned()),
                 })
                 .collect()
         })
@@ -248,13 +262,16 @@ fn rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
         return Err(Error::Source(SourceRefusal::NumberSigns { line }));
     }
     let numbers = Numbers::of(separator, &rows);
-    let turning = turning(numbers, &rows);
+    let columns = turning(numbers, &rows);
     Ok(rows
         .iter()
         .map(|row| {
             row.iter()
                 .enumerate()
-                .map(|(at, cell)| numbers.value(cell, turning.get(at) == Some(&true)))
+                .map(|(at, cell)| {
+                    let column = columns.get(at).copied().unwrap_or_default();
+                    numbers.value(cell, column)
+                })
                 .collect()
         })
         .collect())
@@ -522,6 +539,13 @@ fn field(
 enum Numbers {
     /// A file read by commas: A11.3's form (`is_number`), with the point as the decimal sign.
     Points,
+    /// A file read by commas whose own amounts show the decimal comma: a field tells the comma
+    /// (`tells_comma`) (r3 U11.10, the coordinator's ways (d) of Q2 and (c) of Q7). A field of the
+    /// thousands point shape (`thousands_point`) is no number in it; `comma` says that no field
+    /// tells the point (`tells_point`), so that the amounts of a column that holds a field that
+    /// tells the comma have the comma as their decimal sign. Every other field is told as in
+    /// `Points`.
+    Commas { comma: bool },
     /// A file read by semicolons or by tabs whose fields hold numbers of this one decimal sign,
     /// the comma or the point, and none of the other (r3 U11.5, `with_sign`).
     Sign(char),
@@ -538,10 +562,16 @@ impl Numbers {
     /// field of the shape of a thousands group, of either sign, has two readings and decides
     /// nothing. Only where no field tells a sign, an amount as a spreadsheet program shows it
     /// (`amount`) tells it the same way (r3 U11.8); where fields tell both signs, no amount
-    /// tells one.
+    /// tells one. A file read by commas has the point, but where a field tells the comma
+    /// (`Numbers::Commas`, r3 U11.10).
     fn of(separator: u8, rows: &[Vec<Cow<'_, str>>]) -> Numbers {
         if separator == b',' {
-            return Numbers::Points;
+            let mut cells = rows.iter().flatten();
+            if !cells.any(|cell| tells_comma(cell)) {
+                return Numbers::Points;
+            }
+            let comma = !rows.iter().flatten().any(|cell| tells_point(cell));
+            return Numbers::Commas { comma };
         }
         let has = |sign: char| {
             rows.iter()
@@ -564,22 +594,28 @@ impl Numbers {
         }
     }
 
-    /// The number of `cell` before r3 U11.8.
+    /// The number of `cell` before r3 U11.8; in a file of `Numbers::Commas` none for a field of
+    /// the thousands point shape (r3 U11.10, the coordinator's way (c) of Q7).
     fn today(self, cell: &str) -> Option<f64> {
         match self {
             Numbers::Points => point_number(cell),
+            Numbers::Commas { .. } => point_number(cell).filter(|_| !thousands_point(cell)),
             Numbers::Sign(sign) => whole_number(cell).or_else(|| with_sign(cell, sign)),
             Numbers::Whole => whole_number(cell),
         }
     }
 
     /// The number of `cell` as an amount (`amount`) whose decimal sign, where it has one, is the
-    /// file's: the point in a file read by commas, the sign that the file tells in a file read by
-    /// semicolons or by tabs; in a file that tells none, an amount with no decimal sign alone.
-    fn amount_number(self, cell: &str) -> Option<f64> {
+    /// file's: the point in a file read by commas, but the comma in a column of a file of
+    /// `Numbers::Commas` with `comma` whose `column` holds a field that tells the comma (r3
+    /// U11.10); the sign that the file tells in a file read by semicolons or by tabs; in a file
+    /// that tells none, an amount with no decimal sign alone.
+    fn amount_number(self, cell: &str, column: Column) -> Option<f64> {
         let (x, decimal) = amount(cell)?;
         let sign = match self {
             Numbers::Points => Some('.'),
+            Numbers::Commas { comma } if comma && column.comma => Some(','),
+            Numbers::Commas { .. } => Some('.'),
             Numbers::Sign(sign) => Some(sign),
             Numbers::Whole => None,
         };
@@ -587,11 +623,14 @@ impl Numbers {
     }
 
     /// The value of `cell`: its number of before r3 U11.8, else its number as an amount where
-    /// the amounts of its column `turn` (`turning`), else its text.
-    fn value(self, cell: &str, turn: bool) -> Value {
-        let number = self
-            .today(cell)
-            .or_else(|| turn.then(|| self.amount_number(cell)).flatten());
+    /// the amounts of its `column` turn (`turning`), else its text.
+    fn value(self, cell: &str, column: Column) -> Value {
+        let number = self.today(cell).or_else(|| {
+            column
+                .turn
+                .then(|| self.amount_number(cell, column))
+                .flatten()
+        });
         match number {
             Some(x) => Value::Number(x),
             None => Value::Text(cell.to_string()),
@@ -604,23 +643,209 @@ impl Numbers {
 /// field that holds a digit (of any script) and gets no number blocks its column, but a field of
 /// the file's first row that holds a letter (of any script), which is taken for a header. A
 /// blocked column reads as before r3 U11.8, and a field that is a number before r3 U11.8 stays
-/// that number in every column (`Numbers::value`).
-fn turning(numbers: Numbers, rows: &[Vec<Cow<'_, str>>]) -> Vec<bool> {
+/// that number in every column (`Numbers::value`), but a field of the thousands point shape in a
+/// file of `Numbers::Commas`, which blocks its column (r3 U11.10). Each column also says whether
+/// it holds a field that tells the comma (`tells_comma`).
+fn turning(numbers: Numbers, rows: &[Vec<Cow<'_, str>>]) -> Vec<Column> {
     let width = rows.first().map_or(0, Vec::len);
     (0..width)
         .map(|at| {
-            rows.iter().enumerate().all(|(line, row)| {
+            let comma = rows
+                .iter()
+                .any(|row| row.get(at).is_some_and(|cell| tells_comma(cell)));
+            let told = Column { turn: true, comma };
+            let turn = rows.iter().enumerate().all(|(line, row)| {
                 row.get(at).is_none_or(|cell| {
                     (line == 0 && cell.chars().any(char::is_alphabetic))
                         || !cell.chars().any(char::is_numeric)
                         || numbers
                             .today(cell)
-                            .or_else(|| numbers.amount_number(cell))
+                            .or_else(|| numbers.amount_number(cell, told))
                             .is_some()
                 })
-            })
+            });
+            Column { turn, comma }
         })
         .collect()
+}
+
+/// What `turning` gives a column: whether its amounts turn, and whether it holds a field that
+/// tells the comma (r3 U11.10).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Column {
+    turn: bool,
+    comma: bool,
+}
+
+/// Whether `cell` tells a file read by commas that its decimal sign is the comma (r3 U11.10, the
+/// coordinator's way (d) of Q2): `amount` gives it the decimal comma, and it carries a sign of
+/// money or a thousands sign (`1.250,00`, `12,50 €`, `€ 12,50`, `-1.234,56`, `1 234,56` with
+/// U+00A0), which a list of values in one field (`38,40`) does not. A sign of the yen or of the
+/// yuan beside a decimal comma tells no comma (`¥1,2345`, the coordinator's way (b) of log line
+/// 23854): the crate's lists of money signs hold that sign in its one form U+00A5.
+fn tells_comma(cell: &str) -> bool {
+    amount(cell).is_some_and(|(_, decimal)| decimal == Some(','))
+        && (cell.contains(MONEY) || cell.contains('.') || cell.contains(GROUPS))
+        && !cell.contains('¥')
+}
+
+/// Whether `cell` tells a file read by commas that its decimal sign is the point (r3 U11.10): a
+/// number of A11.3's form with a point, but of the thousands point shape (`12.50`, `1.5`, `.5`,
+/// `14.30`, `0.250`), or an amount whose decimal sign is the point (`$12.50`, `1,234.56`).
+fn tells_point(cell: &str) -> bool {
+    (point_number(cell).is_some() && cell.contains('.') && !thousands_point(cell))
+        || amount(cell).is_some_and(|(_, decimal)| decimal == Some('.'))
+}
+
+/// Whether `cell`, without a minus in front, is of the thousands point shape: one to three
+/// digits other than a lone `0`, a point and three digits (`1.250`, `12.500`, `-1.250`), which a
+/// file read by commas whose amounts show the decimal comma takes for no number (r3 U11.10, the
+/// coordinator's way (c) of Q7).
+fn thousands_point(cell: &str) -> bool {
+    let body = cell.strip_prefix('-').unwrap_or(cell);
+    body.split_once('.').is_some_and(|(whole, fraction)| {
+        whole != "0"
+            && (1..=3).contains(&whole.len())
+            && fraction.len() == 3
+            && whole
+                .bytes()
+                .chain(fraction.bytes())
+                .all(|b| b.is_ascii_digit())
+    })
+}
+
+/// How many cells of each column of `rows` are texts of a number's shape (`counted`, r3 U11.10,
+/// the coordinator's way (b) of Q3): what a run writes as text that a sum leaves out. It counts
+/// cells alone and holds no value.
+pub fn number_texts(rows: &[Vec<Value>]) -> Vec<u32> {
+    let width = rows.iter().map(Vec::len).max().unwrap_or(0);
+    (0..width)
+        .map(|at| {
+            let count = rows
+                .iter()
+                .filter(|row| matches!(row.get(at), Some(Value::Text(text)) if counted(text)))
+                .count();
+            u32::try_from(count).unwrap_or(u32::MAX)
+        })
+        .collect()
+}
+
+/// Whether `text`, without the spaces (U+0020) at its ends, is of an amount's make (the
+/// coordinator's line 19953) and of a number's shape (r3 U11.10): around its digits at most a code
+/// of money of `MONEY_CODES` at either end (`500 EUR`, `USD 1,234.50`, counted and never turned), brackets round it, a minus in front or behind, one sign of money at either end and a
+/// percent at its end, each with the spaces of `GAPS` or none between; its digits and the signs
+/// between them of a number's shape (`shape`). Not counted: a letter beyond such a code, a date,
+/// a phone number, a list of three values or more, the Indian grouping, digits with no sign
+/// beside them (`007`) and a field with no digit.
+fn counted(text: &str) -> bool {
+    let cell = text.trim_matches(' ');
+    let (cell, code) = without_code(cell);
+    let (cell, outer) = bracketed(cell);
+    let (cell, front) = strip_minus(cell);
+    let (cell, money) = without_money(cell);
+    let (cell, inner) = bracketed(cell);
+    let (cell, after_money) = strip_minus(cell);
+    let (cell, percent) = match cell.strip_suffix('%') {
+        Some(rest) => (rest.trim_end_matches(GAPS), true),
+        None => (cell, false),
+    };
+    let (cell, behind) = match cell.strip_suffix(MINUS) {
+        Some(rest) => (rest, true),
+        None => (cell, false),
+    };
+    let signed = code || outer || front || money || inner || after_money || percent || behind;
+    shape(cell, signed)
+}
+
+/// `cell` without a minus of `MINUS` in front, and whether it had one.
+fn strip_minus(cell: &str) -> (&str, bool) {
+    match cell.strip_prefix(MINUS) {
+        Some(rest) => (rest, true),
+        None => (cell, false),
+    }
+}
+
+/// The codes of money that three capital letters beside an amount's digits may be (`without_code`,
+/// r3 U11.10, the coordinator's way (ii) of E3, log line 23652), sorted: the 159 codes of
+/// `Locale.commonISOCurrencyCodes` of Foundation on macOS 27.2 (build 26B123), read on 2026-11-26,
+/// the system's own table of the common codes of ISO 4217, a country's or a union's money. It holds
+/// no code of a precious metal (XAU, XAG, XPD, XPT), of a test (XTS), of no money (XXX), of a fund
+/// (BOV, CHE, CHW, CLF, COU, MXV, USN, UYI, UYW) or of a unit of account (XBA, XBB, XBC, XBD, XDR,
+/// XSU, XUA); it keeps five codes that the system still lists and that ISO may have withdrawn (ANG,
+/// CUC, HRK, SLL, VEF).
+const MONEY_CODES: [&str; 159] = [
+    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN", "BAM", "BBD", "BDT",
+    "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL", "BSD", "BTN", "BWP", "BYN", "BZD", "CAD",
+    "CDF", "CHF", "CLP", "CNY", "COP", "CRC", "CUC", "CUP", "CVE", "CZK", "DJF", "DKK", "DOP",
+    "DZD", "EGP", "ERN", "ETB", "EUR", "FJD", "FKP", "GBP", "GEL", "GHS", "GIP", "GMD", "GNF",
+    "GTQ", "GYD", "HKD", "HNL", "HRK", "HTG", "HUF", "IDR", "ILS", "INR", "IQD", "IRR", "ISK",
+    "JMD", "JOD", "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW", "KWD", "KYD", "KZT", "LAK",
+    "LBP", "LKR", "LRD", "LSL", "LYD", "MAD", "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU",
+    "MUR", "MVR", "MWK", "MXN", "MYR", "MZN", "NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR",
+    "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR",
+    "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SLL", "SOS", "SRD", "SSP", "STN", "SYP",
+    "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "USD",
+    "UYU", "UZS", "VEF", "VES", "VND", "VUV", "WST", "XAF", "XCD", "XCG", "XOF", "XPF", "YER",
+    "ZAR", "ZMW", "ZWG",
+];
+
+/// `cell` without a code of money of `MONEY_CODES` at its front or at its end with the spaces of
+/// `GAPS` or none between, and whether it had one; three other capital letters (a code of goods
+/// such as `ABC 123` or `INV 2031`) are no such code.
+fn without_code(cell: &str) -> (&str, bool) {
+    let code = |part: &str| MONEY_CODES.binary_search(&part).is_ok();
+    if cell.len() > 3 && cell.is_char_boundary(3) && code(&cell[..3]) {
+        return (cell[3..].trim_start_matches(GAPS), true);
+    }
+    match cell.len().checked_sub(3) {
+        Some(at) if at > 0 && cell.is_char_boundary(at) && code(&cell[at..]) => {
+            (cell[..at].trim_end_matches(GAPS), true)
+        }
+        _ => (cell, false),
+    }
+}
+
+/// Whether `body` is of a number's shape: a digit at each end, and between its runs of digits
+/// one sign each of the comma, the point, U+0020 or a sign of `GROUPS`: one comma or point alone
+/// (`41,20`, `1,234`, `1.5`); or a first run of one to three digits and runs of three behind one
+/// and the same sign, with at most one decimal sign of the other kind, the comma or the point, and
+/// digits behind it (`1,234,567`, `1.250,00`, `1 234,56`); or digits alone where `signed` says that
+/// a sign stands beside them (`$950`, `50%`).
+fn shape(body: &str, signed: bool) -> bool {
+    let between = |c: char| matches!(c, ',' | '.' | ' ') || GROUPS.contains(&c);
+    let mut runs = vec![String::new()];
+    let mut signs = Vec::new();
+    for c in body.chars() {
+        let run = runs.last_mut().expect("one run at least");
+        if c.is_ascii_digit() {
+            run.push(c);
+        } else if between(c) && !run.is_empty() {
+            signs.push(c);
+            runs.push(String::new());
+        } else {
+            return false;
+        }
+    }
+    if runs.iter().any(String::is_empty) {
+        return false;
+    }
+    let Some(&group) = signs.first() else {
+        return signed;
+    };
+    if signs.len() == 1 && matches!(group, ',' | '.') {
+        return true;
+    }
+    let last = signs[signs.len() - 1];
+    let groups = if last == group {
+        &signs[..]
+    } else if matches!(last, ',' | '.') {
+        &signs[..signs.len() - 1]
+    } else {
+        return false;
+    };
+    groups.iter().all(|&c| c == group)
+        && (1..=3).contains(&runs[0].len())
+        && runs[1..=groups.len()].iter().all(|run| run.len() == 3)
 }
 
 /// The number of a field of A11.3's form (`is_number`).
@@ -1720,6 +1945,8 @@ mod tests {
     /// number where its form has one reading, and a form of two readings stays a text, as before.
     /// Each form stands alone in a file read by commas (quoted where it holds a comma) and in a
     /// file read by semicolons; then the files of more rows show the file's one decimal sign.
+    /// Since r3 U11.10 a form with a decimal comma and a sign of money or a thousands sign is its
+    /// number in a file read by commas too, where it tells the comma of its own column.
     #[test]
     fn an_amount_as_a_program_shows_it_is_its_number_where_its_form_has_one_reading() {
         let nb = '\u{a0}';
@@ -1732,10 +1959,10 @@ mod tests {
             ("$12.50".into(), n(12.5), n(12.5)),
             ("$ 12.50".into(), n(12.5), n(12.5)),
             ("€12.50".into(), n(12.5), n(12.5)),
-            ("12,50 €".into(), t("12,50 €"), n(12.5)),
-            ("€ 12,50".into(), t("€ 12,50"), n(12.5)),
-            (format!("12,50{nb}€"), t(&format!("12,50{nb}€")), n(12.5)),
-            ("1.250,00 €".into(), t("1.250,00 €"), n(1250.0)),
+            ("12,50 €".into(), n(12.5), n(12.5)),
+            ("€ 12,50".into(), n(12.5), n(12.5)),
+            (format!("12,50{nb}€"), n(12.5), n(12.5)),
+            ("1.250,00 €".into(), n(1250.0), n(1250.0)),
             ("£1,234.56".into(), n(1234.56), n(1234.56)),
             ("$1,234.56".into(), n(1234.56), n(1234.56)),
             ("¥1,234".into(), t("¥1,234"), t("¥1,234")),
@@ -1756,25 +1983,13 @@ mod tests {
             (format!("1{nnb}234"), n(1234.0), n(1234.0)),
             // A thousands sign with a decimal part behind the other sign.
             ("1,234.56".into(), n(1234.56), n(1234.56)),
-            ("1.234,56".into(), t("1.234,56"), n(1234.56)),
+            ("1.234,56".into(), n(1234.56), n(1234.56)),
             ("12,345,678.90".into(), n(12_345_678.9), n(12_345_678.9)),
             ("-1,234.56".into(), n(-1234.56), n(-1234.56)),
-            ("-1.234,56".into(), t("-1.234,56"), n(-1234.56)),
-            (
-                format!("1{nb}234,56"),
-                t(&format!("1{nb}234,56")),
-                n(1234.56),
-            ),
-            (
-                format!("1{nnb}234,56"),
-                t(&format!("1{nnb}234,56")),
-                n(1234.56),
-            ),
-            (
-                format!("1{nnb}234,56{nb}€"),
-                t(&format!("1{nnb}234,56{nb}€")),
-                n(1234.56),
-            ),
+            ("-1.234,56".into(), n(-1234.56), n(-1234.56)),
+            (format!("1{nb}234,56"), n(1234.56), n(1234.56)),
+            (format!("1{nnb}234,56"), n(1234.56), n(1234.56)),
+            (format!("1{nnb}234,56{nb}€"), n(1234.56), n(1234.56)),
             ("1'234.56".into(), n(1234.56), n(1234.56)),
             ("1’234.56".into(), n(1234.56), n(1234.56)),
             // The shapes of two readings, and forms of more than one group, stay as they were.
@@ -1791,21 +2006,21 @@ mod tests {
             ("12.50 ".into(), n(12.5), n(12.5)),
             (" $ 1,234.56 ".into(), n(1234.56), n(1234.56)),
             (" 12,50".into(), t(" 12,50"), n(12.5)),
-            (" 1.234,56 € ".into(), t(" 1.234,56 € "), n(1234.56)),
+            (" 1.234,56 € ".into(), n(1234.56), n(1234.56)),
             // A negative amount in each way that a program writes it.
             ("-12.50".into(), n(-12.5), n(-12.5)),
             ("-$12.50".into(), n(-12.5), n(-12.5)),
             ("$-12.50".into(), n(-12.5), n(-12.5)),
-            ("-12,50 €".into(), t("-12,50 €"), n(-12.5)),
+            ("-12,50 €".into(), n(-12.5), n(-12.5)),
             ("($1,234.56)".into(), n(-1234.56), n(-1234.56)),
             (" $ (1,234.56)".into(), n(-1234.56), n(-1234.56)),
-            ("(1.234,56 €)".into(), t("(1.234,56 €)"), n(-1234.56)),
+            ("(1.234,56 €)".into(), n(-1234.56), n(-1234.56)),
             ("(12.50)".into(), t("(12.50)"), t("(12.50)")),
             ("12.50-".into(), t("12.50-"), t("12.50-")),
             ("-($12.50)".into(), t("-($12.50)"), t("-($12.50)")),
             ("(-$12.50)".into(), t("(-$12.50)"), t("(-$12.50)")),
             ("($-12.50)".into(), t("($-12.50)"), t("($-12.50)")),
-            ("(12,50) €".into(), t("(12,50) €"), n(-12.5)),
+            ("(12,50) €".into(), n(-12.5), n(-12.5)),
             // The true minus sign U+2212 is a minus; no other dash is.
             (format!("{minus}$3.00"), n(-3.0), n(-3.0)),
             (format!("{minus}12.50"), n(-12.5), n(-12.5)),
@@ -1894,7 +2109,7 @@ mod tests {
             (
                 "c1",
                 "Miete,\"1.250,00 €\"\nStrom,\"63,05 €\"\n",
-                vec![t("1.250,00 €"), t("63,05 €")],
+                vec![n(1250.0), n(63.05)],
             ),
             (
                 "c3",
@@ -2180,6 +2395,242 @@ mod tests {
         );
     }
 
+    /// Each file's rows, read by `parse`, against the rows that it must read to.
+    fn files_read_to(cases: &[(&str, &str, Vec<Vec<Value>>)]) -> Vec<String> {
+        cases
+            .iter()
+            .filter_map(|(name, text, want)| {
+                let got = parse(text.as_bytes());
+                (got.as_ref() != Ok(want))
+                    .then(|| format!("{name}: {}: got {got:?}", text.escape_debug()))
+            })
+            .collect()
+    }
+
+    /// r3 U11.10, the coordinator's way (d) of Q2: a file read by commas takes the decimal comma for
+    /// the amounts of a column that holds an amount with a decimal comma and a money sign or a
+    /// thousands sign, where no field of the file tells the point and the column turns whole; and
+    /// its way (c) of Q7: in a file read by commas whose own amounts show the decimal comma, a point
+    /// field of the thousands shape is no number but a text, which blocks its column, while in a file
+    /// of no such amount it reads as at the base.
+    #[test]
+    fn a_commas_file_tells_its_decimal_comma_by_an_amount_of_its_column() {
+        let cases: Vec<(&str, &str, Vec<Vec<Value>>)> = vec![
+            (
+                "F4, money with a decimal comma",
+                "Miete,\"1.250,00 €\"\nStrom,\"63,05 €\"\nGas,\"41,20 €\"\n",
+                vec![
+                    vec![t("Miete"), n(1250.0)],
+                    vec![t("Strom"), n(63.05)],
+                    vec![t("Gas"), n(41.2)],
+                ],
+            ),
+            (
+                "F5, a thousands point tells the comma, the bare decimal commas of its column turn",
+                "Miete,\"1.250,00\"\nStrom,\"63,05\"\nGas,\"41,20\"\n",
+                vec![
+                    vec![t("Miete"), n(1250.0)],
+                    vec![t("Strom"), n(63.05)],
+                    vec![t("Gas"), n(41.2)],
+                ],
+            ),
+            (
+                "F14, a header and a column of dates",
+                "Datum,Betrag\n01.10.2026,\"41,20\"\n02.10.2026,\"1.250,00\"\n",
+                vec![
+                    vec![t("Datum"), t("Betrag")],
+                    vec![t("01.10.2026"), n(41.2)],
+                    vec![t("02.10.2026"), n(1250.0)],
+                ],
+            ),
+            (
+                "brackets with a money sign",
+                "Miete,\"(12,50) €\"\nStrom,\"63,05 €\"\n",
+                vec![vec![t("Miete"), n(-12.5)], vec![t("Strom"), n(63.05)]],
+            ),
+            (
+                "Q7 (c), way (A): 1.250 is a text, the amount $950 beside it a text, the plain 12 a number",
+                "Miete,\"1.250,00 €\",1.250\nStrom,\"63,05 €\",$950\nGas,\"41,20 €\",12\n",
+                vec![
+                    vec![t("Miete"), n(1250.0), t("1.250")],
+                    vec![t("Strom"), n(63.05), t("$950")],
+                    vec![t("Gas"), n(41.2), n(12.0)],
+                ],
+            ),
+            (
+                "Q7 (c): 1.250 in a file of no such amount reads as at the base",
+                "Miete,1.250\nStrom,$950\nGas,12\n",
+                vec![
+                    vec![t("Miete"), n(1.25)],
+                    vec![t("Strom"), n(950.0)],
+                    vec![t("Gas"), n(12.0)],
+                ],
+            ),
+        ];
+        let wrong = files_read_to(&cases);
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.10, the coordinator's way (d) of Q2: in a file read by commas a form with a second
+    /// reading stays a text: where a field of the file tells the point, where no field of a
+    /// column tells the comma (a list of sizes, a bare decimal comma), and the thousands shape.
+    #[test]
+    fn in_a_commas_file_a_form_of_two_readings_stays_a_text() {
+        let cases: Vec<(&str, &str, Vec<Vec<Value>>)> = vec![
+            (
+                "F2, both signs and no amount that tells the comma",
+                "A,\"1,5\"\nB,1.5\n",
+                vec![vec![t("A"), t("1,5")], vec![t("B"), n(1.5)]],
+            ),
+            (
+                "F6, a point number tells the point",
+                "Miete,\"1.250,00 €\"\nRent,12.50\n",
+                vec![vec![t("Miete"), t("1.250,00 €")], vec![t("Rent"), n(12.5)]],
+            ),
+            (
+                "F7, a bare decimal comma tells nothing, 1.234 stays as at the base",
+                "Miete,\"41,20\"\nAnzahl,1.234\n",
+                vec![vec![t("Miete"), t("41,20")], vec![t("Anzahl"), n(1.234)]],
+            ),
+            (
+                "F8, lists of sizes",
+                "Schuh,\"38,40\"\nStiefel,\"39,41\"\n",
+                vec![vec![t("Schuh"), t("38,40")], vec![t("Stiefel"), t("39,41")]],
+            ),
+            (
+                "F9, the sizes beside a column of money",
+                "Schuh,\"38,40\",\"12,50 €\"\nStiefel,\"39,41\",\"63,05 €\"\n",
+                vec![
+                    vec![t("Schuh"), t("38,40"), n(12.5)],
+                    vec![t("Stiefel"), t("39,41"), n(63.05)],
+                ],
+            ),
+            (
+                "F16, a time tells the point",
+                "Termin,14.30,\"41,20 €\"\nTermin,16.45,\"12,50 €\"\n",
+                vec![
+                    vec![t("Termin"), n(14.3), t("41,20 €")],
+                    vec![t("Termin"), n(16.45), t("12,50 €")],
+                ],
+            ),
+            (
+                "a thousands comma blocks its column",
+                "Miete,\"1.250,00 €\"\nStrom,\"1,234\"\n",
+                vec![
+                    vec![t("Miete"), t("1.250,00 €")],
+                    vec![t("Strom"), t("1,234")],
+                ],
+            ),
+            (
+                "a thousands shape with a money sign",
+                "Miete,\"€ 1,250\"\nStrom,\"63,05 €\"\n",
+                vec![
+                    vec![t("Miete"), t("€ 1,250")],
+                    vec![t("Strom"), t("63,05 €")],
+                ],
+            ),
+            (
+                "way (b) of line 23854: a yen or yuan sign beside a decimal comma tells no comma",
+                "Gehalt,\"¥1,2345\",\"1,2345\"\n",
+                vec![vec![t("Gehalt"), t("¥1,2345"), t("1,2345")]],
+            ),
+        ];
+        let mut wrong = files_read_to(&cases);
+        let yen = parse("Gehalt,\"¥1,2345\",\"1,2345\"\n".as_bytes()).expect("the file reads");
+        if number_texts(&yen) != vec![0, 1, 1] {
+            wrong.push(format!("the yen row counts {:?}", number_texts(&yen)));
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.10, the coordinator's way (b) of Q3: `number_texts` counts, by column, the texts of
+    /// an amount's make and a number's shape, among them an amount with three capital letters of a
+    /// code of money (counted, never turned) and the point field of the thousands shape that a file
+    /// whose amounts show the comma writes as a text; it counts no number and no other text.
+    #[test]
+    fn the_count_of_texts_of_a_numbers_shape_is_by_column() {
+        let counted = [
+            "1,234",
+            "1.234",
+            "$1,234",
+            "$950",
+            "41,20",
+            "1.250,00",
+            "50%",
+            "12,5 %",
+            "(12.50)",
+            "12.50-",
+            "1 234,56",
+            "1,234,567",
+            "3,5",
+            "14.30",
+            "500 EUR",
+            "USD 1,234.50",
+            "1.250",
+            " 12,50 € ",
+            "38,40",
+            "EUR500",
+        ];
+        let not_counted = [
+            "Item 1",
+            "Betrag",
+            "01.10.2026",
+            "2026-10-01",
+            "10/01/2026",
+            "030 1234567",
+            "+49 30 1234567",
+            "38,40,42",
+            "007",
+            "",
+            " $ - ",
+            "12,34,567.89",
+            "#N/A",
+            "3,5 kg",
+            "Q1 2026",
+            "1e5",
+            "EUR",
+            "Eur 500",
+            "ABCD 500",
+            "1,234,56",
+            "ABC 123",
+            "INV 2031",
+        ];
+        let mut wrong = Vec::new();
+        for (cells, want) in [(&counted[..], 1), (&not_counted[..], 0)] {
+            for cell in cells {
+                if number_texts(&[vec![t(cell)]]) != vec![want] {
+                    wrong.push(format!("{cell:?}: want {want}"));
+                }
+            }
+        }
+        if number_texts(&[vec![n(12.5)]]) != vec![0] {
+            wrong.push("a number counts".to_owned());
+        }
+        let table = vec![
+            vec![t("Rent"), t("$950"), n(12.0)],
+            vec![t("Power"), t("50%"), t("12.50-")],
+            vec![t("Gas 2"), n(3.0), t("")],
+        ];
+        if number_texts(&table) != vec![0, 2, 1] {
+            wrong.push(format!("the table: {:?}", number_texts(&table)));
+        }
+        let shown = "Miete,\"1.250,00 €\",1.250\nStrom,\"63,05 €\",$950\nGas,\"41,20 €\",12\n";
+        let rows = parse(shown.as_bytes()).expect("the file reads");
+        if number_texts(&rows) != vec![0, 0, 2] {
+            wrong.push(format!("Q7 (c), way (A): {:?}", number_texts(&rows)));
+        }
+        let paged = data(b"Miete;12,50 \x80\r\n", Some(1252))
+            .expect("the file reads")
+            .rows;
+        if paged != vec![vec![t("Miete"), t("12,50 €")]] || number_texts(&paged) != vec![0, 1] {
+            wrong.push(format!(
+                "a page-read amount with a euro sign: {paged:?}, counts {:?}",
+                number_texts(&paged)
+            ));
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
     /// The file of the reader of r3 U11.10 (verifier-158): two rows of three cells in which the one
     /// byte 80 is the euro sign under most pages of Windows and a letter under 1251, where the
     /// separator of the file hung on it (the coordinator's rule of log line 23651).
@@ -2400,5 +2851,51 @@ mod tests {
     #[test]
     fn a_file_whose_page_tells_another_separator_than_its_letters_is_refused() {
         assert_eq!(data(READERS_FILE, Some(1252)), Err(encoding()));
+    }
+
+    /// r3 U11.10 round 3, R4 (the coordinator's log line 24070): in a page-read file a cell is a
+    /// number only where the rows with every sign beyond ASCII a plain letter and the rows with
+    /// every run of such signs one sign of money give it the same number. Under 1252: the reader's
+    /// s01 and s02 (`1.250` beside an amount with the euro or the pound sign is a counted text); a
+    /// file whose numbers stay; the reader's s05, a no-break space between groups, which tells
+    /// nothing there, so `1.250` stays 1.25 (a named limit).
+    #[test]
+    fn in_a_page_read_file_a_number_is_one_that_letters_and_money_signs_give_alike() {
+        /// The bytes of a file, its rows and its count by column.
+        type Case = (&'static [u8], Vec<Vec<Value>>, Vec<u32>);
+        let cases: [Case; 4] = [
+            (
+                b"A,\"1.250,00 \x80\"\r\nB,1.250\r\n",
+                vec![vec![t("A"), t("1.250,00 €")], vec![t("B"), t("1.250")]],
+                vec![0, 2],
+            ),
+            (
+                b"A,\"\xa312,50\"\r\nB,1.250\r\n",
+                vec![vec![t("A"), t("£12,50")], vec![t("B"), t("1.250")]],
+                vec![0, 2],
+            ),
+            (
+                b"M\xfcller,12.50,\"$1,234.50\"\r\nGr\xfc\xdfe,3,$9.99\r\n",
+                vec![
+                    vec![t("Müller"), n(12.5), n(1234.5)],
+                    vec![t("Grüße"), n(3.0), n(9.99)],
+                ],
+                vec![0, 0, 0],
+            ),
+            (
+                b"A,\"1\xa0250,00\"\r\nB,1.250\r\n",
+                vec![vec![t("A"), t("1\u{a0}250,00")], vec![t("B"), n(1.25)]],
+                vec![0, 1],
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (bytes, rows, counts) in cases {
+            let got = data(bytes, Some(1252)).map(|read| read.rows);
+            let count = got.as_deref().map(number_texts).ok();
+            if got != Ok(rows) || count != Some(counts) {
+                wrong.push(format!("{}: got {got:?}, counted {count:?}", shown(bytes)));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
     }
 }

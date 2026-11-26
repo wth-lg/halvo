@@ -287,6 +287,9 @@ not_sent
 not_to_account
 nothing_to_do
 number
+number_text_column
+number_text_columns
+number_texts
 observe
 of
 ok

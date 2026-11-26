@@ -383,4 +383,7 @@ record::run_list! { names_with_run_list
     "load_reply_body",
     "body",
     "letters_guessed",
+    "number_texts",
+    "number_text_columns",
+    "number_text_column",
 }

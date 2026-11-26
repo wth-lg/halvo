@@ -32,6 +32,11 @@ impl Range {
         self.last.1 - self.first.1 + 1
     }
 
+    /// The column of the range's first cell as a person reads it, A being 1 (r3 U11.10).
+    pub fn first_col(&self) -> u32 {
+        self.first.1 + 1
+    }
+
     pub(crate) fn cells(&self) -> impl Iterator<Item = (u32, u32)> + '_ {
         (self.first.0..=self.last.0)
             .flat_map(move |row| (self.first.1..=self.last.1).map(move |col| (row, col)))

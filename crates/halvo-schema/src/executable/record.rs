@@ -62,7 +62,11 @@ macro_rules! agent_run {
             /// `letters_guessed` (r3 U11.10) stands, as `yes`, in the record of a run whose file step read its data
             /// file by the computer's code page, a guess of its letters, and whose write of the workbook then
             /// answered well; it is missing from every other record, a record of a build before the key stood among
-            /// them, and `null` and `no` under it are refused.
+            /// them, and `null` and `no` under it are refused. `number_texts`, `number_text_columns` and
+            /// `number_text_column` (r3 U11.10) stand together in the record of a run whose write of the workbook
+            /// answered well and wrote texts of a number's shape: how many cells, in how many columns, and the first
+            /// of those columns of the workbook, A being 1; each a count of 1 or more, the columns at most the cells,
+            /// written only where they hold a value.
             #[derive(Clone, Debug, PartialEq, Eq)]
             pub struct AgentRun {
                 pub v: V1 = "v" => from_json,
@@ -88,6 +92,9 @@ macro_rules! agent_run {
             }
             absent {
                 pub letters_guessed: Option<YesNo> = "letters_guessed" => from_json,
+                pub number_texts: Option<u32> = "number_texts" => from_json,
+                pub number_text_columns: Option<u32> = "number_text_columns" => from_json,
+                pub number_text_column: Option<u32> = "number_text_column" => from_json,
             }
             rules(r) {
                 let fail = |key, rule| Err(Refusal::malformed("AgentRun", rule).at(key));
@@ -96,6 +103,13 @@ macro_rules! agent_run {
                 }
                 if r.letters_guessed == Some(YesNo::No) {
                     return fail("letters_guessed", "letters_guessed_no");
+                }
+                let texts = [r.number_texts, r.number_text_columns, r.number_text_column];
+                if texts.iter().any(Option::is_some) && !texts.iter().all(|t| t.is_some_and(|n| n > 0)) {
+                    return fail("number_texts", "number_texts_whole");
+                }
+                if r.number_text_columns > r.number_texts {
+                    return fail("number_text_columns", "number_text_columns_above_texts");
                 }
                 if u64::from(r.prompts) != u64::from(r.handbacks) + u64::from(r.confirmations) {
                     return fail("prompts", "prompts_sum");
@@ -147,6 +161,9 @@ macro_rules! agent_run {
                     model: None,
                     $( $field: None, )*
                     letters_guessed: None,
+                    number_texts: None,
+                    number_text_columns: None,
+                    number_text_column: None,
                 }
             }
         }

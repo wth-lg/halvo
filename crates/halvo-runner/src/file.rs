@@ -73,6 +73,31 @@ fn slot_path(loaded: &LoadReply, name: &Name, relative: Cause) -> Result<PathBuf
     Ok(path)
 }
 
+/// How many cells of a written fill are texts of a number's shape (`halvo_sheet::number_texts`), in how many
+/// columns, and the first of those columns of the workbook, A being 1 (r3 U11.10).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Texts {
+    pub(crate) cells: u32,
+    pub(crate) columns: u32,
+    pub(crate) first: u32,
+}
+
+/// The `Texts` of `rows` written into `range`; none where no cell counts.
+pub(crate) fn texts_of(rows: &[Vec<Value>], range: &Range) -> Option<Texts> {
+    let by_column = halvo_sheet::number_texts(rows);
+    let at = by_column.iter().position(|&n| n > 0)?;
+    let cells = by_column.iter().fold(0u32, |sum, &n| sum.saturating_add(n));
+    let columns = u32::try_from(by_column.iter().filter(|&&n| n > 0).count()).unwrap_or(u32::MAX);
+    let first = range
+        .first_col()
+        .saturating_add(u32::try_from(at).unwrap_or(u32::MAX));
+    Some(Texts {
+        cells,
+        columns,
+        first,
+    })
+}
+
 /// How long a file step waits for the lock of the workbook's directory.
 const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
@@ -402,6 +427,10 @@ impl Runner {
                         if self.read_under.as_ref().is_some_and(|read| read.guessed) {
                             self.letters_guessed = true;
                         }
+                        self.number_texts = slot_text(&loaded, target.range.as_ref())
+                            .ok()
+                            .and_then(|text| Range::parse(&text).ok())
+                            .and_then(|range| texts_of(&rows, &range));
                     }
                     Some(Err(error)) if left_as_it_was(&error) => {
                         self.advance(at, not_replaced)?;
@@ -627,5 +656,30 @@ mod tests {
             out.lock().expect("lock").is_empty(),
             "no frame: no load, no checkpoint row and no effect row"
         );
+    }
+
+    /// r3 U11.10, the coordinator's way (a) of Q4: a write that `replace` answered well keeps how
+    /// many cells it wrote as texts of a number's shape, in how many columns, and the first of those
+    /// columns of the WORKBOOK, by the range's first column: the rows of `C2:E4` with texts in their
+    /// second and third column give 3 cells, 2 columns, column D (4). A write of no such text keeps
+    /// none.
+    #[test]
+    fn a_written_fill_keeps_how_many_values_it_wrote_as_text_and_in_which_column() {
+        let t = |s: &str| Value::Text(s.to_owned());
+        let rows = vec![
+            vec![t("Rent"), Value::Number(12.0), t("1,234")],
+            vec![t("Power"), t("50%"), t("12.50-")],
+            vec![t("Gas"), Value::Number(3.0), t("")],
+        ];
+        let range = Range::parse("C2:E4").expect("a range");
+        let want = Texts {
+            cells: 3,
+            columns: 2,
+            first: 4,
+        };
+        assert_eq!(texts_of(&rows, &range), Some(want));
+        let plain = vec![vec![t("Rent"), Value::Number(12.0)]];
+        let range = Range::parse("A1:B1").expect("a range");
+        assert_eq!(texts_of(&plain, &range), None);
     }
 }

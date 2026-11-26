@@ -665,9 +665,16 @@ fn segments(value: &RawValue) -> Result<(), &'static str> {
 /// The keys, each with its kind, that a record of the kind may lack: each was added to the kind after records
 /// without it were stored, so that such a record still passes, and a writer writes the key only where it holds a
 /// value. `effect` of `agent_log` names the effect of a line of a page read (r3 U5.10-P); `letters_guessed` of
-/// `agent_run` says that the run read its data file by the computer's code page (r3 U11.10).
-pub const ABSENT_KEYS: &[(&str, &str)] =
-    &[("agent_log", "effect"), ("agent_run", "letters_guessed")];
+/// `agent_run` says that the run read its data file by the computer's code page, and `number_texts`,
+/// `number_text_columns` and `number_text_column` how many cells it wrote as texts of a number's shape, in how
+/// many columns and the first of them (r3 U11.10).
+pub const ABSENT_KEYS: &[(&str, &str)] = &[
+    ("agent_log", "effect"),
+    ("agent_run", "letters_guessed"),
+    ("agent_run", "number_texts"),
+    ("agent_run", "number_text_columns"),
+    ("agent_run", "number_text_column"),
+];
 
 /// Whether a record of the kind of `entry` may lack `key` (`ABSENT_KEYS`).
 fn may_lack(entry: &KindEntry, key: &str) -> bool {
