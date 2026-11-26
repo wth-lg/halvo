@@ -143,7 +143,7 @@ impl Bound {
     }
 }
 
-fn values<'a>(line: &'a [u8], head: &str, keys: &[&str]) -> Option<Vec<&'a str>> {
+pub(super) fn values<'a>(line: &'a [u8], head: &str, keys: &[&str]) -> Option<Vec<&'a str>> {
     let rest = std::str::from_utf8(line).ok()?.strip_prefix(head)?;
     let words: Vec<&str> = rest.split(' ').collect();
     if words.len() != keys.len() {
@@ -156,7 +156,7 @@ fn values<'a>(line: &'a [u8], head: &str, keys: &[&str]) -> Option<Vec<&'a str>>
         .collect()
 }
 
-fn model(text: &str) -> Option<Model> {
+pub(super) fn model(text: &str) -> Option<Model> {
     if text == SYNTHETIC || text == "none" {
         return None;
     }
@@ -171,14 +171,14 @@ fn model_or_none(text: &str) -> Option<Option<Model>> {
     }
 }
 
-fn machine(text: &str) -> Option<Machine> {
+pub(super) fn machine(text: &str) -> Option<Machine> {
     match Machine::parse(text).ok()? {
         machine @ (Machine::Mac | Machine::HostedWin) => Some(machine),
         Machine::GenA | Machine::GenB => None,
     }
 }
 
-fn figure(text: &str) -> Option<u64> {
+pub(super) fn figure(text: &str) -> Option<u64> {
     let canonical = !text.is_empty()
         && text.bytes().all(|b| b.is_ascii_digit())
         && (text == "0" || !text.starts_with('0'));
@@ -189,7 +189,7 @@ fn figure(text: &str) -> Option<u64> {
     }
 }
 
-fn category(task: Task, kind: CallKind) -> Option<CategoryId> {
+pub(super) fn category(task: Task, kind: CallKind) -> Option<CategoryId> {
     match (task, kind) {
         (Task::Bill, CallKind::Compile | CallKind::Replay | CallKind::Recover) => {
             Some(CategoryId::UtilityBillPayment)

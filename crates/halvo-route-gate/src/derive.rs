@@ -17,7 +17,7 @@ pub fn tier_rows<'a>(
     kind: CallKind,
     tier: Tier,
 ) -> impl Iterator<Item = &'a Row> + 'a {
-    let model = setup.fill(kind);
+    let model = setup.fill(kind, tier);
     table.rows().iter().filter(move |row| {
         row.category == category
             && row.kind == kind

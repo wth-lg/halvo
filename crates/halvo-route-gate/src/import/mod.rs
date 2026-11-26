@@ -1,8 +1,9 @@
 //! `route-gate import` (contract T5.4): reads the fenced block of the agent-setup run's driver file
-//! (AS-A13.6) and cells file (AS-A13.5) and writes `recorded.tsv`, `models.tsv`, `sources.tsv` and
-//! `freeze.txt` (T5.2, T5.3) into the directory that `--out` names, after both inputs have parsed.
-//! Refusal causes: `usage`, `file`, and `source` with the detail `<driver|cells>:<line number>`,
-//! `<driver|cells>:block` or `driver:verdict`. The driver file is read before the cells file, and
+//! (AS-A13.6) and cells file (AS-A13.5), and of a hosted round's file where `--hosted` is given,
+//! and writes `recorded.tsv`, `models.tsv`, `sources.tsv` and `freeze.txt` (T5.2, T5.3) into the
+//! directory that `--out` names, after every input has parsed. Refusal causes: `usage`, `file`, and
+//! `source` with the detail `<driver|cells|hosted>:<line number>`, `<driver|cells|hosted>:block`,
+//! `driver:verdict` or `hosted:verdict`. The driver file is read before the cells file, and
 //! each file in line order; a carriage return, a byte sequence that is no UTF-8, no LF at the end
 //! or a byte-order mark at the start, anywhere in a file, is refused with its line before the
 //! block is looked for. In the driver block a line that starts with `attempt` or `verdict` is of its form
@@ -41,9 +42,26 @@
 //! that ends `notrun` after its compile and leaves its attempt lines with no `drive` line is
 //! refused, until the agent-setup run answers whether its harness writes such a cell (its pass
 //! inbox, 2026-11-15T00:50:19Z, question 3).
+//!
+//! The hosted block (`--hosted` with `--date s3=`) is read after the cells file, with the text and
+//! the fence of the driver file. Every line of it is of one of eight kinds, each in its exact form,
+//! and any other line, a `spend`, `egress` or `host` line among them, is refused at its line; no
+//! form holds a path. `commit` is its first line and `verdict` its last, each once, and `records`
+//! stands once. Each line names `machine=mac` and a model whose token is the model word of exactly
+//! one row of the table of hosts, with `_` for `-`; an attempt line makes a row of that row's tier
+//! with the level `medium` and the source `s3`. `compile` and `write` have `i` 1 or 2 and `replay`
+//! 1 to 6, the second pass's replays 4 to 6; an attempt line of the kind `recover` is refused, and
+//! a `drive` line holds `recover=notread`. Within one model, task and seed, four attempt lines
+//! stand for each `drive` line, one `write` line for each `reply` line, and one `marks` line for
+//! each of either. The verdict's driver has the attempt lines and the twelve passed `drive` lines
+//! of both passes, and its writer the six `reply` lines with `bodies=2`. The freeze file then holds
+//! `sources=3` and a third line, `frontier driver=<token|none>`, whose token is the verdict's
+//! driver where it is the model of the row of `frontier`; no line fills `low_cost_hosted`. Without
+//! `--hosted` the four files are those of the two files alone.
 
 mod blob;
 mod block;
+mod hosted;
 mod lines;
 mod set;
 
@@ -52,6 +70,7 @@ use std::io::Write;
 use std::path::Path;
 
 pub use blob::blob_id;
+pub use hosted::HostModels;
 
 use crate::out::{self, Refused};
 use crate::table::{Machine, Model, Table};
@@ -63,11 +82,12 @@ pub const FILES: [&str; 4] = ["recorded.tsv", "models.tsv", "sources.tsv", "free
 const MODELS_HEADER: &str = "model\tmachine\tbound_bytes\tfits\tgroup\tsource";
 const SOURCES_HEADER: &str = "id\tpath\tblob\tdate\tmeasures\tlimits";
 
-/// One of the two trial files.
+/// One of the two trial files, or the file of a hosted round.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Input {
     Driver,
     Cells,
+    Hosted,
 }
 
 impl Input {
@@ -75,6 +95,7 @@ impl Input {
         match self {
             Input::Driver => "driver",
             Input::Cells => "cells",
+            Input::Hosted => "hosted",
         }
     }
 }
@@ -87,19 +108,20 @@ pub enum SourceError {
     /// The file does not hold exactly two fence lines, an opening and then a closing, or the
     /// cells block holds no `bound` line.
     Block(Input),
-    /// The driver block holds no line or more than one line that starts `verdict`, or the
-    /// verdict's driver or writer lacks an attempt line of the set or has a further one, or lacks
-    /// one of its `drive` or `reply` lines.
-    Verdict,
+    /// The driver block or the hosted block holds no line or more than one line that starts
+    /// `verdict`, or the verdict's driver or writer lacks an attempt line of the set or has a
+    /// further one, or lacks one of its `drive` or `reply` lines.
+    Verdict(Input),
 }
 
 impl SourceError {
-    /// `<driver|cells>:<line number>`, `<driver|cells>:block` or `driver:verdict`.
+    /// `<driver|cells|hosted>:<line number>`, `<driver|cells|hosted>:block`, `driver:verdict` or
+    /// `hosted:verdict`.
     pub fn detail(&self) -> String {
         match self {
             SourceError::Line(input, line) => format!("{}:{line}", input.as_str()),
             SourceError::Block(input) => format!("{}:block", input.as_str()),
-            SourceError::Verdict => "driver:verdict".to_owned(),
+            SourceError::Verdict(input) => format!("{}:verdict", input.as_str()),
         }
     }
 }
@@ -155,12 +177,16 @@ pub struct Imported {
     pub files: [(&'static str, String); 4],
     pub rows: usize,
     pub models: usize,
+    pub sources: usize,
 }
 
 impl Imported {
-    /// `import rows=<n> models=<n> sources=2`.
+    /// `import rows=<n> models=<n> sources=<n>`.
     pub fn line(&self) -> String {
-        format!("import rows={} models={} sources=2", self.rows, self.models)
+        format!(
+            "import rows={} models={} sources={}",
+            self.rows, self.models, self.sources
+        )
     }
 }
 
@@ -171,6 +197,26 @@ impl Imported {
 /// `drive` and `reply` lines of every model; after the lines of the cells block its last line and
 /// then whether it holds a `bound` line (`cells:block`).
 pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceError> {
+    imports(driver, cells, None)
+}
+
+/// Parses both trial files as `import` does and then the block of a hosted round, `hosted`, whose
+/// models take the tiers that `models` gives them, and makes the four files with its rows, its
+/// row of sources.tsv and the third line of the freeze file.
+pub fn import_hosted(
+    driver: Trial<'_>,
+    cells: Trial<'_>,
+    hosted: Trial<'_>,
+    models: &HostModels,
+) -> Result<Imported, SourceError> {
+    imports(driver, cells, Some((hosted, models)))
+}
+
+fn imports(
+    driver: Trial<'_>,
+    cells: Trial<'_>,
+    hosted: Option<(Trial<'_>, &HostModels)>,
+) -> Result<Imported, SourceError> {
     let block_of = |input: Input, bytes| {
         block(bytes).map_err(|fault| match fault {
             BlockFault::Text(line) => SourceError::Line(input, line),
@@ -215,14 +261,15 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
     if let Some(number) = set::gap(&keyed, &attempts) {
         return Err(SourceError::Line(Input::Driver, number));
     }
-    let [verdict] = <[lines::Verdict; 1]>::try_from(verdicts).map_err(|_| SourceError::Verdict)?;
+    let [verdict] = <[lines::Verdict; 1]>::try_from(verdicts)
+        .map_err(|_| SourceError::Verdict(Input::Driver))?;
     last_line(Input::Driver, &driver_block)?;
     if !set::holds(&verdict, &attempts) {
-        return Err(SourceError::Verdict);
+        return Err(SourceError::Verdict(Input::Driver));
     }
     set::verdict_lines(&verdict, &said, &attempts).map_err(|unsaid| match unsaid {
         set::Unsaid::Line(number) => SourceError::Line(Input::Driver, number),
-        set::Unsaid::Missing => SourceError::Verdict,
+        set::Unsaid::Missing => SourceError::Verdict(Input::Driver),
     })?;
     if let Some(number) = set::count(&keyed, &counted) {
         return Err(SourceError::Line(Input::Driver, number));
@@ -250,6 +297,18 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
     if bounds.is_empty() {
         return Err(SourceError::Block(Input::Cells));
     }
+    let hosted = match hosted {
+        Some((trial, models)) => {
+            let read = hosted::read(&block_of(Input::Hosted, trial.bytes)?, models)?;
+            Some((trial, read))
+        }
+        None => None,
+    };
+    let mut frontier = None;
+    if let Some((_, read)) = hosted.as_ref() {
+        rows.extend(read.rows.iter().cloned());
+        frontier = Some(&read.driver);
+    }
 
     rows.sort_by_cached_key(|row| row.to_line());
     let table = Table::from_rows(&rows).expect("the rows of attempt lines are rows of T5.1");
@@ -261,7 +320,7 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         models.push_str(line);
         models.push('\n');
     }
-    let sources = format!(
+    let mut sources = format!(
         "{SOURCES_HEADER}\n\
          s1\t{}\t{}\t{}\tdriver_trial_attempts\t3_seeds_2_machines_team_fixtures\n\
          s2\t{}\t{}\t{}\tfootprint_bounds\t5_runs_a_cell_no_16gb_laptop\n",
@@ -272,15 +331,30 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         blob_id(cells.bytes),
         cells.date.as_str(),
     );
+    let mut date = driver.date.max(cells.date);
+    let mut count = 2;
+    if let Some((trial, _)) = hosted.as_ref() {
+        sources.push_str(&format!(
+            "s3\t{}\t{}\t{}\thosted_driver_attempts\t3_seeds_1_machine_2_passes_team_fixtures\n",
+            trial.path,
+            blob_id(trial.bytes),
+            trial.date.as_str(),
+        ));
+        date = date.max(trial.date);
+        count = 3;
+    }
     let name = |model: &Option<Model>| model.as_ref().map_or("none", Model::as_str).to_owned();
-    let freeze = format!(
-        "freeze rows={} models={} sources=2 date={}\non_device driver={} writer={}\n",
+    let mut freeze = format!(
+        "freeze rows={} models={} sources={count} date={}\non_device driver={} writer={}\n",
         rows.len(),
         bounds.len(),
-        driver.date.max(cells.date).as_str(),
+        date.as_str(),
         name(&verdict.driver),
         name(&verdict.writer),
     );
+    if let Some(driver) = frontier {
+        freeze.push_str(&format!("frontier driver={}\n", name(driver)));
+    }
     Ok(Imported {
         files: [
             (FILES[0], table.to_text()),
@@ -290,6 +364,7 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         ],
         rows: rows.len(),
         models: bounds.len(),
+        sources: count,
     })
 }
 
@@ -357,6 +432,7 @@ fn refuse<T>(cause: &'static str, detail: impl Into<String>) -> Result<T, Refusa
 struct Call<'a> {
     driver: &'a str,
     cells: &'a str,
+    hosted: Option<(&'a str, Date)>,
     out: &'a str,
     s1: Date,
     s2: Date,
@@ -379,12 +455,14 @@ fn path_cell(path: &str) -> bool {
 }
 
 fn call(args: &[String]) -> Result<Call<'_>, Refusal> {
-    let (mut driver, mut cells, mut out, mut s1, mut s2) = (None, None, None, None, None);
+    let (mut driver, mut cells, mut hosted, mut out) = (None, None, None, None);
+    let (mut s1, mut s2, mut s3) = (None, None, None);
     let mut words = args.iter();
     while let Some(name) = words.next() {
         let slot = match name.as_str() {
             "--driver" => &mut driver,
             "--cells" => &mut cells,
+            "--hosted" => &mut hosted,
             "--out" => &mut out,
             "--date" => {
                 let Some(value) = words.next() else {
@@ -393,7 +471,13 @@ fn call(args: &[String]) -> Result<Call<'_>, Refusal> {
                 let (id, date) = match value.split_once('=') {
                     Some(("s1", date)) => ("s1", date),
                     Some(("s2", date)) => ("s2", date),
-                    _ => return refuse("usage", "--date takes s1=<YYYY-MM-DD> or s2=<YYYY-MM-DD>"),
+                    Some(("s3", date)) => ("s3", date),
+                    _ => {
+                        return refuse(
+                            "usage",
+                            "--date takes s1=<YYYY-MM-DD>, s2=<YYYY-MM-DD> or s3=<YYYY-MM-DD>",
+                        )
+                    }
                 };
                 let Some(date) = Date::parse(date) else {
                     return refuse(
@@ -401,7 +485,11 @@ fn call(args: &[String]) -> Result<Call<'_>, Refusal> {
                         format!("--date {id} is not a calendar date YYYY-MM-DD"),
                     );
                 };
-                let slot = if id == "s1" { &mut s1 } else { &mut s2 };
+                let slot = match id {
+                    "s1" => &mut s1,
+                    "s2" => &mut s2,
+                    _ => &mut s3,
+                };
                 if slot.replace(date).is_some() {
                     return refuse("usage", format!("--date {id} twice"));
                 }
@@ -425,7 +513,15 @@ fn call(args: &[String]) -> Result<Call<'_>, Refusal> {
             "--date s1=<YYYY-MM-DD> and --date s2=<YYYY-MM-DD> are required",
         );
     };
-    for (name, path) in [("--driver", driver), ("--cells", cells)] {
+    let hosted = match (hosted, s3) {
+        (Some(path), Some(date)) => Some((path, date)),
+        (None, None) => None,
+        _ => return refuse("usage", "--hosted and --date s3=<YYYY-MM-DD> come together"),
+    };
+    let paths = [("--driver", driver), ("--cells", cells)]
+        .into_iter()
+        .chain(hosted.as_ref().map(|(path, _)| ("--hosted", *path)));
+    for (name, path) in paths {
         if !path_cell(path) {
             return refuse(
                 "usage",
@@ -436,6 +532,7 @@ fn call(args: &[String]) -> Result<Call<'_>, Refusal> {
     Ok(Call {
         driver,
         cells,
+        hosted,
         out,
         s1,
         s2,
@@ -450,6 +547,15 @@ fn run(args: &[String]) -> Result<(Imported, &str), Refusal> {
     let Ok(cells) = std::fs::read(call.cells) else {
         return refuse("file", "--cells cannot be read");
     };
+    let hosted = match &call.hosted {
+        Some((path, date)) => {
+            let Ok(bytes) = std::fs::read(path) else {
+                return refuse("file", "--hosted cannot be read");
+            };
+            Some((*path, bytes, date))
+        }
+        None => None,
+    };
     if !Path::new(call.out).is_dir() {
         return refuse("file", "--out is not a directory");
     }
@@ -458,18 +564,24 @@ fn run(args: &[String]) -> Result<(Imported, &str), Refusal> {
             return refuse("file", format!("--out holds {name}"));
         }
     }
-    let imported = import(
-        Trial {
-            path: call.driver,
-            bytes: &driver,
-            date: &call.s1,
-        },
-        Trial {
-            path: call.cells,
-            bytes: &cells,
-            date: &call.s2,
-        },
-    )
+    let driver = Trial {
+        path: call.driver,
+        bytes: &driver,
+        date: &call.s1,
+    };
+    let cells = Trial {
+        path: call.cells,
+        bytes: &cells,
+        date: &call.s2,
+    };
+    let imported = match &hosted {
+        Some((path, bytes, date)) => {
+            let hosted = Trial { path, bytes, date };
+            let models = HostModels::of_ruling(&halvo_route::release::ruling());
+            import_hosted(driver, cells, hosted, &models)
+        }
+        None => import(driver, cells),
+    }
     .or_else(|error| refuse("source", error.detail()))?;
     let files: Vec<(&str, String)> = imported
         .files

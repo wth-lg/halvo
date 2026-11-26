@@ -10,7 +10,7 @@ use halvo_route_gate::product::{recorded_setup, Freeze, ProductRouter};
 use halvo_route_gate::routers::PolicyRouter;
 use halvo_route_gate::score::{score, Score, DEFAULT_DRAWS};
 use halvo_route_gate::table::{Split, Table};
-use halvo_route_gate::{Router, Setup};
+use halvo_route_gate::{Fill, Router, Setup};
 
 fn case_dir(case: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -76,6 +76,7 @@ fn recorded_setup_takes_the_freeze_lines_and_the_ruling() {
             allowed: release::ruling().allowed().to_vec(),
             driver: None,
             writer: None,
+            frontier: Fill::default(),
             recorded: true,
         }
     );
@@ -99,6 +100,7 @@ fn recorded_setup_takes_the_freeze_lines_and_the_ruling() {
             date: "2024-02-29".to_owned(),
             driver: None,
             writer: Some("a_1".to_owned()),
+            frontier: None,
         })
     );
     assert_eq!(
