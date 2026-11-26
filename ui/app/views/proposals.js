@@ -39,9 +39,12 @@
   var turning = false;
   var rowsMade = 0;
   var reads = 0;
-  /** While the newest reply reads deleting, the view reads again after this many ms, and at no other time. */
+  /** While the newest reply reads deleting, the view reads again after this many ms. */
   var DELETING_READ_MS = 3000;
   var readAgain = null;
+  /** While the window shows, the view reads again every this many ms, the period of the table of what is stored; unlike that table, never while the window is hidden. */
+  var SHOWN_READ_MS = 15000;
+  var reading = null;
 
   function known(text) {
     return typeof text === "string" && text !== "" ? text : null;
@@ -89,7 +92,7 @@
     });
   }
 
-  /** Reads the workflows and draws the reply, unless a later read has started since. */
+  /** Reads the workflows and draws the reply, unless a later read has started since; a reply equal to the one drawn draws nothing, so an open question and the focus stay. */
   function read() {
     reads += 1;
     var mine = reads;
@@ -99,7 +102,7 @@
       .call("workflows")
       .then(function (reply) {
         if (mine !== reads) return;
-        render(reply);
+        if (lastReply === null || JSON.stringify(reply) !== JSON.stringify(lastReply)) render(reply);
         if (reply.state === "deleting") readAgain = setTimeout(read, DELETING_READ_MS);
       })
       .catch(Halvo.showError);
@@ -291,7 +294,11 @@
     },
     show: function () {
       read();
+      if (reading === null && document.visibilityState !== "hidden") reading = setInterval(read, SHOWN_READ_MS);
     },
-    hide: function () {},
+    hide: function () {
+      clearInterval(reading);
+      reading = null;
+    },
   });
 })();

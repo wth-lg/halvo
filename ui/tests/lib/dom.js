@@ -197,6 +197,7 @@ class Element extends Node {
     this.oninput = null;
     this.onchange = null;
     this._value = null;
+    this._selection = [0, 0];
     this._checked = null;
   }
   getAttribute(name) {
@@ -215,7 +216,21 @@ class Element extends Node {
     return this._value ?? this.getAttribute("value") ?? "";
   }
   set value(v) {
+    if (String(v) !== this.value) this._selection = [String(v).length, String(v).length];
     this._value = String(v);
+  }
+  // The selection of a text field as a real one keeps it: a field whose value no script has set has its
+  // caret at 0, a new value that a script sets puts the caret at its end, the same value set again keeps
+  // it, and setSelectionRange holds a range within the value. Another element has neither.
+  get selectionStart() {
+    return this.localName === "input" || this.localName === "textarea" ? this._selection[0] : undefined;
+  }
+  get selectionEnd() {
+    return this.localName === "input" || this.localName === "textarea" ? this._selection[1] : undefined;
+  }
+  setSelectionRange(start, end) {
+    const n = this.value.length;
+    this._selection = [Math.min(start, n), Math.min(end, n)];
   }
   addEventListener(type, fn) {
     if (!this.listeners.has(type)) this.listeners.set(type, []);

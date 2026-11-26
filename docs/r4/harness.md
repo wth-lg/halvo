@@ -51,7 +51,7 @@ The page gets `Halvo.ipc.call` from the harness before any script of the page ru
 
 Under `out`, the stub writes `calls.jsonl`, one line `{"n":<count>,"call":"<command>","args":{...}}` per call other than `agents_snapshot` and `agents_next`, and `act` writes `actions.txt`, one line `action i=<count> type=<click|choose|type> act=<name>` per action. A call that the transcript does not hold next is written to no file, and neither is the action that led to it.
 
-The harness frame `tools/r4-page/frame/index.html` loads the view scripts in order, places one section per view by `order`, with an `h2` that holds `heading`, calls each view's `mount(element)` and then its `show()`. `Halvo.views.window(state)` calls `show()` of every view for the state `shown` and `hide()` for any other state.
+The harness frame `tools/r4-page/frame/index.html` loads the page's words, `ui/app/words.js`, before its own script, as the app's page does before its views. It then loads the view scripts in order, places one section per view by `order`, with an `h2` that holds `heading`, calls each view's `mount(element)` and then its `show()`. `Halvo.views.window(state)` calls `show()` of every view for the state `shown` and `hide()` for any other state.
 
 ## When a check reads the page
 

@@ -295,6 +295,7 @@
     MODEL_LIMIT_SET: "Halvo now stops at {amount} a {period}.",
     MODEL_LIMIT_SET_NEW: "Halvo now stops at {amount} a {period} and counts from nothing.",
     MODEL_LIMIT_FAILED: "Halvo could not finish this. Choose Set the limit again.",
+    CARD_WAITS: "Halvo is working on this. The buttons work again when it is done.",
   };
 
   Halvo.errorWords = function (e) {

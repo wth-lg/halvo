@@ -480,7 +480,7 @@ test("at Change its answers the sentence under an emptied line of Which cells an
   assert.equal(core.saved(), null, "nothing is saved");
 });
 
-test("a question that is drawn anew at the same step stands under the sentence where the old card showed it there and the question still shows no answer: with Which sheet emptied at the press, the list of the workbook's sheets comes with none chosen, under the sentence, and the focus goes from the line to the card's heading and to no control; and where the list lacks the sheet of the press, the sentence under it still stands behind a second newer read of that one press", async () => {
+test("a question that is drawn anew at the same step stands under the sentence where the old card showed it there and the question still shows no answer: with Which sheet emptied at the press, the list of the workbook's sheets comes with none chosen, under the sentence, and the focus goes from the line to the first entry of the list, which it does not choose; and where the list lacks the sheet of the press, the sentence under it still stands behind a second newer read of that one press", async () => {
   const sentence = words["param_typed.needs_answer"];
   const readings = [];
   /** One reading: what the page shows under `what`, printed, beside what the rule asks for. */
@@ -498,11 +498,11 @@ test("a question that is drawn anew at the same step stands under the sentence w
     [STORED.sheet, false],
   ]);
   read("a line that turned into its list, the sentences under it", under(page, "sheet"), [sentence]);
-  const heading = page.document.querySelector("h3.hn-title");
+  const first = radiosOf(page, "sheet")[0];
   read(
-    "a line that turned into its list, the focus is on the card's heading, whose tab index is -1, and on no entry of the list",
-    [page.document.activeElement === heading, heading.getAttribute("tabindex"), radiosOf(page, "sheet").includes(page.document.activeElement)],
-    [true, "-1", false],
+    "a line that turned into its list, the focus is on the first entry of the list, which stays unchosen",
+    [page.document.activeElement === first, first.checked],
+    [true, false],
   );
   read("a line that turned into its list, saved", core.saved(), null);
 
