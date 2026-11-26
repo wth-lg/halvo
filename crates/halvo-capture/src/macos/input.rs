@@ -57,10 +57,22 @@ extern "C" {
     fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
     #[cfg(any(test, debug_assertions))]
     fn CGEventSourceCounterForEventType(state: i32, event_type: u32) -> u32;
+    fn CGEventSourceSecondsSinceLastEventType(state: i32, event_type: u32) -> f64;
 }
 
-#[cfg(any(test, debug_assertions))]
+/// `kCGEventSourceStateHIDSystemState`: the state of the hardware's input events.
 const HID_SYSTEM_STATE: i32 = 1;
+
+/// How long ago a key was last pressed on the whole computer, as the system's HID state has
+/// it: a length of time and no number of keys; none for an answer that is not a time.
+fn since_the_last_key_down() -> Option<Duration> {
+    // SAFETY: a query of the system that takes two values and touches no memory of the
+    // caller.
+    let seconds = unsafe {
+        CGEventSourceSecondsSinceLastEventType(HID_SYSTEM_STATE, CGEventType::KeyDown as u32)
+    };
+    Duration::try_from_secs_f64(seconds).ok()
+}
 
 #[cfg(any(test, debug_assertions))]
 fn hid_key_downs() -> u32 {
@@ -224,6 +236,7 @@ struct InputFigures {
     stalled: AtomicBool,
     kept_private: AtomicBool,
     secure_hold_since: AtomicU64,
+    no_key_since: AtomicU64,
     secure_released_keystrokes: AtomicU64,
     secure_held_keystrokes: AtomicU64,
     secure_held_suppressed_down: AtomicU64,
@@ -351,6 +364,14 @@ impl InputCounters {
     fn set_secure_hold(&self, since: Option<u64>) {
         self.0
             .secure_hold_since
+            .store(since.unwrap_or(0), Ordering::Relaxed);
+    }
+
+    /// Marks the second, counted from 1970, of the first reading of 30 seconds through
+    /// which keys were pressed and none reached the tap, or takes the mark back.
+    fn set_no_key(&self, since: Option<u64>) {
+        self.0
+            .no_key_since
             .store(since.unwrap_or(0), Ordering::Relaxed);
     }
 
@@ -908,6 +929,8 @@ struct TapContext {
     /// The clock of the second that a status names for a hold of secure input: whole
     /// seconds since 1970.
     wall: fn() -> u64,
+    /// The question of how long ago a key was last pressed on the whole computer.
+    last_key: fn() -> Option<Duration>,
     held_phase: Arc<AtomicBool>,
     /// Whether the start of this context asked its tap for key types: a key
     /// event that reaches a context whose start asked for none makes no record,
@@ -1832,6 +1855,7 @@ fn tap_context(
         fold_timer: Mutex::new(None),
         private_since: Mutex::new(None),
         wall: crate::floor::exclude::unix_seconds_now,
+        last_key: since_the_last_key_down,
         held_phase: Arc::new(AtomicBool::new(false)),
         keys_asked: true,
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -7335,6 +7359,159 @@ mod tests {
             None,
             "nothing that a hold leaves out is on"
         );
+    }
+
+    #[test]
+    fn keys_pressed_through_thirty_seconds_with_none_at_the_tap_stand_in_the_status_and_on_the_row_and_no_fire_asks_at_a_hold_or_behind_a_key(
+    ) {
+        use crate::daemon::board::Board;
+        use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::state::{Cap, Desired, StateHealth};
+        use crate::floor::Switches;
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{LastStop, Lease, Parent, Platform};
+
+        thread_local! {
+            static AGO_MS: Cell<u64> = const { Cell::new(60_000) };
+            static ASKS: Cell<u32> = const { Cell::new(0) };
+        }
+        fn last_key() -> Option<Duration> {
+            ASKS.with(|asks| asks.set(asks.get() + 1));
+            Some(Duration::from_millis(AGO_MS.with(Cell::get)))
+        }
+        fn wall() -> u64 {
+            1_800_000_000 + (MONOTONIC.with(Cell::get) - START) / (1_000 * MS)
+        }
+        let asks = || ASKS.with(Cell::get);
+        let written = |held: &Held| {
+            let mut board = Board::new(Platform::Macos);
+            board.figures = held.counters.figures();
+            let parts = StatusParts {
+                board,
+                desired: Desired::Running,
+                lease: Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap: Cap::Known(StorageCap::DEFAULT),
+                switches: Switches::default(),
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: true,
+                held: false,
+                typing_off_unsaved: None,
+                search: None,
+                left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
+            };
+            let facts = RunFacts {
+                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+                parent: Parent::None,
+                last_stop: LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+        };
+        let entry = |since: &str| {
+            Some(format!(
+                r#"[{{"cause":"no_key_arrives","what":["typing"],"since":"{since}"}}]"#
+            ))
+        };
+
+        let mut held = held(100);
+        held.ctx.wall = wall;
+        held.ctx.last_key = last_key;
+        let info = std::ptr::from_ref(&*held.ctx).cast_mut().cast::<c_void>();
+        let fire = || {
+            advance(1_000);
+            fold_timer_fired(std::ptr::null_mut(), info);
+        };
+        let seconds = |with_a_key: u32, without: u32| {
+            for second in 0..with_a_key + without {
+                AGO_MS.with(|ago| ago.set(if second < with_a_key { 200 } else { 60_000 }));
+                fire();
+            }
+        };
+
+        answer(Reading::Off);
+        fold_timer_fired(std::ptr::null_mut(), info);
+        assert_eq!(asks(), 0, "the first reading of off asks nothing");
+        seconds(9, 21);
+        assert_eq!(asks(), 30, "one question at each fire behind it");
+        assert_eq!(written(&held), None, "a key in 9 of 30 seconds");
+        seconds(10, 20);
+        assert_eq!(
+            written(&held),
+            entry("2027-01-15T08:00:30Z"),
+            "a key in 10 of 30 seconds and none at the tap: since the window's first reading"
+        );
+        fire();
+        assert_eq!(asks(), 60, "while it stands nothing is asked");
+
+        key_down(&held.ctx);
+        fire();
+        assert_eq!(written(&held), None, "a key-down reached the tap");
+        assert_eq!(asks(), 60, "a second in which a key arrived asks nothing");
+        seconds(10, 5);
+        answer(Reading::On);
+        fire();
+        answer(Reading::Off);
+        fire();
+        assert_eq!(
+            asks(),
+            75,
+            "a reading of on and the first reading of off behind it ask nothing"
+        );
+        seconds(10, 19);
+        assert_eq!(
+            written(&held),
+            None,
+            "29 seconds behind a hold: the seconds before it count no more"
+        );
+        seconds(0, 1);
+        assert_eq!(
+            written(&held),
+            entry("2027-01-15T08:01:19Z"),
+            "30 seconds behind the hold"
+        );
+        answer(Reading::Unknown);
+        fire();
+        assert_eq!(written(&held), None, "a reading of unknown");
+        assert_eq!(asks(), 105, "a reading of unknown asks nothing");
+
+        held.ctx.keys_asked = false;
+        answer(Reading::Off);
+        seconds(10, 25);
+        assert_eq!(written(&held), None, "a tap that asked no key type");
+        assert_eq!(asks(), 105, "a tap that asked no key type asks nothing");
+
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::Never);
+        source.session = || Session::NotAtConsole;
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, FakeMaker(ended_tx), || {})
+            .expect("the source starts with a fake tap");
+        source.counters.set_no_key(Some(1_800_000_000));
+        assert_eq!(
+            source.health().state,
+            SourceState::Impaired {
+                reason: HealthReason::NoKeyEvents
+            }
+        );
+        source.counters.set_kept_private(true);
+        assert_eq!(
+            source.health().state,
+            SourceState::Impaired {
+                reason: HealthReason::SecureInputElsewhere
+            },
+            "behind the reasons that stood"
+        );
+        source.counters.set_kept_private(false);
+        source.counters.set_no_key(None);
+        assert_eq!(source.health().state, SourceState::Running);
+        source.shutdown().expect("the source stops");
     }
 
     #[test]

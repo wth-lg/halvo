@@ -429,3 +429,27 @@ test("says-left-out: an entry of left_out_before with the cause doubt shows on a
   assert.equal(line(await open(over, night + 3600000)), `From ${date(night)} at 23:50 to ${date(night + 20 * 60000)} at 00:10, ${because}`, "over midnight");
   assert.notEqual(date(night), date(night + 20 * 60000), "two dates");
 });
+
+test("no-key-arrives: where the status's left_out holds no_key_arrives with typing in its what, the line under the heading says the ruled sentence with the heading and the dot as they are; the doubt and a hold win; with a failed row of the app in front, without typing in its what, by the row's reason alone, paused or held it does not show", async () => {
+  const said = "Keys are being pressed on this Mac and none of them reaches Halvo, so Halvo is not recording typing right now. It records typing again by itself as soon as keys reach it.";
+  const doubt = "Halvo could not tell whether to leave out the app that you were using, so it has recorded nothing since then. It records again as soon as it can tell.";
+  const hold = "Halvo is not recording typing or window titles right now, because a password field or another app has asked your Mac to keep typing private. It records typing and window titles again by itself when that ends.";
+  const turned = (status, name, row) => ({ ...status, sources: status.sources.map((src) => (src.name === name ? { ...src, ...row } : src)) });
+  const entry = (cause, what) => ({ cause, what, since: "2027-01-15T08:00:30Z" });
+  const impaired = turned(fixture("capture_status-running"), "input", { state: "impaired", reason: "no_key_events" });
+  const none = { ...impaired, left_out: [entry("no_key_arrives", ["typing"])] };
+  for (const capture of ["running", "partial"]) {
+    const shown = await page({ ...none, capture });
+    assert.equal(shown.text("capture-reason"), said, capture);
+    assert.equal(shown.text("state"), CAPTURE[capture], capture);
+    assert.equal(shown.byId("dot").classList.contains("on"), true, capture);
+  }
+  assert.equal((await page({ ...none, left_out_in_doubt: true })).text("capture-reason"), doubt, "left_out_in_doubt beside it");
+  assert.equal((await page({ ...none, left_out: [...none.left_out, entry("doubt", ["everything"])] })).text("capture-reason"), doubt, "the doubt beside it");
+  assert.equal((await page({ ...none, left_out: [...none.left_out, entry("secure_input", ["typing", "window_titles"])] })).text("capture-reason"), hold, "a hold beside it");
+  assert.equal((await page(turned({ ...none, capture: "partial" }, "foreground", { state: "failed", reason: "thread_ended" }))).text("capture-reason"), "", "the app in front has stopped");
+  assert.equal((await page({ ...impaired, left_out: [entry("no_key_arrives", ["a_later_part"])] })).text("capture-reason"), "", "no typing in its what");
+  assert.equal((await page(impaired)).text("capture-reason"), "", "the row's reason alone");
+  assert.equal((await page({ ...none, desired: "paused", capture: "paused" })).text("capture-reason"), "", "paused");
+  assert.notEqual((await page({ ...none, hold: { press: "resume" } })).text("capture-reason"), said, "held");
+});
