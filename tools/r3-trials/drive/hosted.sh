@@ -565,10 +565,10 @@ unmarked=$(grep -c -E '^marks .* (with_mark=0|slot_text=[1-9])' "$dir/lines.txt"
 node -e '
   const fs = require("fs");
   for (const seed of [1, 2, 3]) {
-    const data = JSON.parse(fs.readFileSync(`tools/fixture-server/variants/data/seed-${seed}.json`, "utf8"));
+    const data = JSON.parse(fs.readFileSync("tools/fixture-server/variants/data/seed-" + seed + ".json", "utf8"));
     for (const task of ["bill", "order", "reply"]) {
       for (const slot of data.bindings[task].slots) {
-        for (const value of slot.value) console.log(slot.name === "start" ? `${value}:${process.argv[1]}` : value);
+        for (const value of slot.value) console.log(slot.name === "start" ? value + ":" + process.argv[1] : value);
       }
     }
   }' "$port" >"$dir/slot-texts.txt" || notrun tmp
