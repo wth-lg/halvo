@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const { openPage, fixture, FIXTURES } = require("../lib/page.js");
+const { makeEvent } = require("../lib/dom.js");
 
 const FOUR = ["capturing", "paused", "Nothing stored yet.", "0 B"];
 const visibleText = (node) =>
@@ -477,4 +478,33 @@ test("U3.36: under the heading Halvo is paused, the line says what a pause is wh
   const runs = await page(fixture("capture_status-running"));
   assert.equal(runs.text("state"), "Halvo is capturing", "capture runs");
   assert.doesNotMatch(visibleText(runs.document.body), /records nothing until you press Resume/, "capture runs");
+});
+
+test("U3.36 rows: the line waits for rows asked after the newest state that the page draws: behind a first press of Start that the app answers paused with a step open, and behind a paused status first drawn while the window is hidden, it is empty", async () => {
+  const noService = { permissions: [], lost_grants: [], all_granted: false, walkback: [] };
+  let rows = noService;
+  const first = await page(fixture("capture_status-not-started"), {
+    onboarding_state: () => rows,
+    start_capture: () => {
+      rows = fixture("onboarding_state-missing");
+      return fixture("capture_status-paused");
+    },
+  });
+  await first.click("toggle");
+  assert.equal(first.text("state"), "Halvo is paused", "a first press");
+  assert.equal(first.text("error"), first.window.Halvo.words.START_STEPS_OPEN, "a first press");
+  assert.equal(first.text("capture-reason"), "", "a first press");
+  let status = fixture("capture_status-not-started");
+  let later = noService;
+  const kept = await openPage({ replies: { capture_status: () => status, onboarding_state: () => later } });
+  await kept.hide();
+  status = fixture("capture_status-paused");
+  later = fixture("onboarding_state-missing");
+  await kept.clock.advance(3000);
+  assert.equal(kept.text("state"), "Halvo is paused", "drawn while the window is hidden");
+  assert.equal(kept.text("capture-reason"), "", "drawn while the window is hidden");
+  kept.document.visibilityState = "visible";
+  kept.document.dispatchEvent(makeEvent("visibilitychange"));
+  await kept.settle();
+  assert.equal(kept.text("capture-reason"), "", "at the show");
 });

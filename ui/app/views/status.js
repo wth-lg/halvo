@@ -33,7 +33,10 @@
   var last = {};
   var readsSentBeforeTheLastMutation = 0;
   var ran = null;
-  var stepsOpen = null;
+  var drawnState = 0;
+  var rows = null;
+  var rowsAskedAt = null;
+  var windowShown = false;
 
   var SERVICE = {
     connecting: w.CONNECTING,
@@ -82,6 +85,7 @@
   Halvo.takeMutationReply = function (view) {
     Halvo.markAnswer();
     readsSentBeforeTheLastMutation = sent;
+    drawnState += 1;
     status.set(view);
   };
 
@@ -169,11 +173,13 @@
   function render(s) {
     var key = s.service + ":" + s.capture + ":" + s.desired + ":" + pressOf(s);
     if (shown !== null && key !== shown) heldUntil = performance.now() + HOLD_MS;
+    if (key !== shown) drawnState += 1;
     shown = key;
     shownService = s.service;
     dot.classList.toggle("on", !s.hold && s.service === "running" && (s.capture === "running" || s.capture === "partial"));
     state.textContent = heading(s);
     drawReason(s);
+    if (windowShown || rows === null || rows.at !== drawnState) askRows(s);
     beforeLine.textContent = leftOutBefore(s);
     renderToggle(s);
     renderSources(s);
@@ -196,8 +202,26 @@
     if (s.hold) reason.textContent = heldReason(s);
     else if (s.service !== "running") reason.textContent = "";
     else if (s.capture === "faulted") reason.textContent = FAULT[s.capture_reason] || "";
-    else if (s.capture === "paused") reason.textContent = pending === null && stepsOpen === false ? w.PAUSED_UNTIL_RESUME : "";
+    else if (s.capture === "paused") reason.textContent = pending === null && rows !== null && rows.at === drawnState && !rows.open ? w.PAUSED_UNTIL_RESUME : "";
     else reason.textContent = leftOutNow(s);
+  }
+
+  function askRows(s) {
+    if (rowsAskedAt !== null || s.hold || s.service !== "running" || s.capture !== "paused") return;
+    var at = (rowsAskedAt = drawnState);
+    Halvo.ipc
+      .call("onboarding_state")
+      .then(
+        function (o) {
+          rows = { at: at, open: !(o && Array.isArray(o.walkback) && o.walkback.length === 0) };
+        },
+        function () {},
+      )
+      .then(function () {
+        rowsAskedAt = null;
+        if (at !== drawnState) askRows(last);
+        drawReason(last);
+      });
   }
 
   function runs(s) {
@@ -505,15 +529,16 @@
         last = s;
       });
       status.on(render);
-      Halvo.feed("onboarding").on(function (o) {
-        stepsOpen = !(o && Array.isArray(o.walkback) && o.walkback.length === 0);
-        drawReason(last);
-      });
       status.source(refresh);
       refresh();
       setInterval(refresh, 3000);
     },
-    show: function () {},
-    hide: function () {},
+    show: function () {
+      windowShown = true;
+      askRows(last);
+    },
+    hide: function () {
+      windowShown = false;
+    },
   });
 })();
