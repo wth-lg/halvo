@@ -3,9 +3,46 @@ use super::{
     Hold,
 };
 use crate::types::{
-    AgentId, AgentState, ConfigView, Doing, Facts, Limits, Outcome, RunEnd, RunId, Runtime, What,
-    WorkflowId, WorkflowState,
+    AgentId, AgentState, ConfigView, Doing, Facts, LastCause, Limits, Outcome, RunEnd, RunId,
+    Runtime, SpendLimit, Tier, What, WorkflowId, WorkflowState,
 };
+
+/// Whether the agent of `facts` rests after a run that handed its work back for a cause of a
+/// hosted model (r3 U7.8): the agent store has ended its newest run, the newest `run_ended` of its
+/// events is `handed_back`, its stored tier is a hosted tier, and the last cause still stands by
+/// what the app handed beside its configuration at this list of the agents. `no_agreement` stands
+/// until the agent's yes stands for its tier, `no_model_key` until a key is saved, `over_cap` while
+/// the limit reads near or reached, and `shortfall` until a newer run ends, since the core does not
+/// read the router's table. Where the app hands no use of a model, the agent rests; so it does for
+/// `no_model_key` where the key's state does not read, and for `over_cap` where the limit does not
+/// read. Nothing is stored, and the rest is no hold: the person's own start passes, and Start now
+/// stays offered. While it rests, a tick raises no `ready` for the agent and starts no run of it
+/// (`tick_step`), and its row says the sentence of the cause where no line of
+/// `crate::roster::status_of` stands before it.
+pub(crate) fn rests<C: ConfigView>(facts: &Facts<C>) -> bool {
+    if !facts.store_ended || facts.config.tier() == Tier::OnDevice {
+        return false;
+    }
+    let last = facts.events.iter().rev().find_map(|e| match e.what {
+        What::RunEnded { cause, .. } => Some(cause),
+        _ => None,
+    });
+    if last != Some(RunEnd::HandedBack) {
+        return false;
+    }
+    let model = facts.config.model();
+    match facts.last_cause {
+        Some(LastCause::NoAgreement) => !model.is_some_and(|m| m.stands),
+        Some(LastCause::NoModelKey) => model.and_then(|m| m.key) != Some(true),
+        Some(LastCause::OverCap) => model.is_none_or(|m| match m.limit {
+            SpendLimit::Stands { near, .. } => near,
+            SpendLimit::NotSet => false,
+            SpendLimit::Unread => true,
+        }),
+        Some(LastCause::Shortfall) => true,
+        _ => false,
+    }
+}
 
 /// Whether a tick sends `set_state` `active` for the agent (ruling IG-6a): the owner's list
 /// shows its workflow `approved`, no hold stands on it (so its runtime is not `none`, which is
@@ -70,17 +107,18 @@ pub enum Ask {
 }
 
 /// What one tick raises or starts for the agent of `facts` (I5.3, I5.9): nothing while its
-/// workflow is not `listed`, a hold stands, a run of it is live, a start of it is queued or an
-/// item of it is open; for an agent that needs the person, and for every agent with no
-/// finished run, `ready` when it has no clean run (`clean`) or its current slot is open, unless
-/// a `slot_skipped` event with a null slot stands: until a slot opens after that event's day,
-/// and for an agent with no slot while the event is handed out (rulings RD-67 5.2, RD-73 1.2);
-/// for any other agent a start when its slot is due (`slot_due`).
+/// workflow is not `listed`, a hold stands, it rests after a run that handed its work back for
+/// a cause of a hosted model that still stands (`rests`, r3 U7.8), a run of it is live, a start
+/// of it is queued or an item of it is open; for an agent that needs the person, and for every
+/// agent with no finished run, `ready` when it has no clean run (`clean`) or its current slot is
+/// open, unless a `slot_skipped` event with a null slot stands: until a slot opens after that
+/// event's day, and for an agent with no slot while the event is handed out (rulings RD-67 5.2,
+/// RD-73 1.2); for any other agent a start when its slot is due (`slot_due`).
 /// The tick of `drive` reads it on the facts with the ends that the row reads (`Ends::read`),
 /// so that a run that a record names `completed` or `nothing_to_do` counts so here whatever
 /// `interrupted` row it has (RD-156 (1)).
 pub fn tick_step<C: ConfigView>(facts: &Facts<C>, listed: bool, limits: &Limits) -> Ask {
-    if !listed || !holds(facts).is_empty() || facts.doing != Doing::Idle(None) {
+    if !listed || !holds(facts).is_empty() || rests(facts) || facts.doing != Doing::Idle(None) {
         return Ask::Nothing;
     }
     let first = !finished(facts);

@@ -117,7 +117,7 @@ pub fn status_of<C: ConfigView>(
             .filter(|c| said(*c, facts.config.runtime()));
         return cause.map_or(StatusLine::Problem(failure), StatusLine::LastCause);
     }
-    if last == Some(RunEnd::HandedBack) {
+    if last == Some(RunEnd::HandedBack) && crate::schedule::rests(facts) {
         if let Some(cause) = facts.last_cause.filter(|c| MODEL_CAUSES.contains(c)) {
             return StatusLine::LastCause(cause);
         }
@@ -154,8 +154,9 @@ fn answered_since_the_last_end<C>(facts: &Facts<C>) -> bool {
 /// The causes of a run that handed its work back before anything was sent to a model's host (the agents run's units
 /// r3 U7.2a, r3 U7.4 and r3 U7.2b): the person has not allowed the model, no key is saved, the person's spending limit
 /// is reached, or the router does not let the model that the agent may use do its task (`shortfall`). A row says the
-/// sentence of such a cause for a last run that ended `handed_back` (the coordinator's log line 22216); every other
-/// handed-back run keeps the row line of a run that stopped early.
+/// sentence of such a cause for a last run that ended `handed_back` while the agent rests (`crate::schedule::rests`,
+/// r3 U7.8; the coordinator's log line 22216); every other handed-back run, and such a run once the agent no longer
+/// rests, keeps the row line of a run that stopped early.
 pub const MODEL_CAUSES: [LastCause; 4] = [
     LastCause::NoAgreement,
     LastCause::NoModelKey,
@@ -677,7 +678,7 @@ pub fn stop_sign_in_ask(name: &str) -> Result<Ask, Cause> {
 /// the limit's view writes them; then the safe control Not now, and Allow for this agent, which
 /// sends `agents_control` with `use_model`.
 pub fn use_model_ask(model: &ModelUse) -> Result<(Option<Ask>, Option<String>), Cause> {
-    let (Some(true), SpendLimit::Stands { amount, period }) = (model.key, &model.limit) else {
+    let (Some(true), SpendLimit::Stands { amount, period, .. }) = (model.key, &model.limit) else {
         let first = model.key == Some(false) || model.limit == SpendLimit::NotSet;
         let key = if first {
             "ask.use_model.first"

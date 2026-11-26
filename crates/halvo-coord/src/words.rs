@@ -144,7 +144,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.limit",
-        "Last time, it took too long, so Halvo stopped it.",
+        "Last time, it ran longer or did more than Halvo allows for one task, so Halvo stopped it.",
     ),
     (
         "line.problem.class_mismatch",
@@ -232,7 +232,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.shortfall",
-        "Halvo cannot do this agent's task with the AI model that this agent may use. The agent hands its work back to you each time it starts.",
+        "Last time, Halvo could not do this agent's task with the AI model that this agent may use. The agent waits until you choose Start now.",
     ),
     (
         "line.problem.not_replaced",
@@ -276,7 +276,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.run.refused",
         "Halvo stopped one of its steps, so the task was not done.",
     ),
-    ("line.run.limit", "It took too long, so Halvo stopped it."),
+    (
+        "line.run.limit",
+        "It ran longer or did more than Halvo allows for one task, so Halvo stopped it.",
+    ),
     (
         "line.run.effect_unknown",
         "It could not tell whether its last step went through.",
