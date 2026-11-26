@@ -1,0 +1,2 @@
+- Added: A tenth slice of scripts/ci/slices.txt, pages, runs the check 30-r4-page-suites, the three browser suites of the agents page, in both jobs, and 25-advisories in the macos job.
+- Changed: The stand-in document of the node page tests, ui/tests/lib/dom.js, throws at a read of a member that it lacks. Reads that a real document also answers with undefined still pass, and so do clientX and clientY of a press made with no point. It also gains checked of an input and a scrollIntoView that does nothing.
