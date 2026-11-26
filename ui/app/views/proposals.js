@@ -42,7 +42,7 @@
   /** While the newest reply reads deleting, the view reads again after this many ms. */
   var DELETING_READ_MS = 3000;
   var readAgain = null;
-  /** While the window shows, the view reads again every this many ms, as the table of what is stored does; while it is hidden, never. */
+  /** While the window shows, the view reads again every this many ms, the period of the table of what is stored; unlike that table, never while the window is hidden. */
   var SHOWN_READ_MS = 15000;
   var reading = null;
 

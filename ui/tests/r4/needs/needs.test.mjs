@@ -2967,6 +2967,53 @@ async function waits(origin, dir) {
   return faults;
 }
 
+/** r4 U3.35, the ruling on the reader's first limit: at a press of Use these answers with instrument left
+ * empty and the other questions answered, the status region keeps "This question needs an answer.",
+ * which the press put there, while the wait line stands below the buttons and the buttons carry its marks. */
+async function unanswered(origin, dir) {
+  const faults = [];
+  const setup = stateFile(dir, 'setup_three').snapshot.items[0];
+  const empty = setup.params.find((p) => p.name === 'instrument');
+  if (!empty || !empty.needs_answer) return ['fixture_setup_three'];
+  const calls = setup.params
+    .filter((p) => p !== empty)
+    .map((p) => ({ call: 'agents_answer', args: { item: setup.item, step: setup.step, choice: 'choose', param: p.name, n: p.candidates[p.candidates.length - 1].n, more: 'yes' } }));
+  const [first, ...rest] = calls;
+  const out = outDir();
+  const h = await open({
+    origin,
+    replies: [{ state: snap(1, [setup]) }, { ...first, hold: true }, ...rest.map((c) => ({ ...c, reply: { ok: 'yes' } }))],
+    views: [CONFIRM, VIEW],
+    out,
+  });
+  try {
+    for (const a of prepare(setup).filter((a) => a.param !== empty.name)) await act(h, a);
+    await h.page.locator(sel('choose', setup.item)).evaluate((b) => b.click());
+    await waitCalls(h, out, 1);
+    const seen = await h.page.evaluate(() => {
+      const card = document.querySelector('#views .hn-item');
+      const next = card.querySelector('.hn-controls').nextElementSibling;
+      const marks = ['choose', 'none'].map((act) => {
+        const b = card.querySelector('[data-act="' + act + '"]');
+        return b.getAttribute('aria-disabled') + ':' + (next && b.getAttribute('aria-describedby') === next.id);
+      });
+      return {
+        line: next && next.tagName === 'P' ? next.textContent : null,
+        marks,
+        said: [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent),
+      };
+    });
+    if (seen.said.join('|') !== empty.needs_answer) faults.push('region_said=' + (seen.said.join('|') || '-').replace(/\s+/g, '_'));
+    if (seen.line !== pageWords().CARD_WAITS) faults.push('no_wait_line');
+    if (seen.marks.join(',') !== 'true:true,true:true') faults.push('marks=' + seen.marks.join(','));
+  } catch (err) {
+    faults.push('throws:' + ((err && err.message) || err).toString().slice(0, 80).replace(/\s+/g, '_'));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 /** r4 U3.35: a question that a next snapshot draws anew in place keeps the cursor in its own line or
  * list: in the new typed line with its text and caret where the old one held the focus, and on the
  * choice of the same value where a choice of its list held it; never on the card's heading. */
@@ -3073,7 +3120,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown', 'guard', 'armed', 'waits', 'cursor'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown', 'guard', 'armed', 'waits', 'cursor', 'unanswered'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -3105,6 +3152,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('armed')) report('armed', await armedAlone(origin, dir));
     if (want('waits')) report('waits', await waits(origin, dir));
     if (want('cursor')) report('cursor', await cursor(origin, dir));
+    if (want('unanswered')) report('unanswered', await unanswered(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

@@ -19,6 +19,7 @@
   let closing = false;
   let choosing = false;
   const underWay = new Set();
+  let saidCount = 0;
 
   function fresh() {
     serial += 1;
@@ -354,7 +355,8 @@
   }
 
   /** While a call of a set-up card is under way, the line CARD_WAITS stands below its buttons, said once
-   * in the view's region when it comes, and each button whose press does nothing then carries
+   * in the view's region when it comes, unless quiet (a press that has just said there the sentence of
+   * a question left empty keeps that sentence), and each button whose press does nothing then carries
    * aria-disabled with the line as its description: Not now while the card is busy, Use these answers
    * while it is busy or its answers are under way, Choose a file while its answers are under way. */
   function waiting(card, quiet) {
@@ -410,10 +412,11 @@
     return calls;
   }
 
-  function held(card, sent) {
+  /** With quiet, the wait line that the hold brings is not said in the region. */
+  function held(card, sent, quiet) {
     const mine = {};
     card.busy = mine;
-    waiting(card, false);
+    waiting(card, quiet === true);
     return sent.then(function (reply) {
       if (card.busy === mine) card.busy = false;
       waiting(card, false);
@@ -469,6 +472,7 @@
     }
     if (choice.choice === 'choose' && item.params.length > 0) {
       if (underWay.has(way(item))) return;
+      const before = saidCount;
       const empty = card.answers.filter(function (a) {
         return a.line && a.line.kept.trim() === '';
       });
@@ -501,7 +505,7 @@
           if (reply === null || reply.error) return reply;
           return call(c[0], c[1]);
         });
-      }, Promise.resolve({}))));
+      }, Promise.resolve({})), saidCount !== before));
       card.answers.forEach(function (a) {
         if (a.line) a.line.sent();
       });
@@ -780,6 +784,7 @@
 
   function addition(sentences) {
     if (!say) return;
+    saidCount += 1;
     say.add(sentences);
   }
 

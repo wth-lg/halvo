@@ -5,6 +5,7 @@
 // its size, and the question that the delete control of a row opens has its border and buttons.
 // The list "What Halvo noticed" reads again every 15 s while the window shows and shows a new row,
 // reads nothing while the window is hidden (a hiding played by visibilityState, as no window exists),
+// with the page's clock paused so that only the test's own steps move it,
 // and a read that brings the list that is drawn leaves an open Delete question open.
 // Run: R4_PAGE_BROWSERS=<the fetched browsers> node ui/tests/page/policy.test.mjs
 import { createServer } from 'node:http';
@@ -93,7 +94,9 @@ try {
   result('question-styles', asked.border === '2px' && asked.minHeight === '44px', asked);
 
   const listPage = await (await browser.newContext()).newPage();
-  await listPage.clock.install();
+  const listStart = Date.UTC(2026, 10, 26, 12, 0, 0);
+  await listPage.clock.install({ time: listStart });
+  await listPage.clock.pauseAt(listStart + 1000);
   await listPage.addInitScript((given) => {
     let reads = 0;
     let hidden = false;
