@@ -287,9 +287,8 @@ mod tests {
     #[test]
     fn the_read_finds_the_one_language_file_that_a_process_holds_open() {
         let me = libc::pid_t::try_from(std::process::id()).expect("a pid");
-        let app = std::env::temp_dir()
-            .join(format!("halvo-held-language-{me}"))
-            .join("Made Browser.app");
+        let root = tempfile::tempdir().expect("a temporary directory");
+        let app = root.path().join("Made Browser.app");
         let versions = app.join("Contents/Frameworks/Made Browser Framework.framework/Versions");
         let resources = versions.join("1.2.3/Resources");
         for version in ["1.2.3", "1.2.4"] {
