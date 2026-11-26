@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The hosted form of the driver trial (r3 U0.8) holds against its scripted host on 127.0.0.1: the tests of tools/r3-trials/drive pass, its seven whole rounds pass (a cell past the ceiling sends nothing, a round sends no request past its bound, no request holds a word of a stored step, the key stands in no line and no file of a cell, a round counts the two ends of the host that the door refuses as cut and declined apart from a failed ask, the hosted ask of an action tells the model its form, a round with the runner's mask sends no text of a slot and no key), the paid form of hosted.sh refuses with REFUSED prices on a fixture rate before it starts anything (a copy of hosted.sh in a tree of its own whose price file holds one, so that the case reads the same whatever rates the tracked price file holds), and hosted.sh --standin reads as expected with the door under the egress check; no run reaches a host. It joins no slice and no merge gate: it runs by hand with named checks, the windows job alone, before the paid round and at each change of the trial tool or of the door.
+# rule: The hosted form of the driver trial (r3 U0.8) holds against its scripted host on 127.0.0.1: the tests of tools/r3-trials/drive pass, its seven whole rounds pass (a cell past the ceiling sends nothing, a round sends no request past its bound, no request holds a word of a stored step, the key stands in no line and no file of a cell, a round counts the two ends of the host that the door refuses as cut and declined apart from a failed ask, the hosted ask of an action tells the model its form, a round with the runner's mask sends no text of a slot and no key), and the paid form of hosted.sh refuses with REFUSED prices on a fixture rate before it starts anything (a copy of hosted.sh in a tree of its own whose price file holds one, so that the case reads the same whatever rates the tracked price file holds); no run reaches a host. It joins no slice and no merge gate: it runs by hand with named checks, the windows job alone, before the paid round and at each change of the trial tool or of the door.
 # lane: alone
 # limit: 2400
 set -u
@@ -42,35 +42,12 @@ defect_of() {
       printf 'the paid form on the fixture rates exited %s, wrote %s bytes on standard output and %s entries in its TMPDIR, and is no REFUSED prices: read %s/paid-err.txt of the artifacts\n' "$2" "$(wc -c <"$4" | tr -d ' ')" "$5" "$name"
       return 1
       ;;
-    standin)
-      last=$(awk 'END { print }' "$3")
-      case $2:$last in
-        '0:control mode=hosted machine='*' result=as_expected') return 0 ;;
-      esac
-      printf 'hosted.sh --standin exited %s and its last line is no control line with result=as_expected: read %s/standin.txt of the artifacts\n' "$2" "$name"
-      return 1
-      ;;
   esac
   return 1
 }
 
 seconds() {
   date +%s
-}
-
-# Keeps the files of a failed stand-in round that name its cause: the round's lines stand in
-# standin.txt already; each cell's trace.txt and model-stderr.txt (the door's standard error with
-# the egress check's line) of the round's directory under TMPDIR are copied beside them. No copied
-# file holds the made-up key, which hosted.sh writes into a directory of its own, or a request line.
-keep_round() {
-  for cell in "${TMPDIR:-/tmp}"/r3-hosted-round.*/*-seed-*; do
-    [ -d "$cell" ] || continue
-    for file in trace.txt model-stderr.txt; do
-      if [ -f "$cell/$file" ]; then
-        cp "$cell/$file" "$CI_D_ARTIFACTS/standin-${cell##*/}-$file"
-      fi
-    done
-  done
 }
 
 measure() {
@@ -104,19 +81,6 @@ measure() {
   entries=$(find "$empty" -mindepth 1 | wc -l | tr -d ' ')
   defect=$(defect_of paid "$code" "$CI_D_ARTIFACTS/paid-err.txt" "$CI_D_ARTIFACTS/paid-out.txt" "$entries") || fail "$defect"
   printf 'case %s/paid-refuses-on-fixture-rates exit=%s tmp_entries=%s\n' "$name" "$code" "$entries"
-  d=$(seconds)
-  sh tools/r3-trials/drive/hosted.sh --standin --tier frontier --ceiling 2000 --browser "$HALVO_BROWSER" --port 18471 \
-    >"$CI_D_ARTIFACTS/standin.txt" 2>"$CI_D_ARTIFACTS/standin-err.txt"
-  code=$?
-  e=$(seconds)
-  defect=$(defect_of standin "$code" "$CI_D_ARTIFACTS/standin.txt") || {
-    keep_round
-    fail "$defect"
-  }
-  cells=$(awk '/^round cell task=/ { n++; for (i = 1; i <= NF; i++) if ($i ~ /^ms=/) { ms = substr($i, 4); s += ms; if (n == 1) one = ms } } END { printf "%d %.1f %.1f", n, s / 1000, one / 1000 }' "$CI_D_ARTIFACTS/standin-err.txt")
-  # shellcheck disable=SC2086
-  set -- $cells
-  printf 'case %s/standin cells=%s nine_cells_s=%s one_cell_s=%s whole_s=%s\n' "$name" "$1" "$2" "$3" "$((e - d))"
   printf 'PASS %s\n' "$name"
 }
 
@@ -143,9 +107,6 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; fini
   case_of paid-refused paid 2 "REFUSED prices: the rate of the tier frontier in crates/halvo-route/data/prices.tsv has the source fixture:B-3.2, a fixture's: the paid round starts only on the host's own rates with their date" PASS
   case_of paid-refused-for-another-cause paid 2 "REFUSED usage: --key-file names no file" FAIL
   case_of paid-made-a-directory paid 2 "REFUSED prices: the rate of the tier frontier in crates/halvo-route/data/prices.tsv has the source fixture:B-3.2, a fixture's: the paid round starts only on the host's own rates with their date" FAIL 1
-  case_of standin-as-expected standin 0 "spend tier=frontier requests=45 spent_micro=387713 ceiling_minor=2000
-control mode=hosted machine=hosted-win result=as_expected" PASS
-  case_of standin-differs standin 1 "control mode=hosted machine=hosted-win result=differs" FAIL
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1

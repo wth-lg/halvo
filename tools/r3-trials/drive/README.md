@@ -361,9 +361,9 @@ sh tools/r3-trials/drive/hosted.sh ... --cell bill:1    # one cell of the paid f
   and the first ask for a reply body at the output limit, so the control's lines show both counts.
   The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
   the tool's tests, the seven whole rounds of its tests against the scripted host
-  (`cargo test --locked -- --ignored`), the paid form's refusal on a price file of fixture rates of
-  its own and
-  `--standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by
+  (`cargo test --locked -- --ignored`) and the paid form's refusal on a price file of fixture rates of
+  its own, and the check `scripts/r3/ci.d/67-drive-hosted-standin.sh` runs
+  `--standin`. Each joins no slice and no merge gate (the coordinator's log line 17943): it runs by
   hand with named checks, the windows job alone, before the paid round and at each change of the
   trial tool or of the door.
 
