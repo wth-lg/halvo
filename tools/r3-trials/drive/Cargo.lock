@@ -381,6 +381,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-web"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "chromiumoxide",
+ "libc",
+ "serde_json",
+ "tokio",
+ "windows-sys",
+]
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -715,9 +727,18 @@ dependencies = [
  "halvo-route-wire",
  "halvo-schema",
  "icu_properties",
+ "r3-forms",
  "r3-web",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "r3-forms"
+version = "0.0.0"
+dependencies = [
+ "halvo-schema",
+ "halvo-web",
 ]
 
 [[package]]

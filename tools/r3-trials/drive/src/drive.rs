@@ -13,7 +13,7 @@ use serde_json::Value;
 use crate::action::{self, Action};
 use crate::body;
 use crate::fixture;
-use crate::lines::{Kind, Run};
+use crate::lines::{Kind, Marked, Run};
 use crate::model::{self, Child};
 use crate::step::{self, Arg, Source, Step, Target, Verb};
 use crate::words;
@@ -103,9 +103,144 @@ pub struct Ctx {
     pub trace: std::sync::Mutex<std::fs::File>,
     pub began: Instant,
     pub clock: Box<dyn Clock>,
+    /// The form with the runner's mask (r3 U0.10): the cell's slots and its count; none in every other form.
+    pub marks: Option<Marks>,
+}
+
+/// What the form with the runner's mask (r3 U0.10) gives a cell: the slots of the cell's task as the mask reads
+/// them, each text of a slot, which no request may hold, and the count of what the cell's requests held.
+pub struct Marks {
+    pub slots: Vec<r3_forms::Slot>,
+    pub texts: Vec<String>,
+    pub marked: std::sync::Arc<std::sync::Mutex<Marked>>,
+}
+
+impl Marks {
+    /// The marks of a cell whose task has `bindings` in the fixture's seed file, on the fixture's `port`: a
+    /// slot's text is its values joined by a comma and a space, the slot `start` completed with the port as
+    /// `Ctx::slots` completes it, and each single value is a text that no request may hold.
+    pub fn of(
+        bindings: &Value,
+        port: u16,
+        marked: std::sync::Arc<std::sync::Mutex<Marked>>,
+    ) -> Marks {
+        let mut slots = Vec::new();
+        let mut texts = Vec::new();
+        for s in bindings["slots"].as_array().into_iter().flatten() {
+            let Some(name) = s["name"].as_str() else {
+                continue;
+            };
+            let values: Vec<String> = s["value"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str())
+                .map(|v| {
+                    if name == "start" {
+                        format!("{v}:{port}")
+                    } else {
+                        v.to_owned()
+                    }
+                })
+                .collect();
+            if let Some(slot) = r3_forms::slot(name, &values.join(", ")) {
+                slots.push(slot);
+            }
+            texts.extend(values.into_iter().filter(|v| !v.is_empty()));
+        }
+        Marks {
+            slots,
+            texts,
+            marked,
+        }
+    }
+
+    /// What one request of `prompt` and `snapshot` holds: whether its snapshot holds a mark, and the places
+    /// in both where a text of a slot stands.
+    fn held(&self, prompt: &str, snapshot: Option<&str>) -> (bool, u64) {
+        let snapshot = snapshot.unwrap_or("");
+        let places = |text: &str| {
+            self.texts
+                .iter()
+                .map(|t| text.matches(t.as_str()).count() as u64)
+                .sum::<u64>()
+        };
+        (
+            r3_forms::holds_a_mark(snapshot),
+            places(prompt) + places(snapshot),
+        )
+    }
+
+    /// Counts one request that the harness handed to the door, with what `held` read of it.
+    fn count(&self, held: (bool, u64)) {
+        if let Ok(mut m) = self.marked.lock() {
+            m.requests += 1;
+            m.with_mark += u64::from(held.0);
+            m.slot_text += held.1;
+        }
+    }
+}
+
+/// The refs of the requests of one run in the form with the runner's mask (r3 U0.10), numbered by the product's
+/// rule (`RefTable` of crates/halvo-web/src/cdp.rs): a number is never given out twice in a run, and the refs of
+/// a snapshot go on from the last number of the snapshot before, in the order of its lines. The trial's own
+/// library numbers each snapshot from e1 again, so `back` leads from each ref of the newest request to the
+/// trial's ref of the same line; a ref of an older request, and one that was never given, lead nowhere. The
+/// count is the tool's own: the runner's other readings of a page between two requests take numbers too, which
+/// this count does not take.
+#[derive(Default)]
+struct Refs {
+    given: u64,
+    back: HashMap<String, String>,
+}
+
+impl Refs {
+    /// `lines` as a new snapshot of the run: each line that has a ref gets the next number.
+    fn number(&mut self, lines: &[SnapshotLine]) -> Vec<SnapshotLine> {
+        self.back.clear();
+        lines
+            .iter()
+            .map(|l| {
+                let mut line = l.clone();
+                if !l.reference.is_empty() {
+                    self.given += 1;
+                    line.reference = format!("e{}", self.given);
+                    self.back
+                        .insert(line.reference.clone(), l.reference.clone());
+                }
+                line
+            })
+            .collect()
+    }
+
+    /// The trial's ref of the line that the newest request shows as `reference`.
+    fn trial(&self, reference: &str) -> Option<&str> {
+        self.back.get(reference).map(String::as_str)
+    }
 }
 
 impl Ctx {
+    /// The snapshot of a compile's request for a page of `lines` whose text is `text`: that text, and in the
+    /// form with the runner's mask the runner's own maker of a snapshot over the same lines, field for field,
+    /// and the cell's slots.
+    fn request_snapshot(&self, lines: &[SnapshotLine], text: &str) -> String {
+        let Some(marks) = &self.marks else {
+            return text.to_owned();
+        };
+        let lines: Vec<r3_forms::Line> = lines
+            .iter()
+            .map(|l| r3_forms::Line {
+                reference: l.reference.clone(),
+                role: l.role,
+                name: l.name.clone(),
+                value: l.value.clone(),
+                credential: l.credential,
+                frame: l.frame.clone(),
+            })
+            .collect();
+        r3_forms::masked(&lines, &marks.slots)
+    }
+
     pub fn trace(&self, line: &str) {
         if let Ok(mut f) = self.trace.lock() {
             let _ = writeln!(f, "{:.1} {line}", self.began.elapsed().as_secs_f64());
@@ -360,6 +495,10 @@ async fn ask(
             snapshot.as_deref().unwrap_or("")
         );
     }
+    let held = ctx
+        .marks
+        .as_ref()
+        .map(|m| m.held(&prompt, snapshot.as_deref()));
     let system = ctx.prompts.boundary.clone();
     let job = tokio::task::spawn_blocking(move || {
         let mut child = child;
@@ -378,6 +517,9 @@ async fn ask(
     if reply == Err(model::Fault::Bound) {
         ctx.trace("requests: the round has handed the door its bound; nothing was sent");
         return Err(End::NotRun("requests"));
+    }
+    if let (Some(marks), Some(held)) = (&ctx.marks, held) {
+        marks.count(held);
     }
     Ok((child, reply))
 }
@@ -403,7 +545,29 @@ async fn start_browser(ctx: &Ctx, kind: Kind, i: u32) -> Result<Executor, End> {
     }
 }
 
+/// Writes into the cell's trace what the request rule paused since it was armed last, where it paused
+/// anything (r3 U0.10): how many requests, how many of them it let through, and the origin of each, once. The
+/// rule pauses every request of the browser before it leaves and drops its record when it is armed again, so
+/// this is called before each arming and before the browser stops: the lines `rule` of a trace then name the
+/// origin of every request that the run's browser tried.
+fn note_rule(ctx: &Ctx, ex: &Executor) {
+    let paused = ex.paused();
+    if paused.is_empty() {
+        return;
+    }
+    let mut origins: Vec<&str> = paused.iter().map(|p| p.origin.as_str()).collect();
+    origins.sort_unstable();
+    origins.dedup();
+    ctx.trace(&format!(
+        "rule paused={} let={} origins={}",
+        paused.len(),
+        paused.iter().filter(|p| p.let_through).count(),
+        origins.join(",")
+    ));
+}
+
 async fn stop_browser(ctx: &Ctx, ex: Executor) {
+    note_rule(ctx, &ex);
     let s = ex.stop_and_remove().await;
     ctx.trace(&format!(
         "browser stopped pids={} adopted={} left={} removed={}",
@@ -580,6 +744,7 @@ async fn sign_in(ex: &mut Executor, ctx: &Ctx) -> Result<Result<bool, String>, E
     if !lines.iter().any(|l| l.credential) {
         return Ok(Ok(false));
     }
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), true)).await? {
         return Ok(Err(e));
     }
@@ -618,6 +783,7 @@ async fn sign_in(ex: &mut Executor, ctx: &Ctx) -> Result<Result<bool, String>, E
         return Ok(Err(e));
     }
     settle(ex, &frames).await;
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
         return Ok(Err(e));
     }
@@ -738,6 +904,7 @@ async fn carry_out(
         .all(|k| kept.contains_key(*k));
     let already_left = tally.allowed > 0;
     let allow = allow_of(action, confirm, kept_all, already_left);
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), allow)).await? {
         return Ok(Done::Refused(e));
     }
@@ -781,7 +948,11 @@ async fn carry_out(
     };
     if let Err(e) = outcome {
         return Ok(Done::Refused(match action {
-            Action::Select { .. } => words::select_cause(&reference, line.role, &e),
+            // The ref as the action names it, which is the line's own ref but in the form with the runner's
+            // mask, where the request showed the product's number for it (r3 U0.10).
+            Action::Select { .. } => {
+                words::select_cause(action.reference().unwrap_or(&reference), line.role, &e)
+            }
             _ => words::page_refused(&e),
         }));
     }
@@ -790,6 +961,7 @@ async fn carry_out(
     }
     let effect = left_request(ex);
     if clicks {
+        note_rule(ctx, ex);
         if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
             ctx.trace(&format!("arm closed after the step: {e}"));
             return Err(End::NotRun("arm"));
@@ -989,6 +1161,7 @@ async fn compile_steps(
     tally: &mut Tally,
     began: Instant,
 ) -> Result<bool, End> {
+    note_rule(ctx, ex);
     if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
         ctx.trace(&format!("arm: {e}"));
         return Ok(false);
@@ -1002,6 +1175,7 @@ async fn compile_steps(
     let mut history: Vec<String> = vec![words::NAVIGATE_START.into()];
     let mut pending: Option<Carried> = None;
     let mut last_text: Option<String> = None;
+    let mut refs = Refs::default();
     for call in 1..=CALLS_MAX {
         let (lines, text) = match read_page(ex, ctx).await? {
             Ok((lines, handbacks)) => {
@@ -1032,7 +1206,10 @@ async fn compile_steps(
         );
         within_wall(ctx, began, tally)?;
         let taken = child.take().ok_or(End::NotRun("model"))?;
-        let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;
+        // r3 U0.10: in the form with the runner's mask the request shows the refs as the product numbers them.
+        let shown = ctx.marks.as_ref().map(|_| refs.number(&lines));
+        let snapshot = ctx.request_snapshot(shown.as_deref().unwrap_or(&lines), &text);
+        let (back, reply) = ask(ctx, taken, prompt, Some(snapshot), "action").await?;
         *child = Some(back);
         if let Some(end) = host_end(&reply) {
             ctx.trace(&format!("call={call} end={end}"));
@@ -1070,10 +1247,14 @@ async fn compile_steps(
                 None
             }
             other => {
-                let reference = other.reference().unwrap_or_default();
-                match lines.iter().find(|l| l.reference == reference) {
+                let named = other.reference().unwrap_or_default();
+                let reference = match shown {
+                    Some(_) => refs.trial(named),
+                    None => Some(named),
+                };
+                match reference.and_then(|r| lines.iter().find(|l| l.reference == r)) {
                     None => {
-                        history.push(words::refused(other, &words::no_reference(reference)));
+                        history.push(words::refused(other, &words::no_reference(named)));
                         None
                     }
                     Some(line) => {
@@ -1087,6 +1268,10 @@ async fn compile_steps(
             Some(Done::Step(verb, mut target, args, request)) => {
                 target.place = parsed
                     .reference()
+                    .and_then(|r| match shown {
+                        Some(_) => refs.trial(r),
+                        None => Some(r),
+                    })
                     .and_then(|r| lines.iter().find(|l| l.reference == r))
                     .and_then(|l| place_of(&lines, l));
                 pending = Some(Carried {
@@ -1205,6 +1390,7 @@ async fn replay_steps(
         };
         match s.verb {
             Verb::Navigate => {
+                note_rule(ctx, ex);
                 if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), false)).await? {
                     ctx.trace(&format!("arm: {e}"));
                     return Ok(false);
@@ -1472,7 +1658,14 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
             ctx,
             taken,
             ctx.prompts.goal.trim_end().to_string(),
-            Some(body::message_text(m)),
+            Some(match &ctx.marks {
+                Some(marks) => r3_forms::message(
+                    m["subject"].as_str().unwrap_or(""),
+                    m["body"]["content"].as_str().unwrap_or(""),
+                    &marks.slots,
+                ),
+                None => body::message_text(m),
+            }),
             "text",
         )
         .await?;
@@ -1492,7 +1685,12 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
             Ok(r) => {
                 tally.tokens_in += r.tokens_in;
                 tally.tokens_out += r.tokens_out;
-                let counted = body::counted(&r.text, r.tokens_out, ctx.reply_tokens);
+                // r3 U0.10: in the form with the runner's mask a body that holds a mark's head is no body, as
+                // in the runner's writer.
+                let marked = ctx.marks.is_some()
+                    && body::body_of(&r.text, r.tokens_out, ctx.reply_tokens)
+                        .is_some_and(r3_forms::holds_a_mark);
+                let counted = !marked && body::counted(&r.text, r.tokens_out, ctx.reply_tokens);
                 ctx.trace(&format!(
                     "body bytes={} tokens_out={} counted={counted}",
                     r.text.len(),

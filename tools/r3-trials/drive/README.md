@@ -9,7 +9,7 @@ the task `reply`. Its result file is `docs/r3/trials/driver.md`.
 | File | What it is |
 |---|---|
 | `run.sh` | The entry script: builds the two binaries and runs one cell (`--help`) |
-| `hosted.sh` | The hosted form (unit U0.8): every cell of A13.6 with the door `halvo-model` as the child, under the egress check and a ceiling; `--standin` against the scripted host (`--help`) |
+| `hosted.sh` | The hosted form (unit U0.8): every cell of A13.6 with the door `halvo-model` as the child, under the egress check and a ceiling; `--marks`, the form with the runner's mask (unit U0.10); `--standin` against the scripted host (`--help`) |
 | `src/main.rs` | `r3-drive`: the arguments, the fixture server, the runs of one cell in order, the lines |
 | `src/drive.rs` | The compile, replay, recovery and write runs on the cdp library of `tools/r3-trials/web` |
 | `src/action.rs` | The reader of a reply of the grammar `action` (A12.4), with the fields of each action |
@@ -21,9 +21,10 @@ the task `reply`. Its result file is `docs/r3/trials/driver.md`.
 | `src/lines.rs` | The line forms of A13.6 and of this trial's `load` line |
 | `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`); `--check` also refuses each pair of files that `route-gate import` refuses, with its detail |
 | `rebuild.py` | Makes the block again from the raw cell files, the helper's log and the job log (`--compare`) |
-| `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines; `control/hosted-expected.txt`, the lines of `hosted.sh --standin` |
+| `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines; `control/hosted-expected.txt`, the lines of `hosted.sh --standin`; `control/hosted-marks-expected.txt`, the lines of `hosted.sh --marks --standin` |
 | `src/bin/r3-standin.rs` | The stand-in child: no model, one action of the grammar per request, by role and name |
 | `prompts/` | The boundary text and the three goal texts of A9.5 |
+| `../forms/` | `r3-forms`: the runner's maker of a snapshot, brought in from `crates/halvo-runner/src/model/snapshot.rs` by its path, for the form `--marks` |
 
 ## How to run
 
@@ -359,12 +360,57 @@ sh tools/r3-trials/drive/hosted.sh ... --cell bill:1    # one cell of the paid f
   one (its walk `Ends`): the round's first action ask at the output limit, its second as declined,
   and the first ask for a reply body at the output limit, so the control's lines show both counts.
   The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
-  the tool's tests, the six whole rounds of its tests against the scripted host
-  (`cargo test --locked -- --ignored`), the paid form's refusal on a price file of fixture rates of
-  its own and
-  `--standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by
+  the tool's tests, the seven whole rounds of its tests against the scripted host
+  (`cargo test --locked -- --ignored`) and the paid form's refusal on a price file of fixture rates of
+  its own, and the check `scripts/r3/ci.d/67-drive-hosted-standin.sh` runs
+  `--standin`. Each joins no slice and no merge gate (the coordinator's log line 17943): it runs by
   hand with named checks, the windows job alone, before the paid round and at each change of the
   trial tool or of the door.
+
+## The form with the runner's mask (unit U0.10)
+
+`sh tools/r3-trials/drive/hosted.sh --marks` runs the cells of the hosted form with the snapshot of every
+request made by the runner's own maker of a snapshot. Its rule is `docs/r3/trials/driver-hosted-marks.md`.
+
+```sh
+sh tools/r3-trials/drive/hosted.sh --marks --standin --ceiling 2000     # the control: two passes, no host
+sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR [--passes 1|2]    # the paid form: not run by this unit
+```
+
+- The mask is the runner's own file: the crate `../forms` brings `crates/halvo-runner/src/model/snapshot.rs` in
+  by its path and holds no copy of it (the test `the_forms_are_the_runners_own_file`). `r3-drive` hands it a
+  page's lines field for field, with the slots of the fixture's bindings of the task and seed, and for a write
+  the message's subject and body.
+- The refs of a compile's requests are numbered by the runner's rule (`RefTable` of
+  `crates/halvo-web/src/cdp.rs`): a number is given out once in a run, and the refs of a request's page go on
+  from the last number of the request before (`Refs` of `src/drive.rs`, which keeps the way back from each ref
+  of the newest request to the trial library's own ref of the same line). A ref of an earlier request names no
+  line, and the model's action on it is refused as one that names no line of the page.
+- The harness's own loop still reads each page, with the trial's own browser library, and builds each request.
+  That library walks the browser's accessibility tree as the runner's does, but for its reading of a credential
+  field; and the harness's count of the refs takes no number for the runner's other readings of a page, before
+  a run's first request and between two requests, so the numbers of a request's refs are not the runner's. The
+  form reads the runner's mask and the door, and not the runner's own reading of a credential field, its loop,
+  its pick, its holds or its start of the door.
+- One call runs the tier `frontier` and then the tier `low_cost_hosted`, each `--passes` passes over the nine
+  cells (1 or 2; 1 without the argument), under one ceiling: one count of `crates/halvo-route`, turned to the second
+  tier with what the first spent (`Spend::turn_to`). A cell runs no recovery. The compile and the write of the
+  pass p are written with `i=<p>`, the replays with `i` from 3(p-1)+1 on, and the `drive`, the `reply` and the
+  `marks` line hold `i=<p>` behind `seed`. A tier makes at most 198 requests a pass.
+- Each door starts as in the hosted form, through `door_command`, under `sh scripts/egress/check.sh` with the
+  tier's list; the script writes the list of the paid form, its one entry, into the round's directory.
+  `r3-drive`, its browser and the fixture server start outside the check, as in the hosted form.
+- The round keeps `door-requests.jsonl`, `door-answers.jsonl` and `door-asks.txt` in its directory
+  (`model::Records`), prints the lines `marks`, `count`, `records` and `verdict`, and where a call of two passes
+  gave a verdict line writes `block.txt`, the eight kinds of line that the rule file names.
+- The command refuses with `REFUSED tree` while a tracked file of the checkout is changed, and its first line
+  names the commit.
+- `--marks --standin` is the control: the scripted host's walk `Marks` (the walk `Ends`, and a body with the head
+  of a mark for the third ask for a reply body), two passes, then the cell `bill` 1 under a ceiling of 1 minor
+  unit. It reads the lines against `control/hosted-marks-expected.txt`, makes the four other readings that
+  `hosted.sh --help` names, and prints `control readings ...` and last `control mode=hosted-marks machine=..
+  result=..`. The check `scripts/r3/ci.d/66-drive-hosted-marks.sh` runs it, a row of its own beside check 65: by
+  hand, the windows job alone, in no slice and no merge gate.
 
 ## Revisions
 
