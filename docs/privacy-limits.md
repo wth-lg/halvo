@@ -224,8 +224,9 @@ Where a sentence names a unit, that unit makes it true.
   window title and no screen activity either. From 30 seconds of such a hold on, the
   Status page says which of typing, window titles and screen activity Halvo is not
   recording, until the hold ends; it does not say so while that line shows another
-  reason, or while capture or the Mac's input source does not run; the first 30 seconds
-  of a hold show nothing, and behind
+  reason, while the page says that the app in front has stopped, or while capture
+  or the Mac's input source does not run; the first 30 seconds of a hold show
+  nothing, and behind
   its end nothing tells of it.
 - Characters and key codes are never stored: the types that core-2 builds have no
   field for them.
