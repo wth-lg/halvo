@@ -622,10 +622,11 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
 
 /// The hold of the supervision for a run, lifted when it is dropped: on every path out of the
 /// run, an unwind among them. Behind a run of Remove Halvo's door, one that returned or one that
-/// unwound, the drop sets the mark of a wait for a press and drops the hold's ask of a Start
-/// that stands from before, both under the one hold of the state lock in which it lifts the
-/// hold, so that no start passes the gate before the mark stands and only a press behind the run
-/// lifts it.
+/// unwound, the drop sets the mark of a wait for a press, drops the hold's ask of a Start that
+/// stands from before and takes back the supervisor's word of a start behind its child's own
+/// restart (`Hold::starts_again`), all under the one hold of the state lock in which it lifts
+/// the hold, so that no start passes the gate before the mark stands and only a press behind the
+/// run lifts it.
 struct HeldForARun<'a, C> {
     shared: &'a Shared<C>,
     hold: &'a Hold,
@@ -655,6 +656,7 @@ impl<C> Drop for HeldForARun<'_, C> {
         if self.until_a_press {
             state.held_until_a_press = true;
             self.hold.drop_the_ask();
+            self.hold.starts_again(false);
         }
         drop(state);
         self.shared.changed.notify_all();
@@ -768,6 +770,10 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 /// an ask of a person's press that stood before that end is dropped there, and a start that takes
 /// an ask of a press made after it says `Behind::Unsaid` from then on, as every start of a new call
 /// does: after a press, and at the next launch.
+/// At each end, before it tells the hold of that end, it gives the hold its word of whether it
+/// starts its child again by itself behind that child's own restart (`Hold::starts_again`): one
+/// expression decides it, an end with 4 whose step is a start at once or behind the backoff. It
+/// takes the word back where the mark of Remove Halvo's door stops a start.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
@@ -786,7 +792,10 @@ fn supervise<S: Spawner, K: Clock>(
                 }
                 state
             }
-            Gate::UntilAPress => return Some((spawner, Waits::Start)),
+            Gate::UntilAPress => {
+                hold.starts_again(false);
+                return Some((spawner, Waits::Start));
+            }
             Gate::Quit => return None,
         };
         let began = clock.now();
@@ -836,6 +845,10 @@ fn supervise<S: Spawner, K: Clock>(
             }
         };
         pid.set(0);
+        hold.starts_again(
+            ending == Ending::Status(exit::RESTART)
+                && matches!(step, Next::StartNow | Next::StartAfter(_)),
+        );
         hold.child_ended(match ending {
             Ending::Status(status) => Some(status),
             Ending::Signal | Ending::NotStarted => None,
@@ -1514,6 +1527,96 @@ mod tests {
                 "status, claim",
             ]
         );
+    }
+
+    #[test]
+    fn behind_an_end_with_4_a_pass_reads_connecting_until_the_next_end_and_1_and_7_as_before() {
+        let record = Record::default();
+        let clock = Arc::new(StandInClock::default());
+        let ends = [
+            Later::default(),
+            Later::default(),
+            Later::default(),
+            Later::default(),
+        ];
+        let spawner = StandInSpawner {
+            children: ends
+                .iter()
+                .zip(1000..)
+                .map(|(later, pid)| StandInChild {
+                    later: Some(Arc::clone(later)),
+                    ..StandInChild::new(pid, &clock, &record)
+                })
+                .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let supervisor = Supervisor::start_holding(
+            spawner,
+            Arc::default(),
+            Arc::clone(&clock),
+            Arc::clone(&views),
+        );
+        let no_service = Recording::new(&record, None);
+        let read = || {
+            pass(&no_service, &views, None);
+            let wire = serde_json::to_value(views.view()).unwrap();
+            (wire["service"].clone(), wire["last_exit"].clone())
+        };
+        let a_held_wait_since =
+            |waits: usize| clock.waits()[waits..].iter().any(|wait| *wait > CHILD_POLL);
+
+        until("the first child lives", || views.hold().life() == Some(1));
+        clock.advance(BACKOFF_MAX);
+        *ends[0].lock().unwrap() = Some(Ending::Status(4));
+        until("the start at once behind a 4 after a minute", || {
+            views.hold().life() == Some(2)
+        });
+        assert!(!a_held_wait_since(0), "no wait before that start");
+        assert_eq!(
+            read().0,
+            "connecting",
+            "a 4 behind a life of 60 s: before the new child's channel stands"
+        );
+
+        *clock.long_waits_held.lock().unwrap() = true;
+        let waits = clock.waits().len();
+        *ends[1].lock().unwrap() = Some(Ending::Status(4));
+        until("the held wait behind a 4 within the minute", || {
+            a_held_wait_since(waits)
+        });
+        assert_eq!(
+            read().0,
+            "connecting",
+            "a 4 within the minute: in the held wait"
+        );
+        *clock.long_waits_held.lock().unwrap() = false;
+
+        until("the start behind that wait", || {
+            views.hold().life() == Some(3)
+        });
+        *clock.long_waits_held.lock().unwrap() = true;
+        let waits = clock.waits().len();
+        *ends[2].lock().unwrap() = Some(Ending::Status(1));
+        until("the held wait behind a 1", || a_held_wait_since(waits));
+        assert_eq!(
+            read(),
+            (serde_json::json!("not_running"), serde_json::json!(1)),
+            "a 1: in the held wait, as before"
+        );
+        *clock.long_waits_held.lock().unwrap() = false;
+
+        until("the start behind that wait", || {
+            views.hold().life() == Some(4)
+        });
+        *ends[3].lock().unwrap() = Some(Ending::Status(7));
+        until("the 7 read", || views.hold().life().is_none());
+        assert_eq!(
+            read(),
+            (serde_json::json!("not_running"), serde_json::json!(7)),
+            "a 7: a wait for a press, as before"
+        );
+        drop(supervisor.close());
     }
 
     #[cfg(unix)]

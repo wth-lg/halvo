@@ -239,6 +239,7 @@ struct HoldState {
     lives: u64,
     ended: Option<(u64, Option<i32>)>,
     between: bool,
+    starting_again: bool,
     folder: Option<String>,
     awaits_consent: bool,
     data_dir_unusable: bool,
@@ -301,8 +302,9 @@ impl Hold {
     /// `view` with the hold, and on `not_running` the status of the last end while no child of
     /// the app lives; while the app leaves its own child of another daemon_version, a running
     /// view reads another_version. A view without a status reads data_dir_unusable while the
-    /// supervisor found the data directory's own cause, and a not_running view reads
-    /// not_started while the supervisor awaits the consent.
+    /// supervisor found the data directory's own cause, a not_running view reads not_started
+    /// while the supervisor awaits the consent, and connecting, with no last end, while the
+    /// supervisor's word of a start behind its child's own restart stands (`Hold::starts_again`).
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
         let (last_exit, another_version, folder, awaits_consent, data_dir_unusable, written) = {
@@ -316,9 +318,13 @@ impl Hold {
                 state.login_item_written,
             )
         };
-        let (screen_spent, crash_reports_left) = {
+        let (screen_spent, crash_reports_left, starting_again) = {
             let state = self.state();
-            (state.screen_spent, state.crash_reports_left.clone())
+            (
+                state.screen_spent,
+                state.crash_reports_left.clone(),
+                state.starting_again,
+            )
         };
         let view = match view {
             StatusView::Running(running) if another_version => {
@@ -332,6 +338,12 @@ impl Hold {
                 if awaits_consent && view.service == NoStatusService::NotRunning =>
             {
                 view.first_run = Some(FirstRun::NotStarted(first_run(view.platform)));
+                StatusView::NoStatus(view)
+            }
+            StatusView::NoStatus(mut view)
+                if starting_again && view.service == NoStatusService::NotRunning =>
+            {
+                view.service = NoStatusService::Connecting;
                 StatusView::NoStatus(view)
             }
             other => other,
@@ -638,6 +650,17 @@ impl Hold {
     #[cfg(any(target_os = "macos", windows, test))]
     pub fn another_version_left(&self) {
         self.state().another_version = true;
+    }
+
+    /// The supervisor's word at an end of its child, given before that end is told: true where
+    /// the child ended itself with status 4 to be started again and the supervisor starts it
+    /// again by itself, at once or behind the backoff (contracts.md C14 item 4). The word stands
+    /// until the next one, at the next end or where the supervisor waits for a press, so that a
+    /// view that reaches no service reads connecting through the wait and while the child of
+    /// that start lives.
+    #[cfg(any(target_os = "macos", windows, test))]
+    pub fn starts_again(&self, again: bool) {
+        self.state().starting_again = again;
     }
 
     /// A child of the app started.
