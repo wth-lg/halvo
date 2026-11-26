@@ -8,7 +8,7 @@
 
 use halvo_route::pick::pick;
 use halvo_route::pick::Pick;
-#[cfg(test)]
+#[cfg(any(test, feature = "loopback"))]
 use halvo_route::policy::Policy;
 use halvo_route::release::policy;
 use halvo_route::tier::CallKind;
@@ -75,6 +75,24 @@ thread_local! {
     pub(crate) static TEST_POLICY: std::cell::Cell<Option<&'static Policy>> = const { std::cell::Cell::new(None) };
 }
 
+/// The table of `--stand-in-policy` (crate::args, r3 U7.10), set once at the run's start in a build with the feature
+/// `loopback`, which no shipped program turns on; the unit tests give theirs by `TEST_POLICY`, and `picked` of a unit
+/// test reads no other.
+#[cfg(feature = "loopback")]
+static STAND_IN_POLICY: std::sync::OnceLock<Policy> = std::sync::OnceLock::new();
+
+/// Reads the table of `--stand-in-policy` at `file` once, by the release parser with the two hosted tiers, as the
+/// tables of the unit tests are read (`tests::policy_with`), in a build with the feature `loopback` alone; a file that
+/// cannot be read or parsed gives a table whose every cell hands back.
+#[cfg(feature = "loopback")]
+pub(crate) fn stand_in_policy(file: &std::path::Path) {
+    let table = std::fs::read_to_string(file)
+        .ok()
+        .and_then(|text| Policy::parse_for(&text, &[Tier::LowCostHosted, Tier::Frontier]).ok())
+        .unwrap_or_else(Policy::hand_back_all);
+    let _ = STAND_IN_POLICY.set(table);
+}
+
 /// The pick for the request of the kind `call` of a run whose load is `loaded`, the one maker of `Picked`: the router's
 /// pick on the release policy, for the agent's category and `call`, with the agent's own tier as the ceiling. A
 /// `Picked` of `call`, that tier and the pick's level where the pick's tier is the agent's own tier, the tier that the
@@ -85,7 +103,9 @@ pub(crate) fn picked(loaded: &LoadReply, call: Call) -> Result<Picked, Shortfall
     let table = TEST_POLICY
         .with(std::cell::Cell::get)
         .unwrap_or_else(policy);
-    #[cfg(not(test))]
+    #[cfg(all(not(test), feature = "loopback"))]
+    let table = STAND_IN_POLICY.get().unwrap_or_else(policy);
+    #[cfg(all(not(test), not(feature = "loopback")))]
     let table = policy();
     let own = tier(loaded.config.tier);
     let kind = match call {
