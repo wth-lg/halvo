@@ -597,8 +597,8 @@ impl Place {
 
 /// The decision for one process of Chrome or Edge, found by the browser, the
 /// pid and the start of the process in ticks: taken at its first title
-/// request and kept, by the sources that share one [`BrowsersTold`], until
-/// another process of that browser is decided.
+/// request and kept, by the sources that share one [`BrowsersTold`], while it
+/// is among the [`DECISIONS_KEPT`] that were taken or found last.
 struct Decided {
     browser: &'static str,
     pid: libc::pid_t,
@@ -606,13 +606,19 @@ struct Decided {
     english: bool,
 }
 
-/// What title rules have told of the processes of Chrome and of Edge: at most
-/// one decision for each browser. The foreground sources that share one handle
-/// find each other's decisions, so that a decision outlives the source that
-/// took it. It holds no reading of a language and no epoch: each source reads
-/// both places anew at its start, so a process that started while no source
-/// ran has no decision here and is told as one that started before the
-/// readings.
+/// The most decisions that one [`BrowsersTold`] keeps, for both browsers
+/// together.
+const DECISIONS_KEPT: usize = 8;
+
+/// What title rules have told of the processes of Chrome and of Edge: one
+/// decision for each process, at most [`DECISIONS_KEPT`] of them, in the
+/// order in which they were taken or found last; the first leaves for a new
+/// one, and its process is then decided anew. The foreground sources that
+/// share one handle find each other's decisions, so that a decision outlives
+/// the source that took it. It holds no reading of a language and no epoch:
+/// each source reads both places anew at its start, so a process that started
+/// while no source ran has no decision here and is told as one that started
+/// before the readings.
 #[derive(Clone, Default)]
 pub(crate) struct BrowsersTold(Arc<Mutex<Vec<Decided>>>);
 
@@ -622,21 +628,28 @@ impl BrowsersTold {
     }
 
     /// The decision kept for the process `pid` of `browser` that started at
-    /// the tick `started`; `None` where the kept decision of that browser is
-    /// of another pid or of another start.
+    /// the tick `started`, which becomes the last to leave; `None` where no
+    /// kept decision is of that browser, that pid and that start.
     fn of(&self, browser: &str, pid: libc::pid_t, started: u64) -> Option<bool> {
-        self.decisions()
-            .iter()
-            .find(|decided| {
-                decided.browser == browser && decided.pid == pid && decided.started == started
-            })
-            .map(|decided| decided.english)
+        let mut decisions = self.decisions();
+        let at = decisions.iter().position(|decided| {
+            decided.browser == browser && decided.pid == pid && decided.started == started
+        })?;
+        let found = decisions.remove(at);
+        let english = found.english;
+        decisions.push(found);
+        Some(english)
     }
 
-    /// Keeps `decided` in the place of the decision of its browser.
+    /// Keeps `decided` as the last to leave, in the place of an older
+    /// decision of its browser and pid; with [`DECISIONS_KEPT`] others kept,
+    /// the first of them leaves.
     fn keep(&self, decided: Decided) {
         let mut decisions = self.decisions();
-        decisions.retain(|kept| kept.browser != decided.browser);
+        decisions.retain(|kept| kept.browser != decided.browser || kept.pid != decided.pid);
+        if decisions.len() >= DECISIONS_KEPT {
+            decisions.remove(0);
+        }
         decisions.push(decided);
     }
 
