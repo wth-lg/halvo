@@ -39,6 +39,7 @@
       }
       rows.push({
         end: end,
+        cannotTell: cannotTell,
         anew: function () {
           end();
           asked = 0;
@@ -57,6 +58,13 @@
           }, WAITS[asked]);
         }
       };
+    },
+    /** The page learned that the capture service runs: where the window is shown, each part that cannot tell asks at once and begins its row anew. */
+    serviceBack: function () {
+      if (document.visibilityState === "hidden") return;
+      rows.forEach(function (row) {
+        if (row.cannotTell()) row.anew();
+      });
     },
   };
 
