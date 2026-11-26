@@ -1,0 +1,1 @@
+- Added: (routing run, U5.4) One unit test of halvo-runner, model::tests::real_door, starts the built program halvo-model from the runner's own start against a stand-in host on 127.0.0.1, and the row 61-r6-senders-egress of the macos gate runs it under the egress check through a third form of entry, <package>:lib:<test>.
