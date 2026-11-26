@@ -2041,12 +2041,16 @@ mod tests {
     /// encoding that reads every byte of the file as a letter and no byte as a control sign (the
     /// guard P1: below U+0020 but the tab, CR and LF, and U+007F to U+009F); every other such file
     /// stays refused with `data_encoding`, and so does every such file where no page is given, as
-    /// on the Mac. A file in UTF-8 or in UTF-16 by its mark reads as such under any page.
+    /// on the Mac. A file in UTF-8 or in UTF-16 by its mark reads as such under any page. Two kinds
+    /// of file of the coordinator's log line 23682 read and are not refused: a 936 file with
+    /// letters of two bytes right before digits, whose pairs are no heads of four-byte letters, and
+    /// a 1252 file with a pound sign or a paragraph sign right before a digit, which the pages that
+    /// cannot read it do not refuse.
     #[test]
     fn a_file_that_is_not_utf_8_reads_by_the_page_that_the_computer_gives() {
         // The case, the file's bytes, the page and the rows that it reads to.
         type Read<'a> = (&'a str, &'a [u8], u16, Vec<Vec<Value>>);
-        let read: [Read; 4] = [
+        let read: [Read; 7] = [
             (
                 "1252: u-umlaut and the euro sign",
                 b"M\xfcller,12.50 \x80\r\n",
@@ -2066,14 +2070,37 @@ mod tests {
                 1251,
                 vec![vec![t("Газ"), n(41.2)]],
             ),
+            (
+                "936: letters of two bytes right before digits, a word and the wide yen sign",
+                b"\xd6\xd0100,100\r\n\xa3\xa4100,5\r\n",
+                936,
+                vec![vec![t("中100"), n(100.0)], vec![t("￥100"), n(5.0)]],
+            ),
+            (
+                "1252: a pound sign right before a digit, 936 and 949 and 950 reading none of it",
+                b"Miete,\xa3100\r\n",
+                1252,
+                vec![vec![t("Miete"), n(100.0)]],
+            ),
+            (
+                "1252: a paragraph sign right before a digit",
+                b"Absatz,\xa75\r\n",
+                1252,
+                vec![vec![t("Absatz"), t("§5")]],
+            ),
         ];
+        let mut wrong = Vec::new();
         for (name, bytes, page, rows) in read {
             let want = Ok(Data {
                 rows,
                 letters: Letters::Page(page),
             });
-            assert_eq!(data(bytes, Some(page)), want, "{name}");
+            let got = data(bytes, Some(page));
+            if got != want {
+                wrong.push(format!("{name}: got {got:?}"));
+            }
         }
+        assert!(wrong.is_empty(), "{wrong:#?}");
         let refused: [(&str, &[u8], Option<u16>); 6] = [
             (
                 "the guard: the byte 81 under 1252",
