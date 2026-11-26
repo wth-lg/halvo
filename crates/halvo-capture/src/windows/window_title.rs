@@ -375,9 +375,18 @@ pub(crate) fn read_window_title(hwnd: HWND) -> ReadTitle {
     }
 }
 
+/// The title source's memory of its last decision: the window and the text
+/// that it decided last, written or left out. A decision for the same window
+/// and text writes nothing while the memory holds. The memory ends where the
+/// foreground source of the same set has seen another program come in front
+/// since that decision, so that the title of a window is decided anew at the
+/// return to it, behind the `foreground_app` record of the return, also where
+/// no title was decided for the window that was in front in between.
 #[derive(Debug, Default)]
 pub(crate) struct LastTitle {
     emitted: Option<Seen>,
+    front: FrontChanges,
+    front_seen: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -401,11 +410,20 @@ impl TitleDigest {
 impl LastTitle {
     /// The memory of a title source whose set counts the changes of the
     /// program in front in `front`.
-    pub(crate) fn behind(_front: FrontChanges) -> LastTitle {
-        LastTitle::default()
+    pub(crate) fn behind(front: FrontChanges) -> LastTitle {
+        LastTitle {
+            emitted: None,
+            front,
+            front_seen: 0,
+        }
     }
 
     pub(crate) fn is_new(&mut self, window: usize, title: &str) -> bool {
+        let front = self.front.seen();
+        if self.front_seen != front {
+            self.front_seen = front;
+            self.emitted = None;
+        }
         let seen = Some(Seen {
             window,
             digest: TitleDigest::of(title),
@@ -553,7 +571,8 @@ impl WindowTitleSource {
 
     /// A title source of a service set, which hands it `front`, the count
     /// that the set's foreground source adds each change of the program in
-    /// front to.
+    /// front to: the source's memory of the last title ends where that count
+    /// has moved.
     pub(crate) fn with_front_changes(mut self, front: FrontChanges) -> Self {
         self.front = front;
         self

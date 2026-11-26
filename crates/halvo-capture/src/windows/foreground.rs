@@ -122,13 +122,19 @@ pub(crate) struct Change {
 /// The count of the changes of the program in front that a foreground
 /// source has seen: its tracker adds one where it hands out a
 /// `foreground_app` record to be written. A service set gives one count to
-/// its foreground source and to its window_title source.
+/// its foreground source and to its window_title source, whose memory of the
+/// last title ends where the count has moved.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct FrontChanges(Arc<AtomicU64>);
 
 impl FrontChanges {
     fn add(&self) {
         self.0.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The count as it stands.
+    pub(crate) fn seen(&self) -> u64 {
+        self.0.load(Ordering::Relaxed)
     }
 }
 
