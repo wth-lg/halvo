@@ -9,6 +9,8 @@
 use std::sync::Arc;
 
 use halvo_agent_client::{LinkError, OwnerLink, Secrets, MODEL_KEY};
+use halvo_route::policy::{cells, PickCell, Policy};
+use halvo_route::tier::CallKind;
 use halvo_schema::executable::frame::SecretReply;
 use halvo_schema::executable::names::Unreadable;
 use halvo_schema::executable::text::{Name as WireName, SecretText};
@@ -29,6 +31,21 @@ pub fn host() -> Option<String> {
             .iter()
             .map(|row| row.origin()),
     )
+}
+
+/// Whether every compile, recover and write row of this build's router table, `halvo_route::release::policy()`,
+/// hands back (r4 U3.34): the table that the runner's pick reads (crates/halvo-runner/src/route.rs). While it does,
+/// no agent of the build asks a model; the page's part AI model and the agents' rows read it.
+pub fn hands_back() -> bool {
+    hands_back_in(halvo_route::release::policy())
+}
+
+/// Whether every row of `policy` of the kind compile, recover or write picks `hand_back`; a row of the kind replay
+/// asks no model and is not read.
+fn hands_back_in(policy: &Policy) -> bool {
+    cells()
+        .filter(|(_, kind)| *kind != CallKind::Replay)
+        .all(|(category, kind)| policy.row(category, kind).pick == PickCell::HandBack)
 }
 
 /// The host of `origins`, none where there is none or two of them differ.
@@ -63,8 +80,13 @@ pub enum KeyCause {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum KeyReply {
-    /// `model_key_state` in a build with a host: `{"host":<host>,"state":<state>}`.
-    Host { host: String, state: KeyState },
+    /// `model_key_state` in a build with a host: `{"host":<host>,"state":<state>,"hands_back":<bool>}`, where
+    /// `hands_back` is the fact of `hands_back` (r4 U3.34).
+    Host {
+        host: String,
+        state: KeyState,
+        hands_back: bool,
+    },
     /// `model_key_state` in a build with no host: `{"host":null}`, with nothing sent.
     NoHost { host: () },
     /// A save or a removal that the store took: `{"state":<the state that it leaves>}`.
@@ -107,10 +129,22 @@ impl ModelKey {
 
     /// The reply of the page's command `command` with `args` in a build whose host is `host`, none for a name that
     /// is not one of the three. `model_key_state` sends nothing where there is no host; `save_model_key` saves the
-    /// text of the key `key` of `args`, the empty text where there is none.
+    /// text of the key `key` of `args`, the empty text where there is none. The reply of `model_key_state` carries
+    /// this build's fact `hands_back()`.
     pub fn call(
         &self,
         host: Option<&str>,
+        command: &str,
+        args: Option<&Value>,
+    ) -> Option<KeyReply> {
+        self.call_with(host, hands_back(), command, args)
+    }
+
+    /// `call` with the fact `hands_back` given.
+    fn call_with(
+        &self,
+        host: Option<&str>,
+        hands_back: bool,
         command: &str,
         args: Option<&Value>,
     ) -> Option<KeyReply> {
@@ -119,6 +153,7 @@ impl ModelKey {
                 Some(host) => KeyReply::Host {
                     host: host.to_owned(),
                     state: self.state(),
+                    hands_back,
                 },
                 None => KeyReply::NoHost { host: () },
             },
@@ -243,6 +278,40 @@ mod tests {
         );
     }
 
+    /// r4 U3.34, the fact: `hands_back_in` is true for the table that hands every row back, and false where ONE
+    /// compile, ONE recover or ONE write row picks a tier; this build's fact is the same function over the release
+    /// table, `halvo_route::release::policy()`, the table that the runner's pick reads; and the reply of
+    /// `model_key_state` with a host carries the fact that it is given, while the reply with no host is the same.
+    #[test]
+    fn u334_hands_back_reads_every_compile_recover_and_write_row_and_the_reply_carries_it() {
+        use halvo_route::tier::Tier;
+        let all = Policy::hand_back_all();
+        assert!(hands_back_in(&all));
+        let base = all.to_text();
+        for kind in ["compile", "recover", "write"] {
+            let cell = format!("utility_bill_payment\t{kind}\thand_back\t-\tuntested\t0\t0\n");
+            let tier = format!("utility_bill_payment\t{kind}\tfrontier\tlow\tline_met\t4\t4\n");
+            let open = base.replacen(&cell, &tier, 1);
+            assert_ne!(open, base, "{kind}");
+            let policy = Policy::parse_for(&open, &Tier::ALL).expect("a table with one open row");
+            assert!(!hands_back_in(&policy), "{kind}");
+        }
+        assert_eq!(hands_back(), hands_back_in(halvo_route::release::policy()));
+        let (_, model) = stand(Answer::Result(r#"{"stands":"yes"}"#));
+        for fact in [true, false] {
+            let reply = model.call_with(Some("api.host.invalid"), fact, "model_key_state", None);
+            assert_eq!(
+                serde_json::to_string(&reply.expect("a reply")).unwrap(),
+                format!(r#"{{"host":"api.host.invalid","state":"saved","hands_back":{fact}}}"#)
+            );
+            let none = model.call_with(None, fact, "model_key_state", None);
+            assert_eq!(
+                serde_json::to_string(&none.expect("a reply")).unwrap(),
+                r#"{"host":null}"#
+            );
+        }
+    }
+
     /// What the stand-in owner answers each request: a result, a refusal by its error name, or no reply.
     #[derive(Clone, Copy)]
     enum Answer {
@@ -336,15 +405,23 @@ mod tests {
     fn each_answer_of_the_store_gives_one_state_or_cause_and_no_reply_tells_one_key_from_another() {
         const HOST: &str = "api.host.invalid";
         const NOT: &str = r#"{"error":"not_finished"}"#;
-        const KNOWN: &str = r#"{"host":"api.host.invalid","state":"not_known"}"#;
+        const KNOWN: &str = r#"{"host":"api.host.invalid","state":"not_known","hands_back":false}"#;
         let rows = [
             (
                 Answer::Result(r#"{"stands":"yes"}"#),
-                [r#"{"host":"api.host.invalid","state":"saved"}"#, NOT, NOT],
+                [
+                    r#"{"host":"api.host.invalid","state":"saved","hands_back":false}"#,
+                    NOT,
+                    NOT,
+                ],
             ),
             (
                 Answer::Result(r#"{"stands":"no"}"#),
-                [r#"{"host":"api.host.invalid","state":"none"}"#, NOT, NOT],
+                [
+                    r#"{"host":"api.host.invalid","state":"none","hands_back":false}"#,
+                    NOT,
+                    NOT,
+                ],
             ),
             (
                 Answer::Result(r#"{"stored":1}"#),
@@ -364,9 +441,9 @@ mod tests {
                 let (link, model) = stand(*answer);
                 let args = json!({ "key": key });
                 let got = [
-                    model.call(Some(HOST), "model_key_state", None),
-                    model.call(Some(HOST), "save_model_key", Some(&args)),
-                    model.call(Some(HOST), "remove_model_key", None),
+                    model.call_with(Some(HOST), false, "model_key_state", None),
+                    model.call_with(Some(HOST), false, "save_model_key", Some(&args)),
+                    model.call_with(Some(HOST), false, "remove_model_key", None),
                 ]
                 .map(|reply| serde_json::to_string(&reply.expect("a command of the key")).unwrap());
                 assert_eq!(got, expected.map(str::to_owned), "{expected:?}");
