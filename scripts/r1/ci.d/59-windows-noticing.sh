@@ -390,7 +390,9 @@ need_own() {
   field front_class "$walk_line"
   class=$value
   field front_file "$walk_line"
-  fail "occasion $occasion, stage title: another window covers the walk's window: class=$class file=$value"
+  file=$value
+  read_status
+  fail "occasion $occasion, stage title: another window covers the walk's window: class=$class file=$file; $status_text"
 }
 
 # The 12 clicks of the occasion: the pointer count grows by 12 or more and no event is lost.
@@ -890,6 +892,7 @@ fixture() {
   w_titles=0
   w_tbytes=0
   w_fa=0
+  w_lost=0
   w_records=0
   w_last_input=1000
   w_unsearched=no
@@ -934,6 +937,13 @@ fixture() {
       no-batch-line:1) return 0 ;;
       carry-not-walked:1) w_fa=$((w_fa + 1)) ;;
       episodes-zero-at-occasion-one:1 | plain-carry-fails:2 | order-O5:3) episodes=0 ;;
+      one-empty-batch-line:1)
+        {
+          printf 'batch end=newest run_open=no start_first=no records=0 episodes=0\n'
+          printf 'halvo-capture: analysis end=committed code=0 peak_bytes=1048576\n'
+        } >>"$err"
+        return 0
+        ;;
     esac
     printf 'batch end=newest run_open=no start_first=no records=%s episodes=%s\n' "$w_records" "$episodes" >>"$err"
     w_records=0
@@ -975,7 +985,7 @@ capture_reason=-
 lease=$lease
 store=open
 events_pending=0
-events_lost=0
+events_lost=$w_lost
 title_read_errors=0
 last_flush_at=$w_clock
 source name=foreground state=running
@@ -1003,8 +1013,16 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
         [ "$mode" = service-no-window-of-the-app ] && window=no
         walk_line="walk: step=ready ok=yes pid=4242 halvo_window=$window"
         ;;
-      passer) walk_line='walk: step=passer ok=yes pid=4343' ;;
+      passer)
+        walk_line='walk: step=passer ok=yes pid=4343'
+        [ "$mode" != service-no-window-of-the-passer ] || walk_line='walk: step=passer ok=no why=no-passer-window'
+        ;;
       front)
+        if [ "$mode:$w_pointer" = another-window-covers:0 ]; then
+          walk_line='walk: step=front ok=no why=covered front_class=Shell_TrayWnd front_file=explorer.exe'
+          printf '%s\n' "$walk_line"
+          return 0
+        fi
         world_adds pointer 1
         [ "$w_front" = own ] || world_adds fa 1
         w_front=own
@@ -1019,6 +1037,10 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
         sent=12
         [ "$mode" = eleven-clicks ] && sent=11
         world_adds pointer "$sent"
+        case $mode:$w_batches in
+          an-event-lost:0) w_lost=1 ;;
+          a-window-passes-behind-the-clicks:1) world_adds fa 1 ;;
+        esac
         w_last_input=$w_clock
         walk_line='walk: step=clicks ok=yes sent=12 front=own'
         ;;
@@ -1074,7 +1096,8 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
 }
 
 # Runs the case $1 on the stand-ins and holds its verdict against $2, PASS or FAIL. A FAIL must
-# hold the text $3 in its last line, a PASS in any line.
+# hold the text $3 in its last line, and the text $4 there too where the case gives one; a PASS
+# must hold $3 in any line.
 run_case() {
   sh "$self" --fixture "$1" "$work/$1" >"$work/$1.out" 2>&1
   code=$?
@@ -1094,6 +1117,12 @@ run_case() {
   case $2:$last in
     FAIL:*"$3"*) holds=yes ;;
   esac
+  if [ -n "${4:-}" ]; then
+    case $last in
+      *"$4"*) ;;
+      *) holds=no ;;
+    esac
+  fi
   [ "$holds" = yes ] || got=$got-without-the-text
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
   if [ "$got" != "$2" ]; then
@@ -1120,13 +1149,20 @@ self_test() {
   run_case no-batch-line FAIL '(occasion 1, stage search: no batch line within 80 s of the last input; walk idle_ms=250000;'
   run_case episodes-zero-at-occasion-one FAIL '(occasion 1, stage episode: form=new-title batch end=newest records=15 episodes=0, wanted end=newest episodes=1 records>=13'
   run_case no-commit-line FAIL '(occasion 1, stage commit: no analysis end=committed line within 4 s of the occasion'"'"'s batch line; analysis lines: | analysis end=cap code=- peak_bytes=268435456)'
-  run_case return-own-no-title FAIL '(occasion 2, stage return-own: foreground_app=+1 window_title=+0 title_bytes=+0, wanted +1 and +1; walk away=call fg_events=2 stay_ms=3004;'
-  run_case return-short-no-title FAIL '(occasion 2, stage return-short: foreground_app=+2 window_title=+0 title_bytes=+0, wanted +2 and +1; walk fg_events=2 stay_ms=1 try=1;'
-  run_case return-short-not-met-in-three-tries FAIL '(occasion 2, stage return-short: return-short=not-met in 3 tries: foreground_app=+2 window_title=+2'
-  run_case order-O4 FAIL '(occasion 2, stage return-short: order=O4 foreground_app=+2 window_title=+0'
-  run_case order-O5 FAIL '(occasion 3, stage episode: order=O5 batch end=newest records=12 episodes=0'
-  run_case plain-carry-fails FAIL '(occasion 2, stage carry: carry=failed batch end=newest records='
-  run_case carry-not-walked FAIL '(occasion 2, stage carry: not walked: foreground_app=+1 window_title=+0 in the pause before it; the window that passed: class=Shell_TrayWnd file=explorer.exe'
+  # A red stage that lets the walk go on ends with the row behind it in the same last line.
+  row_three='; row: state=running proposals=1 stored=1 category=spreadsheet_fill count=3 by_hand=no)'
+  run_case service-no-window-of-the-passer FAIL '(occasion 0, stage service: the second program of the check showed no window: walk: step=passer ok=no why=no-passer-window)'
+  run_case another-window-covers FAIL '(occasion 1, stage title: another window covers the walk'"'"'s window: class=Shell_TrayWnd file=explorer.exe; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at='
+  run_case an-event-lost FAIL '(occasion 1, stage clicks: events_lost went from 0 to 1; pointer=+12; events_pending=0 events_lost=1 title_read_errors=0 last_flush_at='
+  run_case one-empty-batch-line FAIL '(occasion 1, stage episode: the product'"'"'s fault: the pause shows one batch line with records=0 and the records counted in the store: pointer=+12 behind the occasion'"'"'s baseline; batch end=newest run_open=no start_first=no records=0 episodes=0)'
+  run_case a-window-passes-behind-the-clicks FAIL '(occasion 2, stage carry: not walked: foreground_app=+1 window_title=+0 behind its clicks' "$row_three"
+  run_case return-own-no-title FAIL '(occasion 2, stage return-own: foreground_app=+1 window_title=+0 title_bytes=+0, wanted +1 and +1; walk away=call fg_events=2 stay_ms=3004;' "$row_three"
+  run_case return-short-no-title FAIL '(occasion 2, stage return-short: foreground_app=+2 window_title=+0 title_bytes=+0, wanted +2 and +1; walk fg_events=2 stay_ms=1 try=1;' "$row_three"
+  run_case return-short-not-met-in-three-tries FAIL '(occasion 2, stage return-short: return-short=not-met in 3 tries: foreground_app=+2 window_title=+2' "$row_three"
+  run_case order-O4 FAIL '(occasion 2, stage return-short: order=O4 foreground_app=+2 window_title=+0' "$row_three"
+  run_case order-O5 FAIL '(occasion 3, stage episode: order=O5 batch end=newest records=12 episodes=0' '; row: state=running proposals=0 stored=0 category=- count=0 by_hand=-)'
+  run_case plain-carry-fails FAIL '(occasion 2, stage carry: carry=failed batch end=newest records=' "$row_three"
+  run_case carry-not-walked FAIL '(occasion 2, stage carry: not walked: foreground_app=+1 window_title=+0 in the pause before it; the window that passed: class=Shell_TrayWnd file=explorer.exe' "$row_three"
   run_case no-row FAIL '(occasion 3, stage row: state=running proposals=0 stored=0 category=- count=0 by_hand=-, wanted state=running proposals=1 category=spreadsheet_fill count=3 by_hand=no)'
   run_case row-of-count-two FAIL '(occasion 3, stage row: state=running proposals=1 stored=1 category=spreadsheet_fill count=2 by_hand=no, wanted state=running proposals=1 category=spreadsheet_fill count=3 by_hand=no)'
   if [ -n "$wrong" ]; then

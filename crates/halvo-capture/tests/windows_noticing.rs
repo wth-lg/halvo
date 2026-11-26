@@ -588,8 +588,12 @@ fn window_of_file(dir: &Path, name: &str) -> Option<HWND> {
 
 /// The return `own`: Halvo's own window gets the front from this process, which holds it,
 /// stays in front for `OWN_STAY`, and one click into the workbook's window brings that back.
-/// The walk sends no input into Halvo's window.
+/// The walk sends no input into Halvo's window. The step counts the foreground events of its
+/// own time alone: it first serves the events that came late behind the step before, and
+/// forgets them.
 fn return_own(workbook: HWND) -> String {
+    pump(Duration::from_millis(50));
+    clear_seen();
     let refused =
         |events: usize| format!("ok=yes away=refused stay_ms=0 fg_events={events} front=own");
     let Some(app) = app_window() else {
@@ -624,8 +628,12 @@ fn return_own(workbook: HWND) -> String {
 
 /// The return `short`: the passer's window gets the front from this process, which holds it,
 /// and hands it back at once. Where the front does not come back within 3 s, one click into
-/// the workbook's window brings it back and the stay reads 3000.
+/// the workbook's window brings it back and the stay reads 3000. The step counts the foreground
+/// events of its own time alone, as the return `own` does: a late event of the step before,
+/// or of the try before, would hide an order in which Windows raised none.
 fn return_short(workbook: HWND, passer: HWND) -> String {
+    pump(Duration::from_millis(50));
+    clear_seen();
     set_front(passer);
     let deadline = Instant::now() + Duration::from_secs(3);
     let stay = loop {
