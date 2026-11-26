@@ -5,6 +5,10 @@ use crate::types::{ModelUse, SpendLimit};
 
 const NAME: &str = "Pay bills on Site1";
 
+/// The sentence behind the line of each row of an agent of the runtime file that offers Start
+/// now, but the row of not_replaced (r3 U11.11).
+const CLOSE: &str = "Close the spreadsheet file in other programs before this agent starts.";
+
 /// A configuration of `tier` and `runtime` with `model` as the app hands it.
 fn config(tier: Tier, runtime: Runtime, model: Option<ModelUse>) -> Config {
     let mut config = Config::parse(&format!(
@@ -420,6 +424,10 @@ fn u322a_a_failed_file_run_says_why_by_its_last_cause_and_a_web_run_reads_as_tod
             f.last_cause = LastCause::parse(name).ok();
             let line = status(&f, &Limits::PRODUCT, None);
             let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+            let want = match runtime {
+                Runtime::File if name != "not_replaced" => format!("{want} {CLOSE}"),
+                _ => want.to_owned(),
+            };
             assert_eq!(r.line, want, "{name} {runtime}");
         }
     }
@@ -466,6 +474,10 @@ fn u322d_a_file_run_that_the_system_refused_says_what_to_do_on_each_system() {
         f.last_cause = LastCause::parse("no_access").ok();
         let line = status(&f, &Limits::PRODUCT, None);
         for (system, want) in [(System::Mac, on_mac), (System::Windows, on_windows)] {
+            let want = match runtime {
+                Runtime::File => format!("{want} {CLOSE}"),
+                _ => want.to_owned(),
+            };
             let r = row_on(system, &f, false, line, NAME, None, &Limits::PRODUCT).unwrap();
             assert_eq!(r.line, want, "{system:?} {runtime}");
             if system == System::HOST {
@@ -1034,6 +1046,7 @@ fn u324_on_a_day_with_all_its_starts_used_the_row_offers_start_now_and_says_what
                 "({case}) controls {used:?} with all starts used, {fewer:?} with one fewer"
             ));
         }
+        let want = format!("{want} {CLOSE}");
         if line != want {
             wrong.push(format!("({case}) reads {line:?}, not {want:?}"));
         }
@@ -1386,7 +1399,7 @@ fn u1110_the_row_says_that_halvo_guessed_the_letters_behind_the_line_of_the_run_
         f.last_cause = cause.and_then(|c| LastCause::parse(c).ok());
         let line = status(&f, &Limits::PRODUCT, None);
         let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
-        assert_eq!(r.line, want, "{state}");
+        assert_eq!(r.line, format!("{want} {CLOSE}"), "{state}");
     }
 }
 
@@ -1512,6 +1525,206 @@ fn u1110_the_row_says_how_many_values_halvo_wrote_as_text_and_where() {
         f.last_cause = None;
         let line = status(&f, &Limits::PRODUCT, None);
         let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        assert_eq!(r.line, format!("{want} {CLOSE}"), "{state}");
+    }
+}
+
+/// r3 U11.11, the coordinator's ruling of the unit, point 1: the row of an agent of the runtime
+/// file that offers Start now says `line.note.close_first` behind its line and behind the notes of
+/// its newest run, one space between; the row of another runtime, a row with no Start now and the
+/// row of not_replaced say none.
+#[test]
+fn u1111_the_row_of_a_file_agent_that_offers_start_now_says_to_close_the_file_first() {
+    use crate::types::{Failure, LastCause, Notes, Outcome, PastRun};
+    let close = CLOSE;
+    let done = "Last time, it finished its task.";
+    let letters = "The data file was not saved as UTF-8 text, so Halvo read its letters the way this computer writes such files. In such a file Halvo writes a value with a sign such as € as text, not as a number. If a letter looks wrong in the spreadsheet or a sum leaves values out, save the data file as CSV UTF-8 and choose Start now.";
+    let step_failed = "It could not fill in the spreadsheet. Check the file, the sheet, the cells and the data file that you gave it. Then choose Change its answers.";
+    let not_replaced = "Halvo could not save the spreadsheet file. Close it in other programs and check that you may change it, then choose Start now.";
+    let run = RunId::parse(&format!("{:032x}", 0x1111_0001)).unwrap();
+    // An agent of the runtime file whose one run, started by the person today, ended with
+    // `outcome`, its record `notes` and the last cause `cause`.
+    let ended = |outcome: Outcome, notes: Notes, cause: Option<LastCause>| {
+        let mut f = facts(State::Ten).remove(0);
+        f.config = config(Tier::OnDevice, Runtime::File, None);
+        f.store_ended = true;
+        f.runs = vec![PastRun {
+            run: run.clone(),
+            day: f.today,
+            outcome,
+            unknown: 0,
+            notes,
+        }];
+        let end = match outcome {
+            Outcome::Completed => RunEnd::Completed,
+            _ => RunEnd::from(Failure::Failed),
+        };
+        for what in [
+            What::RunStarted {
+                run: run.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+            What::RunEnded {
+                run: run.clone(),
+                cause: end,
+                defers: None,
+            },
+        ] {
+            f.events.push(Event {
+                workflow: f.workflow.id.clone(),
+                agent: f.agent.clone(),
+                seq: std::num::NonZeroU32::MIN.saturating_add(f.events.len() as u32),
+                day: f.today,
+                at: i64::from(f.today) * 86_400_000_000_000,
+                what,
+            });
+        }
+        f.last_cause = cause;
+        f
+    };
+    let guessed = Notes {
+        letters_guessed: true,
+        texts: None,
+    };
+    let sheet = facts(State::Ten)
+        .into_iter()
+        .find(|f| f.config.runtime() == Runtime::File)
+        .unwrap();
+    let web = facts(State::Ten).remove(0);
+    let mut off = facts(State::Off).remove(0);
+    off.config = config(Tier::OnDevice, Runtime::File, None);
+    // The state, its facts, whether its row offers Start now, and the line that the row says.
+    let cases = [
+        (
+            "the fixture's spreadsheet agent",
+            sheet,
+            true,
+            format!("Last time, it found nothing to do. {close}"),
+        ),
+        (
+            "a done run",
+            ended(Outcome::Completed, Notes::default(), None),
+            true,
+            format!("{done} {close}"),
+        ),
+        (
+            "a done run whose record holds a note",
+            ended(Outcome::Completed, guessed, None),
+            true,
+            format!("{done} {letters} {close}"),
+        ),
+        (
+            "a failed run with a last cause",
+            ended(
+                Outcome::Failed,
+                Notes::default(),
+                LastCause::parse("step_failed").ok(),
+            ),
+            true,
+            format!("{step_failed} {close}"),
+        ),
+        (
+            "the row of not_replaced",
+            ended(
+                Outcome::Failed,
+                Notes::default(),
+                LastCause::parse("not_replaced").ok(),
+            ),
+            true,
+            not_replaced.to_owned(),
+        ),
+        ("an agent of the runtime web", web, true, done.to_owned()),
+        (
+            "a row with no Start now",
+            off,
+            false,
+            "You switched it off, so it does not start.".to_owned(),
+        ),
+    ];
+    for (state, f, offers, want) in cases {
+        let line = status(&f, &Limits::PRODUCT, None);
+        let r = row(&f, line, NAME, None, &Limits::PRODUCT).unwrap();
+        assert_eq!(
+            r.controls.iter().any(|c| c.control == Control::RunNow),
+            offers,
+            "{state}"
+        );
         assert_eq!(r.line, want, "{state}");
+    }
+}
+
+/// r3 U11.11, the coordinator's ruling of the unit, point 3: the card of an agent of the runtime
+/// file holds the line `copy` behind its line of files, and the card of every other runtime holds
+/// none.
+#[test]
+fn u1111_the_card_of_a_file_agent_says_that_halvo_saves_a_copy_behind_its_line_of_files() {
+    let files = "It can open the files that you choose.";
+    let copy = "Before it changes your spreadsheet file, Halvo saves a copy of the file as it was in the same folder, with halvo-checkpoint in its name.";
+    for runtime in Runtime::ALL {
+        let config = Config::parse(&format!(
+            "{{\"v\":1,\"workflow\":\"{:032x}\",\"agent\":\"{:032x}\",\"rev\":1,\"category\":\"spreadsheet_fill\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"no\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[\"user_files\"],\"runtime\":\"{}\",\"playbook\":null}}",
+            1,
+            2,
+            runtime.name()
+        ))
+        .unwrap();
+        let lines = lines(&config);
+        let said: Vec<(&str, &str)> = lines
+            .iter()
+            .map(|l| (l.key.name(), l.text.as_str()))
+            .collect();
+        let at = said.iter().position(|l| *l == ("files", files));
+        assert!(at.is_some(), "{runtime:?}: {said:?}");
+        let copies: Vec<usize> = said
+            .iter()
+            .enumerate()
+            .filter(|(_, (key, text))| *key == "copy" || *text == copy)
+            .map(|(i, _)| i)
+            .collect();
+        if *runtime == Runtime::File {
+            assert_eq!(said.get(at.unwrap() + 1), Some(&("copy", copy)), "{said:?}");
+            assert_eq!(copies.len(), 1, "{said:?}");
+        } else {
+            assert_eq!(copies, Vec::<usize>::new(), "{runtime:?}: {said:?}");
+        }
+    }
+}
+
+/// r3 U11.11, the round of the reader's fault: the quit row of an agent of the runtime file whose
+/// controls hold Start now reads `line.problem.quit` and then the close sentence, one space
+/// between; with no Start now among them, and for another runtime, the quit line alone. The line
+/// that the coordinator puts in place of the line of `needs_you.ready` behind a take-back
+/// (`line_offering` of `line.needs_you.asks_again`) reads the same way.
+#[test]
+fn u1111_the_quit_row_and_the_asks_again_line_of_a_file_agent_with_start_now_say_to_close_first() {
+    let quit = "Its task was still running when Halvo quit and may have gone on. Check outside Halvo before repeating it.";
+    let again = "You cancelled its start, so it asks you again before it starts.";
+    let sheet = facts(State::Ten)
+        .into_iter()
+        .find(|f| f.config.runtime() == Runtime::File)
+        .unwrap();
+    let web = facts(State::Ten).remove(0);
+    let with = vec![Control::RunNow, Control::SwitchOff, Control::Delete];
+    let without = vec![Control::SwitchOff, Control::Delete];
+    // The case, its facts, the controls of its row, and whether its lines end with the sentence.
+    let cases = [
+        ("a file agent with Start now", &sheet, with.clone(), true),
+        ("a file agent with no Start now", &sheet, without, false),
+        ("a web agent with Start now", &web, with, false),
+    ];
+    for (case, f, offered, close) in cases {
+        let tail = if close {
+            format!(" {CLOSE}")
+        } else {
+            String::new()
+        };
+        let r = quit_row(f, NAME, offered).unwrap();
+        assert_eq!(r.line, format!("{quit}{tail}"), "the quit row: {case}");
+        assert_eq!(
+            line_offering(f, &r, "line.needs_you.asks_again").unwrap(),
+            format!("{again}{tail}"),
+            "the line that asks again: {case}"
+        );
     }
 }

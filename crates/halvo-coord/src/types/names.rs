@@ -547,6 +547,7 @@ names! {
         Asks = "asks",
         Time = "time",
         Files = "files",
+        Copy = "copy",
         Spend = "spend",
         RecordsDropped = "records_dropped",
     }

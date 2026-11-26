@@ -285,6 +285,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.note.texts_columns",
         "Halvo wrote {count} values in {columns} columns, the first of them column {column}, as text, not as numbers, so a sum leaves them out.",
     ),
+    (
+        "line.note.close_first",
+        "Close the spreadsheet file in other programs before this agent starts.",
+    ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
     ("line.run.declined", "You said no, so it stopped."),
@@ -353,6 +357,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "It stops if its task takes more than {minutes} minutes.",
     ),
     ("line.files", "It can open the files that you choose."),
+    (
+        "line.copy",
+        "Before it changes your spreadsheet file, Halvo saves a copy of the file as it was in the same folder, with halvo-checkpoint in its name.",
+    ),
     ("category.utility_bill_payment", "Paying a utility bill"),
     ("category.tenant_rent", "Handling a tenant's rent"),
     (

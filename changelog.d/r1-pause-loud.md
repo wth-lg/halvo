@@ -1,0 +1,1 @@
+- Changed: (capture run, r1 pause-loud) When Halvo starts at sign-in and is paused, as it is after "Quit Halvo" or a Pause, it opens its window once, which says "Halvo is paused". Before, it started with its icon alone, and only the icon and its menu showed that it was paused.

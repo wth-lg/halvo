@@ -11,7 +11,7 @@
             - {"name":"Filling in a spreadsheet on Site6","role":"button"}
           - {"role":"paragraph","text":"Problem"}
           - {"role":"paragraph","text":"Standard"}
-          - {"role":"paragraph","text":"Last time, it ran longer or did more than Halvo allows for one task, so Halvo stopped it."}
+          - {"role":"paragraph","text":"Last time, it ran longer or did more than Halvo allows for one task, so Halvo stopped it. Close the spreadsheet file in other programs before this agent starts."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
           - {"name":"Change its answers","role":"button"}

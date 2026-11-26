@@ -83,8 +83,9 @@ pub struct Listed {
     /// noticing never gives.
     pub by_hand: bool,
     pub category: String,
-    /// The display name that the operating system gives for the workflow's app, if it gives one;
-    /// never the app id or a part of it, and none for a workflow set up by hand.
+    /// The display name of the workflow's app, if one is known: on a Mac the one that the operating
+    /// system gives, and on Windows the one that the app's own table gives for the program's file
+    /// name; never the app id or a part of it, and none for a workflow set up by hand.
     pub app: Option<String>,
     pub site: Option<String>,
     /// The ids of the summaries that support the workflow, in ascending order.
@@ -470,10 +471,22 @@ pub(super) fn names_readable_at(place: &std::path::Path) -> bool {
     }
 }
 
-/// No system but the Mac is asked for a name, so every row leaves the app out.
+/// No system but the Mac is asked for a name. On Windows a row names the programs of one table
+/// by their file names, and leaves every other app out.
 #[cfg(not(target_os = "macos"))]
-fn system_app_name(_: &str) -> Option<String> {
-    None
+fn system_app_name(app: &str) -> Option<String> {
+    windows_app_name(app)
+}
+
+#[cfg(any(test, not(target_os = "macos")))]
+const WINDOWS_APP_NAMES: [(&str, &str); 1] = [("EXCEL.EXE", "Microsoft Excel")];
+
+#[cfg(any(test, not(target_os = "macos")))]
+fn windows_app_name(app: &str) -> Option<String> {
+    WINDOWS_APP_NAMES
+        .iter()
+        .find(|(file, _)| file.eq_ignore_ascii_case(app))
+        .map(|(_, name)| (*name).to_owned())
 }
 
 pub struct Workflows;
@@ -541,4 +554,51 @@ pub async fn delete_workflow(
 #[tauri::command]
 pub async fn set_up_sheet_agent(state: State<'_, AppState>) -> Result<(), DecisionError> {
     decided(&state, Decision::SetUp, workflow_id().as_str().to_owned()).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::windows_app_name;
+
+    #[test]
+    fn a_row_on_windows_names_excel_and_leaves_every_other_app_out() {
+        for excel in ["EXCEL.EXE", "excel.exe", "Excel.exe"] {
+            assert_eq!(
+                windows_app_name(excel).as_deref(),
+                Some("Microsoft Excel"),
+                "{excel}"
+            );
+            #[cfg(not(target_os = "macos"))]
+            assert_eq!(super::system_app_name(excel), windows_app_name(excel));
+        }
+        for other in [
+            "com.microsoft.Excel",
+            "com.apple.iWork.Numbers",
+            "NOTEPAD.EXE",
+            "EXCEL",
+            "EXCEL.EXE ",
+            "EXCEL.EXE.lnk",
+            "Microsoft Excel",
+            "",
+        ] {
+            assert_eq!(windows_app_name(other), None, "{other:?}");
+        }
+        let stage_a = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../crates/halvo-identify/src/stage/a.rs"),
+        )
+        .unwrap();
+        let (_, list) = stage_a.split_once("const SPREADSHEET_APPS").unwrap();
+        let (list, _) = list.split_once("];").unwrap();
+        let windows: Vec<&str> = list
+            .split('"')
+            .skip(1)
+            .step_by(2)
+            .filter(|app| app.to_ascii_lowercase().ends_with(".exe"))
+            .collect();
+        assert!(!windows.is_empty(), "{list}");
+        for app in windows {
+            assert!(windows_app_name(app).is_some(), "{app}");
+        }
+    }
 }

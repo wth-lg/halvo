@@ -1,4 +1,5 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use halvo_control::model::CaptureState;
@@ -609,6 +610,44 @@ pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+/// Whether a start with `--background` still waits for its first status that tells: the first
+/// draw whose view holds a status takes it, so that the window main shows by itself at most once
+/// in a life.
+#[derive(Debug)]
+pub struct FirstStatus(AtomicBool);
+
+impl FirstStatus {
+    /// The flag of a start, which waits at a start with `--background` alone.
+    pub fn of_a_start(background: bool) -> Self {
+        FirstStatus(AtomicBool::new(background))
+    }
+}
+
+/// Whether a draw of `view` shows the window main by itself: at the first view with a status of a
+/// start with `--background`, where that status reads `desired=paused`, whoever set it; never at a
+/// view without a status, which leaves the start waiting, and never at a later view. Under desired
+/// paused `capture` reads paused or pausing alone (contracts.md C2.3, line 144), so the one field
+/// decides, and a first status that reads pausing shows the window too.
+pub fn shows_by_itself(first: &FirstStatus, view: &StatusView) -> bool {
+    let StatusView::Running(view) = view else {
+        return false;
+    };
+    first.0.swap(false, Ordering::SeqCst) && view.desired == CaptureState::Paused
+}
+
+/// The draw's ask of `shows_by_itself` with the app's `FirstStatus`, where the app manages one:
+/// where it says so, the window main shows as the tray's Open shows it, posted to the main thread
+/// with no wait, since a draw runs off the main thread and holds the draw lock.
+pub fn show_by_itself<R: Runtime>(app: &AppHandle<R>, view: &StatusView) {
+    if app
+        .try_state::<FirstStatus>()
+        .is_some_and(|first| shows_by_itself(&first, view))
+    {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || show_main_window(&handle));
+    }
+}
+
 #[cfg(test)]
 pub fn installed_for_tests() -> TrayInstalled {
     TrayInstalled(())
@@ -818,5 +857,69 @@ mod tests {
             menu.press(&view, &shown),
             TogglePress::Send(CaptureChange::Resume)
         );
+    }
+
+    #[test]
+    fn a_background_start_shows_the_window_once_where_its_first_status_reads_a_kept_pause() {
+        let paused = running_with(Capture::Paused, CaptureState::Paused);
+        let not_started = {
+            let hold = crate::view_state::Hold::default();
+            hold.awaits_consent();
+            hold.mark(StatusView::no_status(
+                NoStatusService::NotRunning,
+                Platform::Macos,
+            ))
+        };
+        assert_eq!(
+            not_started.service(),
+            crate::view_state::Service::NotStarted
+        );
+        let rows = [
+            (
+                "Connecting, not_running, then a first status with desired paused",
+                true,
+                vec![
+                    (
+                        StatusView::no_status(NoStatusService::Connecting, Platform::Macos),
+                        false,
+                    ),
+                    (
+                        StatusView::no_status(NoStatusService::NotRunning, Platform::Macos),
+                        false,
+                    ),
+                    (paused.clone(), true),
+                    (paused.clone(), false),
+                ],
+            ),
+            (
+                "a first status with desired running, then a later pause",
+                true,
+                vec![
+                    (running_with(Capture::Running, CaptureState::Running), false),
+                    (paused.clone(), false),
+                ],
+            ),
+            (
+                "a folder that awaits the consent",
+                true,
+                vec![
+                    (not_started.clone(), false),
+                    (not_started.clone(), false),
+                    (not_started, false),
+                ],
+            ),
+            ("a start without --background", false, vec![(paused, false)]),
+            (
+                "a first status with desired paused and capture pausing",
+                true,
+                vec![(running_with(Capture::Pausing, CaptureState::Paused), true)],
+            ),
+        ];
+        for (name, background, draws) in rows {
+            let first = FirstStatus::of_a_start(background);
+            for (n, (view, shows)) in draws.iter().enumerate() {
+                assert_eq!(shows_by_itself(&first, view), *shows, "{name}, draw {n}");
+            }
+        }
     }
 }

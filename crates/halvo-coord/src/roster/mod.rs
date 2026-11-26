@@ -256,8 +256,9 @@ fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
 
 /// The settings lines of a configuration (I2.2), in the order of the table, each whose
 /// condition holds and whose words entry exists: `level`, `runs_on`, `asks`, `time` with the
-/// minutes of `wall_s` rounded up, `files` and `spend`. The line `runs_on` says that the agent
-/// runs on this computer where its stored tier is `on_device` or its runtime asks no model
+/// minutes of `wall_s` rounded up, `files`, `copy` for an agent of the runtime file (r3 U11.11)
+/// and `spend`. The line `runs_on` says that the agent runs on this computer where its stored
+/// tier is `on_device` or its runtime asks no model
 /// (`asks_a_model`); where the tier is a hosted tier, the runtime asks a model and the app hands
 /// the agent's model, that it may use an AI model at the host, with the models, where its stored
 /// yes stands, and that the AI model is now at the host and asks again where it does not (r4
@@ -300,6 +301,9 @@ pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
     }
     if config.permissions().contains(&Permission::UserFiles) {
         add(LineKey::Files, "line.files", &[]);
+    }
+    if config.runtime() == Runtime::File {
+        add(LineKey::Copy, "line.copy", &[]);
     }
     if let Some(budget) = config.budget().filter(|_| config.tier() != Tier::OnDevice) {
         let amount = budget.amount.to_string();
@@ -568,8 +572,9 @@ fn row_offering<C: ConfigView>(
     name: &str,
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
+    let run_now = offered.contains(&Control::RunNow);
     let mut row = row_with(facts, line.status(), &line.key_on(system), name, offered)?;
-    if let Some(note) = note(facts, line)? {
+    if let Some(note) = note(facts, line, run_now)? {
         row.line = format!("{} {note}", row.line);
     }
     Ok(row)
@@ -581,21 +586,32 @@ fn row_offering<C: ConfigView>(
 /// last cause (`StatusLine::LastCause`), the agent's newest run record, which names that run since
 /// the store has ended it, gives the note of the values that it wrote as text (`texts_note`) where
 /// it holds the counts, and then the sentence of `line.note.letters_guessed` where it holds that
-/// key, one space between. Every other line, and a record without the keys, gives none.
-fn note<C>(facts: &Facts<C>, line: StatusLine) -> Result<Option<String>, Cause> {
+/// key, one space between. Every other line, and a record without the keys, gives none of these
+/// two. The sentence of `line.note.close_first` stands behind them on each row of an agent of the
+/// runtime file that offers `run_now`, but the row of `not_replaced`.
+fn note<C: ConfigView>(
+    facts: &Facts<C>,
+    line: StatusLine,
+    run_now: bool,
+) -> Result<Option<String>, Cause> {
     let own = matches!(
         line,
         StatusLine::Done | StatusLine::Problem(_) | StatusLine::LastCause(_)
     );
-    let Some(notes) = facts.runs.first().map(|r| r.notes).filter(|_| own) else {
-        return Ok(None);
-    };
     let mut said = Vec::new();
-    if let Some(texts) = notes.texts {
-        said.push(texts_note(texts)?);
+    if let Some(notes) = facts.runs.first().map(|r| r.notes).filter(|_| own) {
+        if let Some(texts) = notes.texts {
+            said.push(texts_note(texts)?);
+        }
+        if notes.letters_guessed {
+            said.push(text("line.note.letters_guessed", &[])?);
+        }
     }
-    if notes.letters_guessed {
-        said.push(text("line.note.letters_guessed", &[])?);
+    if run_now
+        && facts.config.runtime() == Runtime::File
+        && line != StatusLine::LastCause(LastCause::NotReplaced)
+    {
+        said.push(text("line.note.close_first", &[])?);
     }
     Ok((!said.is_empty()).then(|| said.join(" ")))
 }
@@ -960,20 +976,42 @@ pub fn with_end<C: Clone>(facts: &Facts<C>, run: &RunId, end: RunEnd) -> Facts<C
 
 /// The row of an agent whose newest run a Quit named as not stopped (`not_stopped_at_quit`;
 /// ruling RD-150): the status `problem` with `line.problem.quit`, that its task was still
-/// running when Halvo quit and may have gone on, and `offered`, the controls; the row of an
-/// agent of a gone workflow passes none and has no next day.
+/// running when Halvo quit and may have gone on, and behind it the sentence of
+/// `line.note.close_first` where `line_offering` puts it, and `offered`, the controls; the row
+/// of an agent of a gone workflow passes none and has no next day.
 pub fn quit_row<C: ConfigView>(
     facts: &Facts<C>,
     name: &str,
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
-    row_with(
+    let mut row = row_with(
         facts,
         crate::types::Status::Problem,
         "line.problem.quit",
         name,
         offered,
-    )
+    )?;
+    row.line = line_offering(facts, &row, "line.problem.quit")?;
+    Ok(row)
+}
+
+/// The line of a row that the text of `key` makes outside `row_offering`, for the agent of
+/// `facts` and the controls of `row` (r3 U11.11): that text, and behind it, one space between,
+/// the sentence of `line.note.close_first` where the agent is of the runtime file and the row
+/// offers `run_now`. The quit row's line is made so, and so is the line that the coordinator puts
+/// in place of the line of `needs_you.ready` behind a take-back.
+pub(crate) fn line_offering<C: ConfigView>(
+    facts: &Facts<C>,
+    row: &Row,
+    key: &str,
+) -> Result<String, Cause> {
+    let line = text(key, &[])?;
+    let run_now = row.controls.iter().any(|c| c.control == Control::RunNow);
+    if run_now && facts.config.runtime() == Runtime::File {
+        Ok(format!("{line} {}", text("line.note.close_first", &[])?))
+    } else {
+        Ok(line)
+    }
 }
 
 /// The row of an agent of a gone workflow whose newest run a Quit named as not stopped, once the

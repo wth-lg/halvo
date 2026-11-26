@@ -181,6 +181,7 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
             views.set_drawer(poller::Drawer::new(
                 Box::new(move |view| {
                     tray::refresh(&handle, view);
+                    tray::show_by_itself(&handle, view);
                     commands::agents::hold_by_the_view(&handle, view);
                     tick(&handle);
                 }),

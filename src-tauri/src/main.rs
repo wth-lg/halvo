@@ -246,7 +246,9 @@ fn run(background: bool, given: Option<PathBuf>) {
         #[cfg(windows)]
         webview_environment: app::system_environment,
     };
-    let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
+    let builder = tauri::Builder::default()
+        .manage(tray::QuitNotice::default())
+        .manage(tray::FirstStatus::of_a_start(background));
     #[cfg(target_os = "macos")]
     let builder = match opened {
         Some(opened) => builder.manage(opened),
