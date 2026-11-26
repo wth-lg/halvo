@@ -593,20 +593,50 @@ struct Decided {
 /// The most decisions that one [`BrowsersTold`] keeps for each browser.
 const DECISIONS_KEPT: usize = 4;
 
+/// The reads of one process of Chrome or Edge that gave no answer, counted
+/// while a [`BrowsersTold`] lives: found by the browser, the pid and the start
+/// of the process in ticks.
+struct Untold {
+    browser: &'static str,
+    pid: libc::pid_t,
+    started: u64,
+    reads: u8,
+}
+
+/// The reads with no answer after which a process is kept as not English.
+const READS_WITH_NO_ANSWER: u8 = 25;
+
+/// The most processes of each browser whose reads with no answer one
+/// [`BrowsersTold`] counts at a time.
+const UNTOLD_KEPT: usize = 8;
+
+/// What one [`BrowsersTold`] holds: the decisions, and the counts of the
+/// reads that gave no answer.
+#[derive(Default)]
+struct Told {
+    decisions: Vec<Decided>,
+    untold: Vec<Untold>,
+}
+
 /// What title rules have told of the processes of Chrome and of Edge: one
 /// decision for each process, at most [`DECISIONS_KEPT`] of each browser, in
 /// the order in which they were taken or found last; the first of a browser
 /// leaves for a new one of that browser, and its process is then decided
-/// anew. The foreground sources that
-/// share one handle find each other's decisions, so that a decision outlives
-/// the source that took it. It holds no name of a file: a decision is the
-/// answer of one read of the files that a process holds open, and a process
-/// that has no decision here is read when its first title is asked for.
+/// anew. Beside the decisions stands, for at most [`UNTOLD_KEPT`] processes
+/// of each browser, the count of the reads that gave no answer: a count stays
+/// while its process runs, also behind the decision that its last read
+/// brings, so that no process with a count is read more than
+/// [`READS_WITH_NO_ANSWER`] times while this handle lives. The foreground
+/// sources that share one handle find each other's decisions and counts, so
+/// that both outlive the source that took them. It holds no name of a file:
+/// a decision is the answer of one read of the files that a process holds
+/// open, and a process that has no decision here and no count that is spent
+/// is read when its first title is asked for.
 #[derive(Clone, Default)]
-pub(crate) struct BrowsersTold(Arc<Mutex<Vec<Decided>>>);
+pub(crate) struct BrowsersTold(Arc<Mutex<Told>>);
 
 impl BrowsersTold {
-    fn decisions(&self) -> std::sync::MutexGuard<'_, Vec<Decided>> {
+    fn told(&self) -> std::sync::MutexGuard<'_, Told> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -614,7 +644,8 @@ impl BrowsersTold {
     /// the tick `started`, which becomes the last to leave; `None` where no
     /// kept decision is of that browser, that pid and that start.
     fn of(&self, browser: &str, pid: libc::pid_t, started: u64) -> Option<bool> {
-        let mut decisions = self.decisions();
+        let mut told = self.told();
+        let decisions = &mut told.decisions;
         let at = decisions.iter().position(|decided| {
             decided.browser == browser && decided.pid == pid && decided.started == started
         })?;
@@ -629,7 +660,8 @@ impl BrowsersTold {
     /// browser kept, the first of them leaves, and no decision of the other
     /// browser does.
     fn keep(&self, decided: Decided) {
-        let mut decisions = self.decisions();
+        let mut told = self.told();
+        let decisions = &mut told.decisions;
         decisions.retain(|kept| kept.browser != decided.browser || kept.pid != decided.pid);
         let of_its_browser = |kept: &Decided| kept.browser == decided.browser;
         if decisions.iter().filter(|kept| of_its_browser(kept)).count() >= DECISIONS_KEPT {
@@ -640,29 +672,71 @@ impl BrowsersTold {
         decisions.push(decided);
     }
 
+    /// The reads with no answer that are counted for the process `pid` of
+    /// `browser` that started at the tick `started`; 0 where it has no count.
+    fn unanswered(&self, browser: &str, pid: libc::pid_t, started: u64) -> u8 {
+        let told = self.told();
+        told.untold
+            .iter()
+            .find(|untold| {
+                untold.browser == browser && untold.pid == pid && untold.started == started
+            })
+            .map_or(0, |untold| untold.reads)
+    }
+
+    /// Counts one read more with no answer for that process and gives its
+    /// count; `None` where the process has no count and [`UNTOLD_KEPT`]
+    /// processes of its browser have one.
+    fn count(&self, browser: &'static str, pid: libc::pid_t, started: u64) -> Option<u8> {
+        let mut told = self.told();
+        if let Some(untold) = told.untold.iter_mut().find(|untold| {
+            untold.browser == browser && untold.pid == pid && untold.started == started
+        }) {
+            untold.reads = untold.reads.saturating_add(1);
+            return Some(untold.reads);
+        }
+        let of_its_browser = told
+            .untold
+            .iter()
+            .filter(|untold| untold.browser == browser)
+            .count();
+        if of_its_browser >= UNTOLD_KEPT {
+            return None;
+        }
+        told.untold.push(Untold {
+            browser,
+            pid,
+            started,
+            reads: 1,
+        });
+        Some(1)
+    }
+
+    /// The processes of `browser` that have a count, each by its pid and its
+    /// start.
+    fn counted(&self, browser: &str) -> Vec<(libc::pid_t, u64)> {
+        let told = self.told();
+        told.untold
+            .iter()
+            .filter(|untold| untold.browser == browser)
+            .map(|untold| (untold.pid, untold.started))
+            .collect()
+    }
+
+    /// Gives up the count of the process `pid` of `browser` that started at
+    /// the tick `started`.
+    fn uncount(&self, browser: &str, pid: libc::pid_t, started: u64) {
+        self.told().untold.retain(|untold| {
+            untold.browser != browser || untold.pid != pid || untold.started != started
+        });
+    }
+
     /// How many hold this handle: the one that made it and each share of it.
     #[cfg(test)]
     pub(crate) fn holders(&self) -> usize {
         Arc::strong_count(&self.0)
     }
 }
-
-/// The reads of one process of Chrome or Edge that gave no answer, counted
-/// by the rules of one source until a read answers or the process is kept as
-/// not English.
-struct Untold {
-    browser: &'static str,
-    pid: libc::pid_t,
-    started: u64,
-    reads: u8,
-}
-
-/// The reads with no answer after which a process is kept as not English.
-const READS_WITH_NO_ANSWER: u8 = 25;
-
-/// The most processes whose reads with no answer one source counts; the
-/// first leaves for a new one, and its count then begins anew.
-const UNTOLD_KEPT: usize = 8;
 
 /// The rules that tell, on the title thread, whether the title of the app in
 /// front is read and by which browser's own name it is kept, with the reads of
@@ -681,7 +755,6 @@ pub(crate) struct TitleRules {
     change: Option<u64>,
     list: Option<Option<Vec<String>>>,
     told: BrowsersTold,
-    untold: Vec<Untold>,
 }
 
 impl TitleRules {
@@ -696,7 +769,6 @@ impl TitleRules {
             change: None,
             list: None,
             told: BrowsersTold::default(),
-            untold: Vec::new(),
         }
     }
 
@@ -765,7 +837,8 @@ impl TitleRules {
     /// is taken from a read that answers. A read with no answer reads no
     /// title and is made again at the next title request of the process, and
     /// the last of [`READS_WITH_NO_ANSWER`] such reads keeps the process as
-    /// not English.
+    /// not English; so does the first such read of a process that has no
+    /// place for its count. A process whose count is spent is not read again.
     fn english(&mut self, browser: &'static str, id: &str, pid: libc::pid_t) -> bool {
         let Some(started) = self.languages.started(pid) else {
             return false;
@@ -773,15 +846,20 @@ impl TitleRules {
         if let Some(english) = self.told.of(browser, pid, started) {
             return english;
         }
-        let english = match self.first_title(id, pid, started) {
-            Some(english) => english,
-            None if self.unanswered(browser, pid, started) < READS_WITH_NO_ANSWER => {
-                return false;
+        let english = if self.told.unanswered(browser, pid, started) >= READS_WITH_NO_ANSWER {
+            false
+        } else {
+            match self.first_title(id, pid, started) {
+                Some(english) => {
+                    self.told.uncount(browser, pid, started);
+                    english
+                }
+                None => match self.unanswered(browser, pid, started) {
+                    Some(reads) if reads < READS_WITH_NO_ANSWER => return false,
+                    Some(_) | None => false,
+                },
             }
-            None => false,
         };
-        self.untold
-            .retain(|untold| untold.browser != browser || untold.pid != pid);
         self.told.keep(Decided {
             browser,
             pid,
@@ -792,26 +870,20 @@ impl TitleRules {
     }
 
     /// Counts one read more with no answer for the process `pid` of
-    /// `browser` that started at the tick `started`, and gives the count.
-    fn unanswered(&mut self, browser: &'static str, pid: libc::pid_t, started: u64) -> u8 {
-        if let Some(untold) = self.untold.iter_mut().find(|untold| {
-            untold.browser == browser && untold.pid == pid && untold.started == started
-        }) {
-            untold.reads = untold.reads.saturating_add(1);
-            return untold.reads;
+    /// `browser` that started at the tick `started`, and gives its count.
+    /// Where the process has no count and no place for one is free, the
+    /// counts of the processes of that browser that no longer run are given
+    /// up first; `None` where every place is still taken then.
+    fn unanswered(&mut self, browser: &'static str, pid: libc::pid_t, started: u64) -> Option<u8> {
+        if let Some(reads) = self.told.count(browser, pid, started) {
+            return Some(reads);
         }
-        self.untold
-            .retain(|untold| untold.browser != browser || untold.pid != pid);
-        if self.untold.len() >= UNTOLD_KEPT {
-            self.untold.remove(0);
+        for (other, began) in self.told.counted(browser) {
+            if self.languages.started(other) != Some(began) {
+                self.told.uncount(browser, other, began);
+            }
         }
-        self.untold.push(Untold {
-            browser,
-            pid,
-            started,
-            reads: 1,
-        });
-        1
+        self.told.count(browser, pid, started)
     }
 
     /// Whether a process of `browser` that started at the tick `started` runs
