@@ -1935,6 +1935,16 @@ mod detector {
             gate
         }
 
+        /// The gate of a keyboard source that a test of another module
+        /// begins: its attach waits 30 s for the detector's first read.
+        #[cfg(test)]
+        pub(crate) fn with_the_attach_wait_of_a_test() -> PasswordGate {
+            PasswordGate::with_removals(Removals {
+                attach_deadline: Some(std::time::Duration::from_secs(30)),
+                ..Removals::default()
+            })
+        }
+
         #[cfg(test)]
         pub(crate) fn whose_attach_fails() -> PasswordGate {
             fn no_desktop_hook() -> HWINEVENTHOOK {
