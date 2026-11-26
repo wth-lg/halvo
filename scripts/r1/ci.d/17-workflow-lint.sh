@@ -15,7 +15,7 @@ pin_with="        with:"
 pin_prefix="          prefix-key: v0-rust"
 pin_save="          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}"
 pin_id="        id: cache"
-pin_dispatch="    inputs:${nl}      slice:${nl}        description: The slice of scripts/ci/slices.txt to run${nl}        type: choice${nl}        options: [mon, tue, tue2, wed, wed2, thu, fri, sat, sun]${nl}        default: mon${nl}      checks:${nl}        description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)${nl}        type: string${nl}        default: ''${nl}      os:${nl}        description: The system whose job runs, both or one alone (the job of the other system is skipped and takes no runner)${nl}        type: choice${nl}        options: [both, macos, windows]${nl}        default: both"
+pin_dispatch="    inputs:${nl}      slice:${nl}        description: The slice of scripts/ci/slices.txt to run${nl}        type: choice${nl}        options: [mon, tue, tue2, wed, wed2, thu, fri, sat, sun, pages]${nl}        default: mon${nl}      checks:${nl}        description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)${nl}        type: string${nl}        default: ''${nl}      os:${nl}        description: The system whose job runs, both or one alone (the job of the other system is skipped and takes no runner)${nl}        type: choice${nl}        options: [both, macos, windows]${nl}        default: both"
 pin_if_macos="    if: github.event_name != 'workflow_dispatch' || inputs.os == 'both' || inputs.os == 'macos'"
 pin_if_windows="    if: github.event_name != 'workflow_dispatch' || inputs.os == 'both' || inputs.os == 'windows'"
 

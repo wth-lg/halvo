@@ -16,7 +16,7 @@
 #                       test: 12-test runs it in the group form, by its group in scripts/ci/slow-tests.txt)
 #            by-hand    no run of CI runs it: the carrier of a unit that touches its part runs it, and the
 #                       coordinator before a build is named (scripts/ci/README.md, The merge gate)
-#   clause   for scheduled, first the slice (mon, tue, tue2, wed, wed2, thu, fri, sat or sun), then the job when the
+#   clause   for scheduled, first the slice (mon, tue, tue2, wed, wed2, thu, fri, sat, sun or pages), then the job when the
 #            jobs differ, then the reason; for gate, the job when one job alone has the check or the group
 #
 # A check has one line for each place: a check that is in the gate of one job alone has a second
@@ -26,7 +26,7 @@
 # where the job has room. What holds the rule on egress in the gate: 21-tree-bans in the windows
 # job, 60-r6-egress and 61-r6-senders-egress in the macos job and the tests of 12-test; 10-egress,
 # 80-r6-absent, 38-app-engine-routes and 20-r6-gateway run in slices.
-# Before a release the nine slices are run by hand at the commit of the release
+# Before a release the ten slices are run by hand at the commit of the release
 # (scripts/ci/README.md, The slices). The seconds of a check are those of the pull request run
 # 44877874023, which ran the whole table, unless the clause names another run; those of a group of
 # unit tests are the gaps before its lines in a job of the push run 44893237714.
