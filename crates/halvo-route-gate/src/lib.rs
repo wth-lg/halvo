@@ -25,14 +25,21 @@ pub trait Router {
     fn pick(&self, category: CategoryId, kind: CallKind) -> PickCell;
 }
 
+/// The model that fills the tier `frontier` of a recorded table: the third line of its freeze file.
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Default)]
+pub struct Fill {
+    pub driver: Option<String>,
+}
+
 /// What the derivation and the scorer read a table with: the tiers that may be picked, the models
-/// that fill the tier `on_device` (`driver` for `compile` and `recover`, `writer` for `write`), and
-/// whether the table is recorded.
+/// that fill the tier `on_device` (`driver` for `compile` and `recover`, `writer` for `write`), those
+/// that fill the tier `frontier` of a recorded table, and whether the table is recorded.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Setup {
     pub allowed: Vec<Tier>,
     pub driver: Option<String>,
     pub writer: Option<String>,
+    pub frontier: Fill,
     pub recorded: bool,
 }
 
@@ -43,17 +50,22 @@ impl Setup {
             allowed: Tier::ALL.to_vec(),
             driver: Some(table::SYNTHETIC.to_owned()),
             writer: Some(table::SYNTHETIC.to_owned()),
+            frontier: Fill::default(),
             recorded: false,
         }
     }
 
-    /// The model whose rows count for a kind: `driver` for `compile` and `recover`, `writer` for
-    /// `write`, and none for `replay`.
-    pub fn fill(&self, kind: CallKind) -> Option<&str> {
-        match kind {
-            CallKind::Compile | CallKind::Recover => self.driver.as_deref(),
-            CallKind::Write => self.writer.as_deref(),
-            CallKind::Replay => None,
+    /// The model whose rows count for a kind and a tier, none for `replay`. In a generated table
+    /// `driver` fills `compile` and `recover` and `writer` fills `write` in every tier. In a recorded
+    /// table they fill `on_device` alone; `frontier` is filled by `frontier.driver` for `compile`
+    /// and by nothing for `recover` and `write`; `low_cost_hosted` by nothing.
+    pub fn fill(&self, kind: CallKind, tier: Tier) -> Option<&str> {
+        match (self.recorded, tier, kind) {
+            (_, _, CallKind::Replay) | (true, Tier::LowCostHosted, _) => None,
+            (true, Tier::Frontier, CallKind::Compile) => self.frontier.driver.as_deref(),
+            (true, Tier::Frontier, _) => None,
+            (_, _, CallKind::Compile | CallKind::Recover) => self.driver.as_deref(),
+            (_, _, CallKind::Write) => self.writer.as_deref(),
         }
     }
 }

@@ -87,8 +87,12 @@ fn letters(bytes: &[u8], page: Option<u16>) -> Result<(Cow<'_, str>, Letters), E
             Letters::Utf8,
         )),
         Err(_) => {
-            let page = page.ok_or_else(encoding)?;
-            Ok((Cow::Owned(by_page(bytes, page)?), Letters::Page(page)))
+            let page = page
+                .filter(|page| PAGES.contains(page))
+                .ok_or_else(encoding)?;
+            let text = by_page(bytes, page)?;
+            alike(bytes, &text)?;
+            Ok((Cow::Owned(text), Letters::Page(page)))
         }
     }
 }
@@ -110,21 +114,104 @@ fn utf_16(rest: &[u8], unit: fn([u8; 2]) -> u16) -> Result<String, Error> {
 /// W2): the encoding that codepage gives for it, where that encoding reads the bytes 00 to 7F as
 /// ASCII and is not UTF-8, read with no replacement; refused where codepage maps no encoding, where
 /// a byte has no letter in it, and where a letter is a control sign: below U+0020 but the tab, CR
-/// and LF, or U+007F to U+009F (the guard P1).
+/// and LF, or U+007F to U+009F (the guard P1); refused too where the page is gbk (936) and the
+/// bytes hold a four-byte letter (`four_byte`), and where the text begins with U+FEFF, which the
+/// UTF-8 twin of the text would drop (r3 U11.10, the coordinator's rule of log line 23651).
 fn by_page(bytes: &[u8], page: u16) -> Result<String, Error> {
     let encoding_of_page = codepage::to_encoding(page)
         .filter(|e| e.is_ascii_compatible() && *e != encoding_rs::UTF_8)
         .ok_or_else(encoding)?;
+    let gbk = encoding_of_page == encoding_rs::GBK || encoding_of_page == encoding_rs::GB18030;
+    if gbk && four_byte(bytes) {
+        return Err(encoding());
+    }
     let text = encoding_of_page
         .decode_without_bom_handling_and_without_replacement(bytes)
         .ok_or_else(encoding)?;
     let control = |c: char| {
         (c < ' ' && !matches!(c, '\t' | '\r' | '\n')) || ('\u{7f}'..='\u{9f}').contains(&c)
     };
-    if text.chars().any(control) {
+    if text.chars().any(control) || text.starts_with('\u{feff}') {
         return Err(encoding());
     }
     Ok(text.into_owned())
+}
+
+/// The ANSI pages that Windows gives as a computer's own (`GetACP`): the list of the
+/// coordinator's rule (r3 U11.10, log line 23651). A computer's page outside it reads no file.
+const PAGES: [u16; 14] = [
+    874, 932, 936, 949, 950, 1250, 1251, 1252, 1253, 1254, 1255, 1256, 1257, 1258,
+];
+
+/// Whether `bytes`, walked as gbk reads them (a byte below 81 or FF alone, a byte 81 to FE with
+/// the next), hold the head of a four-byte letter of GB18030: a byte 81 to FE followed by a digit
+/// byte 30 to 39 (r3 U11.10: a file of the page 936 with such a letter is refused, since its digit
+/// bytes are no digits under that page).
+fn four_byte(bytes: &[u8]) -> bool {
+    let mut at = 0;
+    while let Some(&byte) = bytes.get(at) {
+        match byte {
+            0x81..=0xfe if bytes.get(at + 1).is_some_and(u8::is_ascii_digit) => return true,
+            0x81..=0xfe => at += 2,
+            _ => at += 1,
+        }
+    }
+    false
+}
+
+/// Whether the file of `bytes`, which its own page reads as `text`, reads alike under every page
+/// of `PAGES` that reads its bytes (`by_page`) (r3 U11.10, the coordinator's rule of log line
+/// 23651): part (1), by the same separator (`reading`), or by the same refusal of it; part (2), in
+/// as many rows of as many cells (`rows`), where no cell is a number under two pages with two
+/// values, a number under one page beside a text under another passing. Else the file is refused
+/// with `data_encoding`. Part (3) follows: the own page reads as the same text saved as UTF-8,
+/// and so cell for cell as the twin of every page that reads the bytes, or is refused.
+fn alike(bytes: &[u8], text: &str) -> Result<(), Error> {
+    let separator = |text: &str| reading(text).map(|(sign, _)| sign);
+    let own = separator(text);
+    let mut seen = rows(text).ok().map(|rows| number_bits(&rows));
+    for page in PAGES {
+        let Ok(other) = by_page(bytes, page) else {
+            continue;
+        };
+        if separator(&other) != own {
+            return Err(encoding());
+        }
+        let (Some(seen), Ok(rows)) = (seen.as_mut(), rows(&other)) else {
+            continue;
+        };
+        let theirs = number_bits(&rows);
+        let shape = theirs.len() == seen.len()
+            && theirs
+                .iter()
+                .zip(seen.iter())
+                .all(|(a, b)| a.len() == b.len());
+        if !shape {
+            return Err(encoding());
+        }
+        for (cell, held) in theirs.iter().flatten().zip(seen.iter_mut().flatten()) {
+            match (*cell, *held) {
+                (Some(x), Some(y)) if x != y => return Err(encoding()),
+                (Some(x), None) => *held = Some(x),
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The bits of each number of `rows`, cell for cell, and none for a text.
+fn number_bits(rows: &[Vec<Value>]) -> Vec<Vec<Option<u64>>> {
+    rows.iter()
+        .map(|row| {
+            row.iter()
+                .map(|value| match value {
+                    Value::Number(x) => Some(x.to_bits()),
+                    Value::Text(_) => None,
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// The code page that Windows gives as the computer's own (`GetACP`), the one by which Excel's
@@ -2152,12 +2239,16 @@ mod tests {
     /// encoding that reads every byte of the file as a letter and no byte as a control sign (the
     /// guard P1: below U+0020 but the tab, CR and LF, and U+007F to U+009F); every other such file
     /// stays refused with `data_encoding`, and so does every such file where no page is given, as
-    /// on the Mac. A file in UTF-8 or in UTF-16 by its mark reads as such under any page.
+    /// on the Mac. A file in UTF-8 or in UTF-16 by its mark reads as such under any page. Two kinds
+    /// of file of the coordinator's log line 23682 read and are not refused: a 936 file with
+    /// letters of two bytes right before digits, whose pairs are no heads of four-byte letters, and
+    /// a 1252 file with a pound sign or a paragraph sign right before a digit, which the pages that
+    /// cannot read it do not refuse.
     #[test]
     fn a_file_that_is_not_utf_8_reads_by_the_page_that_the_computer_gives() {
         // The case, the file's bytes, the page and the rows that it reads to.
         type Read<'a> = (&'a str, &'a [u8], u16, Vec<Vec<Value>>);
-        let read: [Read; 4] = [
+        let read: [Read; 7] = [
             (
                 "1252: u-umlaut and the euro sign",
                 b"M\xfcller,12.50 \x80\r\n",
@@ -2177,14 +2268,37 @@ mod tests {
                 1251,
                 vec![vec![t("Газ"), n(41.2)]],
             ),
+            (
+                "936: letters of two bytes right before digits, a word and the wide yen sign",
+                b"\xd6\xd0100,100\r\n\xa3\xa4100,5\r\n",
+                936,
+                vec![vec![t("中100"), n(100.0)], vec![t("￥100"), n(5.0)]],
+            ),
+            (
+                "1252: a pound sign right before a digit, 936 and 949 and 950 reading none of it",
+                b"Miete,\xa3100\r\n",
+                1252,
+                vec![vec![t("Miete"), n(100.0)]],
+            ),
+            (
+                "1252: a paragraph sign right before a digit",
+                b"Absatz,\xa75\r\n",
+                1252,
+                vec![vec![t("Absatz"), t("§5")]],
+            ),
         ];
+        let mut wrong = Vec::new();
         for (name, bytes, page, rows) in read {
             let want = Ok(Data {
                 rows,
                 letters: Letters::Page(page),
             });
-            assert_eq!(data(bytes, Some(page)), want, "{name}");
+            let got = data(bytes, Some(page));
+            if got != want {
+                wrong.push(format!("{name}: got {got:?}"));
+            }
         }
+        assert!(wrong.is_empty(), "{wrong:#?}");
         let refused: [(&str, &[u8], Option<u16>); 6] = [
             (
                 "the guard: the byte 81 under 1252",
@@ -2466,6 +2580,87 @@ mod tests {
         let rows = parse(shown.as_bytes()).expect("the file reads");
         if number_texts(&rows) != vec![0, 0, 2] {
             wrong.push(format!("Q7 (c), way (A): {:?}", number_texts(&rows)));
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// The file of the reader of r3 U11.10 (verifier-158): two rows of three cells in which the one
+    /// byte 80 is the euro sign under most pages of Windows and a letter under 1251, where the
+    /// separator of the file hung on it (the coordinator's rule of log line 23651).
+    const READERS_FILE: &[u8] = b"41,20 \x80; Strom,Gas; x\r\n12,50 \x80; Wasser,Abwasser; y\r\n";
+
+    /// The ANSI pages that Windows gives as a computer's own, the list of the rule.
+    const THE_PAGES: [u16; 14] = [
+        874, 932, 936, 949, 950, 1250, 1251, 1252, 1253, 1254, 1255, 1256, 1257, 1258,
+    ];
+
+    /// The numbers of `rows`, in order.
+    fn numbers(rows: &[Vec<Value>]) -> Vec<f64> {
+        rows.iter()
+            .flatten()
+            .filter_map(|v| match v {
+                Value::Number(x) => Some(*x),
+                Value::Text(_) => None,
+            })
+            .collect()
+    }
+
+    /// r3 U11.10, the reader's case: under 1251 beside 1252 the reader's file holds no number but
+    /// 41.2 and 12.5; a text, or a refusal with `data_encoding`, passes.
+    #[test]
+    fn the_readers_file_holds_no_other_number_under_1251_beside_1252() {
+        for page in [1251, 1252] {
+            match data(READERS_FILE, Some(page)) {
+                Err(error) => assert_eq!(error, encoding(), "{page}"),
+                Ok(read) => {
+                    let got = numbers(&read.rows);
+                    let other: Vec<&f64> =
+                        got.iter().filter(|x| ![41.2, 12.5].contains(*x)).collect();
+                    assert!(other.is_empty(), "{page}: {:?}", read.rows);
+                }
+            }
+        }
+    }
+
+    /// r3 U11.10, part (3) of the coordinator's rule (log line 23651): under each page of the list
+    /// the reader's file reads cell for cell as its twin reads, the same text saved as UTF-8, for
+    /// every page that reads its bytes (the same rows and cells, and no cell a number of another
+    /// value), or it is refused with `data_encoding`.
+    #[test]
+    fn under_each_page_a_file_reads_as_its_twins_in_utf_8_or_is_refused() {
+        let mut wrong = Vec::new();
+        for own in THE_PAGES {
+            let read = match data(READERS_FILE, Some(own)) {
+                Ok(read) => read.rows,
+                Err(error) if error == encoding() => continue,
+                Err(error) => {
+                    wrong.push(format!("{own}: {error:?}"));
+                    continue;
+                }
+            };
+            for page in THE_PAGES {
+                let Ok(text) = by_page(READERS_FILE, page) else {
+                    continue;
+                };
+                let twin = parse(text.as_bytes());
+                let alike = twin.as_ref().is_ok_and(|twin| {
+                    twin.len() == read.len()
+                        && twin.iter().zip(&read).all(|(a, b)| {
+                            a.len() == b.len()
+                                && a.iter().zip(b).all(|pair| match pair {
+                                    (Value::Number(x), Value::Number(y)) => {
+                                        x.to_bits() == y.to_bits()
+                                    }
+                                    _ => true,
+                                })
+                        })
+                });
+                if !alike {
+                    wrong.push(format!(
+                        "{own} beside the twin of {page}: {read:?} and {twin:?}"
+                    ));
+                }
+            }
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
