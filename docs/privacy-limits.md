@@ -320,6 +320,7 @@ Where a sentence names a unit, that unit makes it true.
   cursor, as while the program opens or wakes, Halvo records nothing of that window, and
   in that time the Status page can say that Halvo could not tell whether to leave out
   the app in use.
+- On Windows, Halvo can record while its icon does not show in the taskbar's corner. Where the taskbar did not take the icon when Halvo started, Halvo does not notice, and the icon shows only after the taskbar starts again.
 
 The first-run text and the data view quote these three sentences word for word.
 The owner approves them once, in the table of user-visible sentences for each
