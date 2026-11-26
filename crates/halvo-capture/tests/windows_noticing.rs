@@ -16,8 +16,10 @@
 //!   count of the capture service: the check reads them. Its last step asks the service of
 //!   the data directory `HALVO_NOTICING_DATA_DIR` for the workflows, with the request that the
 //!   app's command `workflows` sends.
-//! - `passer` shows the window `Pass` and hands the front back to the workbook's window right
-//!   behind the message that activated it, before it serves another message.
+//! - `passer` shows a window whose title is 40 signs longer than the workbook's, so that the
+//!   check tells a title record of that window from one of the workbook's by its bytes, and
+//!   hands the front back to the workbook's window right behind the message that activated it,
+//!   before it serves another message.
 //!
 //! No click of the walk lands outside its own two windows: before each click it reads the
 //! top-level window under its click point.
@@ -69,7 +71,11 @@ const ROLE_SWITCH: &str = "HALVO_NOTICING_ROLE";
 
 const WORKBOOK_TITLE: &str = "Budget.xlsx - Excel";
 const NOTES_TITLE: &str = "Notes";
-const PASS_TITLE: &str = "Pass";
+const PASS_TITLE: &str = "Pass - the second program of the check hands the front back";
+
+// The check reads a title record as the workbook's where its bytes are within 8 of the
+// workbook's first one, at each of two titles of a return at most.
+const _: () = assert!(PASS_TITLE.len() == WORKBOOK_TITLE.len() + 40);
 const APP_FILE: &str = "halvo.exe";
 
 const WIDTH: i32 = 420;

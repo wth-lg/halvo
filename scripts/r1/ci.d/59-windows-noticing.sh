@@ -547,8 +547,27 @@ walk_on() {
   stage_ok "title occasion=$occasion ok form=walk-on window_title=+$((c_titles - n_titles)) foreground_app=+$((c_fa - n_fa)) pointer=+$((c_pointer - n_pointer))"
 }
 
+# Whether the $1 titles that a return gained, of $2 bytes together, are all titles of the
+# workbook's window: each within 8 bytes of the title record of occasion 1, whose bytes
+# book_bytes holds. The title of the second program's window is 40 signs longer. It sets books
+# to the words that the stage line prints, and books_hold to yes where every title is the
+# workbook's.
+books_of() {
+  books_hold=no
+  if [ "$1" -lt 1 ]; then
+    books='no title'
+  elif [ "$2" -ge $(($1 * (book_bytes - 8))) ] && [ "$2" -le $(($1 * (book_bytes + 8))) ]; then
+    books="the titles are the workbook's"
+    books_hold=yes
+  else
+    books='a title of another window is among them'
+  fi
+}
+
 # The return from Halvo's own window, whose title and foreground_app record the floor leaves
-# out: the store gains the one foreground_app record of the return and one title.
+# out: the store gains the one foreground_app record of the return, and the workbook's title
+# once, or twice where the title source decided the return before it read that the record was
+# placed and then wrote the title again behind the record.
 return_own() {
   stage=return-own
   read_counts
@@ -569,11 +588,12 @@ return_own() {
   read_status
   gained_fa=$((c_fa - r_fa))
   gained_titles=$((c_titles - r_titles))
-  facts="foreground_app=+$gained_fa window_title=+$gained_titles title_bytes=+$((c_tbytes - r_bytes)), wanted +1 and +1; walk away=$away fg_events=$fg_events stay_ms=$stay; $status_text"
+  books_of "$gained_titles" "$((c_tbytes - r_bytes))"
+  facts="foreground_app=+$gained_fa window_title=+$gained_titles title_bytes=+$((c_tbytes - r_bytes)), $books, wanted +1 and +1 or +2; walk away=$away fg_events=$fg_events stay_ms=$stay; $status_text"
   if [ "$away" = refused ]; then
     own=not-met
     red return-own "return-own=not-met, Halvo's window did not come in front: $facts"
-  elif [ "$gained_fa:$gained_titles" = 1:1 ]; then
+  elif [ "$gained_fa:$books_hold" = 1:yes ] && [ "$gained_titles" -le 2 ]; then
     own=green
     stage_ok "return-own occasion=2 ok $facts"
   elif [ "$gained_titles:$fg_events" = 0:0 ] && [ "$gained_fa" -ge 1 ]; then
@@ -586,10 +606,11 @@ return_own() {
 }
 
 # The return from the second program of the check, which hands the front back at once: the
-# store gains two foreground_app records and the one title of the return. Where it gains two
-# titles, the gate decided the second program's window at once, and where it gains fewer than
-# two foreground_app records, the tracker saw no other program: the walk makes the return
-# again, tries times at most.
+# store gains two foreground_app records, and the workbook's title once, or twice where the
+# title source decided the return before it read that a record was placed. Where a title of
+# another window is among them, the gate decided the second program's window at once, and
+# where the store gains fewer than two foreground_app records, the tracker saw no other
+# program: the walk makes the return again, tries times at most.
 return_short() {
   stage=return-short
   try=0
@@ -611,9 +632,10 @@ return_short() {
     read_status
     gained_fa=$((c_fa - r_fa))
     gained_titles=$((c_titles - r_titles))
-    facts="foreground_app=+$gained_fa window_title=+$gained_titles title_bytes=+$((c_tbytes - r_bytes)), wanted +2 and +1; walk fg_events=$fg_events stay_ms=$stay try=$try; $status_text"
+    books_of "$gained_titles" "$((c_tbytes - r_bytes))"
+    facts="foreground_app=+$gained_fa window_title=+$gained_titles title_bytes=+$((c_tbytes - r_bytes)), $books, wanted +2 and +1 or +2; walk fg_events=$fg_events stay_ms=$stay try=$try; $status_text"
     printf 'return=short try=%s %s\n' "$try" "$facts"
-    if [ "$gained_fa" -ge 2 ] && [ "$gained_titles" -eq 1 ]; then
+    if [ "$gained_fa" -ge 2 ] && [ "$books_hold" = yes ] && [ "$gained_titles" -le 2 ]; then
       short=green
       stage_ok "return-short occasion=2 ok $facts"
       return 0
@@ -719,6 +741,7 @@ cases() {
     field front "$walk_line"
     fail "occasion 1, stage title: window_title=+$((c_titles - o_titles)) within $title_s s behind the click into the window; pointer=+$((c_pointer - o_pointer)) foreground_app=+$((c_fa - o_fa)); $status_text; walk front=$value"
   fi
+  book_bytes=$(((c_tbytes - o_bytes) / (c_titles - o_titles)))
   stage_ok "title occasion=1 ok window_title=+$((c_titles - o_titles)) foreground_app=+$((c_fa - o_fa)) pointer=+$((c_pointer - o_pointer)) title_bytes=+$((c_tbytes - o_bytes))"
   clicks_stage
   t_hold=$c_titles
@@ -845,10 +868,15 @@ measure() {
   cr=$(printf '\r')
   now
   built=$stamp
+  # Both builds take the feature set of the whole workspace, as the --workspace calls of the
+  # merge gate's 12-test do, so that the build cache that the job restored serves the crates of
+  # crates.io. A call that names packages with -p resolves other features for crates that
+  # much depends on (windows-sys, syn, proc-macro2, serde, tokio), and cargo then compiles
+  # those and everything behind them again.
   # The test build stands first and the plain build of the four programs last: halvo-capture
   # depends on itself for its tests with two seams, and the programs that the run starts are
   # those of the plain build.
-  cargo test --locked -p halvo-capture --test "$target" --no-run --message-format json >"$work/build.json" 2>"$artifacts/build.txt" ||
+  cargo test --locked --workspace --test "$target" --no-run --message-format json >"$work/build.json" 2>"$artifacts/build.txt" ||
     fail "the build of the test target $target failed; see build.txt"
   exe=$(sed -n 's/.*"name":"'"$target"'".*"executable":"\([^"]*\)".*/\1/p' "$work/build.json")
   [ -n "$exe" ] || fail "cargo named no executable for the test target $target"
@@ -858,12 +886,17 @@ measure() {
   esac
   exe=$(printf '%s\n' "$exe" | sed 's/\\\\/\//g')
   [ -f "$exe" ] || fail "the test executable that cargo named does not exist"
-  cargo build --locked -p halvo -p halvo-capture -p halvo-owner -p halvo-analysis >>"$artifacts/build.txt" 2>&1 ||
-    fail "cargo build --locked -p halvo -p halvo-capture -p halvo-owner -p halvo-analysis failed; see build.txt"
+  now
+  test_built=$stamp
+  test_crates=$(grep -c '^ *Compiling ' "$artifacts/build.txt") || test_crates=0
+  cargo build --locked --workspace --bin halvo --bin halvo-capture --bin halvo-owner --bin halvo-analysis >>"$artifacts/build.txt" 2>&1 ||
+    fail "cargo build --locked --workspace --bin halvo --bin halvo-capture --bin halvo-owner --bin halvo-analysis failed; see build.txt"
+  both_crates=$(grep -c '^ *Compiling ' "$artifacts/build.txt") || both_crates=0
   cp "$exe" "$work/EXCEL.EXE" || fail "the walk's program cannot be copied to EXCEL.EXE"
   cp "$exe" "$work/noticing-pass.exe" || fail "the walk's program cannot be copied to noticing-pass.exe"
   now
-  printf 'build seconds: %s\n' "$((stamp - built))"
+  printf 'build seconds: %s (the test target: %s s, %s crates compiled; the four programs: %s s, %s crates compiled)\n' \
+    "$((stamp - built))" "$((test_built - built))" "$test_crates" "$((stamp - test_built))" "$((both_crates - test_crates))"
   cases target/debug "$work"
   git diff --quiet HEAD -- || fail "a tracked file differs from HEAD after the builds and the walk"
   printf 'PASS %s\n' "$name"
@@ -1046,7 +1079,11 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
         ;;
       own)
         world_adds fa 1
-        [ "$mode" = return-own-no-title ] || world_adds title 1 60
+        case $mode in
+          return-own-no-title) ;;
+          two-titles-at-each-return) world_adds title 2 120 ;;
+          *) world_adds title 1 60 ;;
+        esac
         world_adds pointer 1
         w_last_input=$w_clock
         walk_line='walk: step=own ok=yes away=call stay_ms=3004 fg_events=2 front=own'
@@ -1058,6 +1095,7 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
           return-short-no-title) ;;
           order-O4) events=0 ;;
           return-short-not-met-in-three-tries) world_adds title 2 180 ;;
+          two-titles-at-each-return) world_adds title 2 120 ;;
           *) world_adds title 1 60 ;;
         esac
         walk_line="walk: step=short ok=yes stay_ms=1 fg_events=$events front=own"
@@ -1142,6 +1180,7 @@ self_test() {
   wrong=
   rejected=0
   run_case green PASS 'stage row occasion=3 ok state=running proposals=1 stored=1 category=spreadsheet_fill count=3 by_hand=no'
+  run_case two-titles-at-each-return PASS 'stage return-short occasion=2 ok foreground_app=+2 window_title=+2 title_bytes=+120, the titles are the workbook'"'"'s, wanted +2 and +1 or +2;'
   run_case service-no-fresh-lease FAIL '(occasion 0, stage service: within 4 s ctl status read desired=running capture=running capture_reason=- lease=none'
   run_case service-no-window-of-the-app FAIL '(occasion 0, stage service: no window of the app'
   run_case no-title-count FAIL '(occasion 1, stage title: window_title=+0 within 4 s behind the click into the window; pointer=+1 foreground_app=+1; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at='
@@ -1156,8 +1195,8 @@ self_test() {
   run_case an-event-lost FAIL '(occasion 1, stage clicks: events_lost went from 0 to 1; pointer=+12; events_pending=0 events_lost=1 title_read_errors=0 last_flush_at='
   run_case one-empty-batch-line FAIL '(occasion 1, stage episode: the product'"'"'s fault: the pause shows one batch line with records=0 and the records counted in the store: pointer=+12 behind the occasion'"'"'s baseline; batch end=newest run_open=no start_first=no records=0 episodes=0)'
   run_case a-window-passes-behind-the-clicks FAIL '(occasion 2, stage carry: not walked: foreground_app=+1 window_title=+0 behind its clicks' "$row_three"
-  run_case return-own-no-title FAIL '(occasion 2, stage return-own: foreground_app=+1 window_title=+0 title_bytes=+0, wanted +1 and +1; walk away=call fg_events=2 stay_ms=3004;' "$row_three"
-  run_case return-short-no-title FAIL '(occasion 2, stage return-short: foreground_app=+2 window_title=+0 title_bytes=+0, wanted +2 and +1; walk fg_events=2 stay_ms=1 try=1;' "$row_three"
+  run_case return-own-no-title FAIL '(occasion 2, stage return-own: foreground_app=+1 window_title=+0 title_bytes=+0, no title, wanted +1 and +1 or +2; walk away=call fg_events=2 stay_ms=3004;' "$row_three"
+  run_case return-short-no-title FAIL '(occasion 2, stage return-short: foreground_app=+2 window_title=+0 title_bytes=+0, no title, wanted +2 and +1 or +2; walk fg_events=2 stay_ms=1 try=1;' "$row_three"
   run_case return-short-not-met-in-three-tries FAIL '(occasion 2, stage return-short: return-short=not-met in 3 tries: foreground_app=+2 window_title=+2' "$row_three"
   run_case order-O4 FAIL '(occasion 2, stage return-short: order=O4 foreground_app=+2 window_title=+0' "$row_three"
   run_case order-O5 FAIL '(occasion 3, stage episode: order=O5 batch end=newest records=12 episodes=0' '; row: state=running proposals=0 stored=0 category=- count=0 by_hand=-)'
