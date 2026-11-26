@@ -83,8 +83,9 @@ pub struct Listed {
     /// noticing never gives.
     pub by_hand: bool,
     pub category: String,
-    /// The display name that the operating system gives for the workflow's app, if it gives one;
-    /// never the app id or a part of it, and none for a workflow set up by hand.
+    /// The display name of the workflow's app, if one is known: on a Mac the one that the operating
+    /// system gives, and on Windows the one that the app's own table gives for the program's file
+    /// name; never the app id or a part of it, and none for a workflow set up by hand.
     pub app: Option<String>,
     pub site: Option<String>,
     /// The ids of the summaries that support the workflow, in ascending order.

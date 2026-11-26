@@ -109,7 +109,9 @@ const fn rule(category: SeedCategory) -> Rule {
 /// on Windows the file name of the executable, which `AppId::from_capture` cuts from the captured path. A step's
 /// app is one of them when it equals an entry without regard to ASCII case, because a Windows path may write the
 /// file name in either case. An entry is added as one more line here, with a row in the unit tests below that
-/// names an episode of that app by its key records.
+/// names an episode of that app by its key records, and an entry of a Windows file name also with the name that a
+/// person reads in the app's table `WINDOWS_APP_NAMES` (src-tauri/src/commands/workflows.rs), whose unit test reads
+/// this list.
 const SPREADSHEET_APPS: [&str; 3] = [
     "com.microsoft.Excel",
     "com.apple.iWork.Numbers",
