@@ -2,7 +2,6 @@
 # jobs: macos windows
 # rule: Every test of the workspace passes with the committed lockfile, and the test run leaves no entry in its temp directory. On the macos job a hold test whose secure-input hold the system refuses fails, and the job prints how often the shutdown of each real macOS source answered other than Ok.
 # lane: alone
-# limit: 1800
 set -u
 name=12-test
 exempt=halvo-consent-test-
