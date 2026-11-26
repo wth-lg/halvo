@@ -2679,6 +2679,23 @@ mod tests {
             (before, after, dropped),
             (vec![normal.to_string()], vec![normal.to_string()], 1)
         );
+
+        // Two processes of Chrome in front by turns: both were told as
+        // English before the stop, and both keep their titles behind the new
+        // start, the one that was told first too.
+        let other = "Budget - Google Sheets - Google Chrome";
+        let second = app("com.google.Chrome", 42);
+        said.started(42, at(42));
+        through.shows(&second, other, at(50));
+        through.shows(&chrome, normal, at(52));
+        let (_, by_turns, _, _) = through.made();
+        let mut through = through.starts_again(at(60));
+        through.shows(&second, other, at(70));
+        through.shows(&chrome, normal, at(72));
+        through.shows(&second, private, at(74));
+        let (_, behind, _, dropped) = through.made();
+        let both = vec![other.to_string(), normal.to_string()];
+        assert_eq!((by_turns, behind, dropped), (both.clone(), both, 1));
     }
 
     #[test]
