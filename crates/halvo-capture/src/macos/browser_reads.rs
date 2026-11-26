@@ -1,56 +1,27 @@
 //! What the title rules read of the system about browsers: the places of the
 //! apps that the system lists as handlers of https links, the place of a
-//! running app, the AppleLanguages values of a browser and of the person, the
-//! machine's tick count, a process's start in those ticks, and the localization
-//! that a browser's bundle takes. No read of the list or of a place opens a
-//! file; only the localization reads a bundle, which the rules ask for alone
-//! for a bundle under an Applications folder. Each read runs on the title
-//! thread (`halvo-window-title`) alone, never on the tap thread, through the
-//! seams of the title rules in [`crate::macos::foreground`], which a test
-//! replaces.
+//! running app, a process's start in the machine's ticks, and which language
+//! file of its own bundle a browser's process holds open. For that last read
+//! alone a bundle is read from the disk: the folders of its frameworks and
+//! the device and inode of each language file there, for a bundle under an
+//! Applications folder alone. Of a process the read asks the system for the
+//! list of what it holds open, which gives a number and a kind for each
+//! entry, and then about each open file, which gives a block of numbers and
+//! no name; of that block it takes the device and the inode alone. Each read
+//! runs on the title thread (`halvo-window-title`) alone, never on the tap
+//! thread, through the seams of the title rules in
+//! [`crate::macos::foreground`], which a test replaces.
 
 #![deny(clippy::let_underscore_must_use)]
 
 use std::ffi::c_void;
+use std::path::{Path, PathBuf};
 
-use core_foundation::array::{CFArray, CFArrayRef};
-use core_foundation::base::{CFType, CFTypeRef, TCFType};
-use core_foundation::bundle::{
-    CFBundleCopyLocalizationsForPreferences, CFBundleCopyLocalizationsForURL,
-};
-use core_foundation::string::{CFString, CFStringRef};
-use core_foundation::url::CFURL;
 use objc2::rc::autoreleasepool;
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use objc2_foundation::{NSString, NSURL};
 
-#[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
-    static kCFPreferencesAnyApplication: CFStringRef;
-    static kCFPreferencesCurrentUser: CFStringRef;
-    static kCFPreferencesAnyHost: CFStringRef;
-    fn CFPreferencesAppSynchronize(application_id: CFStringRef) -> u8;
-    fn CFPreferencesSynchronize(
-        application_id: CFStringRef,
-        user_name: CFStringRef,
-        host_name: CFStringRef,
-    ) -> u8;
-    fn CFPreferencesCopyAppValue(key: CFStringRef, application_id: CFStringRef) -> CFTypeRef;
-    fn CFPreferencesCopyValue(
-        key: CFStringRef,
-        application_id: CFStringRef,
-        user_name: CFStringRef,
-        host_name: CFStringRef,
-    ) -> CFTypeRef;
-    fn CFPreferencesCopyKeyList(
-        application_id: CFStringRef,
-        user_name: CFStringRef,
-        host_name: CFStringRef,
-    ) -> CFArrayRef;
-}
-
-extern "C" {
-    fn mach_absolute_time() -> u64;
     fn proc_pid_rusage(
         pid: libc::c_int,
         flavor: libc::c_int,
@@ -58,41 +29,42 @@ extern "C" {
     ) -> libc::c_int;
 }
 
-/// An AppleLanguages value as read: the read failed, the domain holds no
-/// value, or the list of languages that it holds.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Languages {
-    Failed,
-    NoValue,
-    List(Vec<String>),
+/// `vnode_fdinfo` of the system's `sys/proc_info.h`, which the libc crate does
+/// not hold: a `proc_fileinfo` of 24 bytes, then the file's `vnode_info`,
+/// whose `vi_stat` holds the device and the inode of the file. It holds no
+/// path.
+#[repr(C)]
+struct OpenFileInfo {
+    _file: [u64; 3],
+    info: libc::vnode_info,
 }
+
+/// The flavor `PROC_PIDFDVNODEINFO` of that header: the info of an open file
+/// with no path.
+const FD_VNODE_INFO: libc::c_int = 1;
+
+const _: () = assert!(std::mem::size_of::<OpenFileInfo>() == 176);
+
+/// The most open files of a process, and the most language files of a
+/// bundle, that one read takes: beyond either it gives no answer.
+const OPEN_FILES_READ: usize = 4_096;
+const LANGUAGE_FILES_READ: usize = 512;
+
+/// The most entries that the list of a process's open files may take room
+/// for; a process whose list asks for more gives no answer.
+const OPEN_FILES_ROOM: usize = 65_536;
 
 /// The reads of a browser's language and of the app in front: one seam,
 /// which a test replaces.
 pub(crate) trait LanguageReads: Send {
-    /// The AppleLanguages value that the browser `bundle_id` reads: its own
-    /// where it has one, else what the system's search of its domains gives.
-    fn own(&mut self, bundle_id: &str) -> Languages;
-
-    /// The person's global AppleLanguages list.
-    fn global(&mut self) -> Languages;
-
-    /// The machine's tick count now, which no change of the clock moves.
-    fn now(&mut self) -> u64;
-
-    /// The start of the process `pid` in the ticks of [`LanguageReads::now`];
-    /// `None` when it cannot be read.
+    /// The start of the process `pid` in the machine's ticks, which no change
+    /// of the clock moves; `None` when it cannot be read.
     fn started(&mut self, pid: libc::pid_t) -> Option<u64>;
 
     /// The place of the bundle of the running app `pid` whose bundle id is
     /// `bundle_id`, as the system gives it, with no read of a file; `None`
     /// when it cannot be read or the id differs.
     fn place(&mut self, pid: libc::pid_t, bundle_id: &str) -> Option<String>;
-
-    /// The first localization of the bundle at `place` that the system's own
-    /// function picks under `languages`; it reads that bundle. `None` when it
-    /// cannot be read.
-    fn localization(&mut self, place: &str, languages: &[String]) -> Option<String>;
 
     /// The code of the one language file of the bundle at `place` that the
     /// process `pid` holds open: the `<code>` of its `<code>.lproj`. `None`
@@ -106,54 +78,6 @@ pub(crate) trait LanguageReads: Send {
 pub(crate) struct SystemLanguages;
 
 impl LanguageReads for SystemLanguages {
-    fn own(&mut self, bundle_id: &str) -> Languages {
-        let domain = CFString::new(bundle_id);
-        // SAFETY: `domain` is a live CFString for the call. Its answer tells
-        // whether this process's own changes were written, and it has none,
-        // so the answer is not read.
-        unsafe { CFPreferencesAppSynchronize(domain.as_concrete_TypeRef()) };
-        if !holds_a_key(domain.as_concrete_TypeRef()) {
-            return Languages::Failed;
-        }
-        let key = apple_languages();
-        // SAFETY: `key` and `domain` are live CFStrings for the call, which
-        // follows the Create rule.
-        languages_of(unsafe {
-            CFPreferencesCopyAppValue(key.as_concrete_TypeRef(), domain.as_concrete_TypeRef())
-        })
-    }
-
-    fn global(&mut self) -> Languages {
-        // SAFETY: a constant CFString of the framework, which lives as long as
-        // the process.
-        let domain = unsafe { kCFPreferencesAnyApplication };
-        // SAFETY: the three are constant CFStrings of the framework. Its
-        // answer tells whether this process's own changes were written, and it
-        // has none, so the answer is not read.
-        unsafe {
-            CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-        };
-        if !holds_a_key(domain) {
-            return Languages::Failed;
-        }
-        let key = apple_languages();
-        // SAFETY: `key` is a live CFString and the other three are constant
-        // CFStrings of the framework; the call follows the Create rule.
-        languages_of(unsafe {
-            CFPreferencesCopyValue(
-                key.as_concrete_TypeRef(),
-                domain,
-                kCFPreferencesCurrentUser,
-                kCFPreferencesAnyHost,
-            )
-        })
-    }
-
-    fn now(&mut self) -> u64 {
-        // SAFETY: a parameterless read of the machine's tick count.
-        unsafe { mach_absolute_time() }
-    }
-
     fn started(&mut self, pid: libc::pid_t) -> Option<u64> {
         let mut info = std::mem::MaybeUninit::<libc::rusage_info_v0>::zeroed();
         // SAFETY: `info` is writable for a whole rusage_info_v0, the struct of
@@ -186,13 +110,14 @@ impl LanguageReads for SystemLanguages {
         })
     }
 
-    fn localization(&mut self, place: &str, languages: &[String]) -> Option<String> {
-        let bundle = CFURL::from_path(place, true)?;
-        first_localization(&bundle, languages)
-    }
-
-    fn held_language(&mut self, _pid: libc::pid_t, _place: &str) -> Option<String> {
-        None
+    fn held_language(&mut self, pid: libc::pid_t, place: &str) -> Option<String> {
+        let files = language_files(place)?;
+        let open = open_file_numbers(pid)?;
+        let mut held = files
+            .iter()
+            .filter(|file| open.contains(&(file.device, file.inode)));
+        let one = held.next()?;
+        held.next().is_none().then(|| one.code.clone())
     }
 }
 
@@ -214,91 +139,134 @@ fn place_of(url: &NSURL) -> Option<String> {
     url.path().map(|path| path.to_string())
 }
 
-fn apple_languages() -> CFString {
-    CFString::from_static_string("AppleLanguages")
+/// A language file of a bundle as the disk holds it: the code of its folder
+/// `<code>.lproj`, and the device and the inode of its `locale.pak`.
+struct LanguageFile {
+    code: String,
+    device: u64,
+    inode: u64,
 }
 
-/// Whether the domain `domain` of the user, any host, gave at least one key:
-/// the proof that it was read, since a value that it lacks and a domain that
-/// cannot be read give the same NULL.
-fn holds_a_key(domain: CFStringRef) -> bool {
-    // SAFETY: `domain` is a live CFString and the other two are constant
-    // CFStrings of the framework; the call follows the Create rule.
-    let keys = unsafe {
-        CFPreferencesCopyKeyList(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-    };
-    if keys.is_null() {
-        return false;
-    }
-    // SAFETY: a non-null result of a Copy call is a +1 reference to a CFArray.
-    let keys: CFArray = unsafe { CFArray::wrap_under_create_rule(keys) };
-    !keys.is_empty()
+/// The folders and files that the folder `folder` holds, or none where it
+/// cannot be read.
+fn entries_of(folder: &Path) -> Vec<PathBuf> {
+    std::fs::read_dir(folder)
+        .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
+        .unwrap_or_default()
 }
 
-/// A copied AppleLanguages value: a list of at least one string, else no
-/// value (NULL) or a failed read (any other value).
-fn languages_of(value: CFTypeRef) -> Languages {
-    if value.is_null() {
-        return Languages::NoValue;
+/// The language files inside the bundle at `place`, read from the disk: for
+/// each folder under `Contents/Frameworks`, each folder under its `Versions`
+/// and each folder named `<code>.lproj` under that version's `Resources`, the
+/// `locale.pak` there, each file once for its code, also where two version
+/// folders name it. `None` where the bundle holds more than
+/// [`LANGUAGE_FILES_READ`] of them.
+fn language_files(place: &str) -> Option<Vec<LanguageFile>> {
+    use std::os::unix::fs::MetadataExt;
+    let mut files: Vec<LanguageFile> = Vec::new();
+    for framework in entries_of(&Path::new(place).join("Contents/Frameworks")) {
+        for version in entries_of(&framework.join("Versions")) {
+            for folder in entries_of(&version.join("Resources")) {
+                let Some(code) = folder
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .and_then(|name| name.strip_suffix(".lproj"))
+                else {
+                    continue;
+                };
+                let Ok(file) = std::fs::metadata(folder.join("locale.pak")) else {
+                    continue;
+                };
+                let known = files.iter().any(|known| {
+                    known.code == code && (known.device, known.inode) == (file.dev(), file.ino())
+                });
+                if !file.is_file() || known {
+                    continue;
+                }
+                if files.len() == LANGUAGE_FILES_READ {
+                    return None;
+                }
+                files.push(LanguageFile {
+                    code: code.to_string(),
+                    device: file.dev(),
+                    inode: file.ino(),
+                });
+            }
+        }
     }
-    // SAFETY: a non-null result of a Copy call is a +1 reference.
-    let value = unsafe { CFType::wrap_under_create_rule(value) };
-    let Some(list) = value.downcast::<CFArray>() else {
-        return Languages::Failed;
-    };
-    let mut languages = Vec::new();
-    for item in list.iter() {
-        // SAFETY: the item is a live CF object that the array holds.
-        let item = unsafe { CFType::wrap_under_get_rule(*item as CFTypeRef) };
-        let Some(language) = item.downcast::<CFString>() else {
-            return Languages::Failed;
+    Some(files)
+}
+
+/// The device and the inode of each file of a disk that the process `pid`
+/// holds open: the list of what it holds open, then, for each entry that is a
+/// file of a disk, the call that gives the info of an open file with no path.
+/// No call asks for the name of a file. `None` where the list does not answer
+/// or names more than [`OPEN_FILES_READ`] entries, or where the info of one
+/// file does not answer.
+fn open_file_numbers(pid: libc::pid_t) -> Option<Vec<(u64, u64)>> {
+    let entry = std::mem::size_of::<libc::proc_fdinfo>();
+    // SAFETY: with a null buffer of no bytes the call writes nothing and
+    // answers the bytes that the list takes.
+    let need =
+        unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
+    let room = usize::try_from(need).ok().filter(|bytes| *bytes > 0)? / entry + 64;
+    if room > OPEN_FILES_ROOM {
+        return None;
+    }
+    let mut list = vec![
+        libc::proc_fdinfo {
+            proc_fd: 0,
+            proc_fdtype: 0,
         };
-        languages.push(language.to_string());
-    }
-    if languages.is_empty() {
-        Languages::Failed
-    } else {
-        Languages::List(languages)
-    }
-}
-
-/// The first localization of the bundle at `bundle` that CFBundle would use
-/// under the preferred languages `languages`, without reference to this
-/// process's own context.
-fn first_localization(bundle: &CFURL, languages: &[String]) -> Option<String> {
-    // SAFETY: `bundle` is a live CFURL for the call, which follows the Create
-    // rule.
-    let localizations = unsafe { CFBundleCopyLocalizationsForURL(bundle.as_concrete_TypeRef()) };
-    if localizations.is_null() {
-        return None;
-    }
-    // SAFETY: a non-null result of a Copy call is a +1 reference to a CFArray.
-    let localizations: CFArray = unsafe { CFArray::wrap_under_create_rule(localizations) };
-    if localizations.is_empty() {
-        return None;
-    }
-    let preferences: Vec<CFString> = languages
-        .iter()
-        .map(|language| CFString::new(language))
-        .collect();
-    let preferences = CFArray::from_CFTypes(&preferences);
-    // SAFETY: both are live CFArrays of CFStrings for the call, which follows
-    // the Create rule.
-    let chosen = unsafe {
-        CFBundleCopyLocalizationsForPreferences(
-            localizations.as_concrete_TypeRef(),
-            preferences.as_concrete_TypeRef(),
+        room
+    ];
+    let bytes = libc::c_int::try_from(room * entry).ok()?;
+    // SAFETY: `list` is writable for `bytes` bytes, and the call writes at
+    // most that many.
+    let wrote = unsafe {
+        libc::proc_pidinfo(
+            pid,
+            libc::PROC_PIDLISTFDS,
+            0,
+            list.as_mut_ptr().cast(),
+            bytes,
         )
     };
-    if chosen.is_null() {
+    let listed = usize::try_from(wrote).ok().filter(|bytes| *bytes > 0)? / entry;
+    if listed > OPEN_FILES_READ {
         return None;
     }
-    // SAFETY: a non-null result of a Copy call is a +1 reference to a CFArray.
-    let chosen: CFArray = unsafe { CFArray::wrap_under_create_rule(chosen) };
-    let first = chosen.get(0)?;
-    // SAFETY: the item is a live CF object that the array holds.
-    let first = unsafe { CFType::wrap_under_get_rule(*first as CFTypeRef) };
-    first.downcast::<CFString>().map(|text| text.to_string())
+    list.truncate(listed);
+    let size = libc::c_int::try_from(std::mem::size_of::<OpenFileInfo>()).ok()?;
+    let mut numbers = Vec::new();
+    for open in &list {
+        if i64::from(open.proc_fdtype) != i64::from(libc::PROX_FDTYPE_VNODE) {
+            continue;
+        }
+        let mut info = std::mem::MaybeUninit::<OpenFileInfo>::zeroed();
+        // SAFETY: `info` is writable for a whole vnode_fdinfo, the struct of
+        // this flavor, which is all that the call writes.
+        let answer = unsafe {
+            libc::proc_pidfdinfo(
+                pid,
+                open.proc_fd,
+                FD_VNODE_INFO,
+                info.as_mut_ptr().cast(),
+                size,
+            )
+        };
+        if answer != size {
+            return None;
+        }
+        // SAFETY: the buffer was zeroed before the call, and every bit
+        // pattern is a value of this struct of plain numbers.
+        let info = unsafe { info.assume_init() };
+        numbers.push((
+            u64::from(info.info.vi_stat.vst_dev),
+            info.info.vi_stat.vst_ino,
+        ));
+    }
+    Some(numbers)
 }
 
 #[cfg(test)]
