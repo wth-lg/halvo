@@ -400,7 +400,7 @@ fn hold_set_cause_names_are_those_of_i7_1() {
 }
 
 #[test]
-fn line_key_names_are_the_six_of_i2_2_and_the_dropped_count() {
+fn line_key_names_are_the_seven_of_i2_2_and_the_dropped_count() {
     assert_eq!(
         names(LineKey::ALL, LineKey::name),
         [

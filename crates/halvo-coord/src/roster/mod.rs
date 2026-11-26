@@ -256,8 +256,9 @@ fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
 
 /// The settings lines of a configuration (I2.2), in the order of the table, each whose
 /// condition holds and whose words entry exists: `level`, `runs_on`, `asks`, `time` with the
-/// minutes of `wall_s` rounded up, `files` and `spend`. The line `runs_on` says that the agent
-/// runs on this computer where its stored tier is `on_device` or its runtime asks no model
+/// minutes of `wall_s` rounded up, `files`, `copy` for an agent of the runtime file (r3 U11.11)
+/// and `spend`. The line `runs_on` says that the agent runs on this computer where its stored
+/// tier is `on_device` or its runtime asks no model
 /// (`asks_a_model`); where the tier is a hosted tier, the runtime asks a model and the app hands
 /// the agent's model, that it may use an AI model at the host, with the models, where its stored
 /// yes stands, and that the AI model is now at the host and asks again where it does not (r4
