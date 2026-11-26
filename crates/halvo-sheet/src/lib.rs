@@ -123,8 +123,10 @@ impl Folder {
     /// saves it; the mark alone reads no row (r3 U11.10). On Windows a file with no mark that is
     /// not UTF-8 is read by the code page that the system gives as the computer's own (`GetACP`),
     /// the one by which Excel's file type CSV (Comma delimited) writes its letters, where that page
-    /// reads each of its bytes as a letter that is no control sign; [`Folder::read_data`] says
-    /// so. A line ends with LF or CRLF, and the last line reads the
+    /// reads each of its bytes as a letter that is no control sign, and where the same bytes read
+    /// alike under every ANSI page of Windows that reads them: by the same separator, and with no
+    /// cell a number of two values (the coordinator's rule of log line 23651); [`Folder::read_data`]
+    /// says so. A line ends with LF or CRLF, and the last line reads the
     /// same with its line end and without it. A sign holds where every line that is not empty,
     /// read as a row of that sign (a double quote at the line's start or right behind the sign
     /// opens a quoted field, two double quotes in it are one, and the signs inside it are not
@@ -176,7 +178,9 @@ impl Folder {
     /// UTF-16 by its mark and not, on Windows, text of the computer's page: a file of the mark of
     /// UTF-16 with an odd count of bytes or a lone surrogate behind it, a file that begins
     /// FF FE 00 00 (the mark of UTF-32LE), and on Windows a file that the page cannot read or reads
-    /// with a control sign (below U+0020 but the tab, CR and LF, or U+007F to U+009F); its cause
+    /// with a control sign (below U+0020 but the tab, CR and LF, or U+007F to U+009F), a page
+    /// outside the ANSI pages, a file of the page 936 with a four-byte letter, and a file that
+    /// another ANSI page reads by another separator or with a cell of another number; its cause
     /// by [`Error::source_cause`] is `data_encoding`; then, with the cause `data_form`: the
     /// semicolon and the tab both hold as its separator; or, read by the separator that is told,
     /// it holds a carriage return that no line feed follows, a line break inside a quoted field,
