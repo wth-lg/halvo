@@ -13,7 +13,7 @@ use serde_json::Value;
 use crate::action::{self, Action};
 use crate::body;
 use crate::fixture;
-use crate::lines::{Kind, Run};
+use crate::lines::{Kind, Marked, Run};
 use crate::model::{self, Child};
 use crate::step::{self, Arg, Source, Step, Target, Verb};
 use crate::words;
@@ -103,9 +103,106 @@ pub struct Ctx {
     pub trace: std::sync::Mutex<std::fs::File>,
     pub began: Instant,
     pub clock: Box<dyn Clock>,
+    /// The form with the runner's mask (r3 U0.10): the cell's slots and its count; none in every other form.
+    pub marks: Option<Marks>,
+}
+
+/// What the form with the runner's mask (r3 U0.10) gives a cell: the slots of the cell's task as the mask reads
+/// them, each text of a slot, which no request may hold, and the count of what the cell's requests held.
+pub struct Marks {
+    pub slots: Vec<r3_forms::Slot>,
+    pub texts: Vec<String>,
+    pub marked: std::sync::Arc<std::sync::Mutex<Marked>>,
+}
+
+impl Marks {
+    /// The marks of a cell whose task has `bindings` in the fixture's seed file, on the fixture's `port`: a
+    /// slot's text is its values joined by a comma and a space, the slot `start` completed with the port as
+    /// `Ctx::slots` completes it, and each single value is a text that no request may hold.
+    pub fn of(
+        bindings: &Value,
+        port: u16,
+        marked: std::sync::Arc<std::sync::Mutex<Marked>>,
+    ) -> Marks {
+        let mut slots = Vec::new();
+        let mut texts = Vec::new();
+        for s in bindings["slots"].as_array().into_iter().flatten() {
+            let Some(name) = s["name"].as_str() else {
+                continue;
+            };
+            let values: Vec<String> = s["value"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str())
+                .map(|v| {
+                    if name == "start" {
+                        format!("{v}:{port}")
+                    } else {
+                        v.to_owned()
+                    }
+                })
+                .collect();
+            if let Some(slot) = r3_forms::slot(name, &values.join(", ")) {
+                slots.push(slot);
+            }
+            texts.extend(values.into_iter().filter(|v| !v.is_empty()));
+        }
+        Marks {
+            slots,
+            texts,
+            marked,
+        }
+    }
+
+    /// What one request of `prompt` and `snapshot` holds: whether its snapshot holds a mark, and the places
+    /// in both where a text of a slot stands.
+    fn held(&self, prompt: &str, snapshot: Option<&str>) -> (bool, u64) {
+        let snapshot = snapshot.unwrap_or("");
+        let places = |text: &str| {
+            self.texts
+                .iter()
+                .map(|t| text.matches(t.as_str()).count() as u64)
+                .sum::<u64>()
+        };
+        (
+            r3_forms::holds_a_mark(snapshot),
+            places(prompt) + places(snapshot),
+        )
+    }
+
+    /// Counts one request that the harness handed to the door, with what `held` read of it.
+    fn count(&self, held: (bool, u64)) {
+        if let Ok(mut m) = self.marked.lock() {
+            m.requests += 1;
+            m.with_mark += u64::from(held.0);
+            m.slot_text += held.1;
+        }
+    }
 }
 
 impl Ctx {
+    /// The snapshot of a compile's request for a page of `lines` whose text is `text`: that text, and in the
+    /// form with the runner's mask the runner's own maker of a snapshot over the same lines, field for field,
+    /// and the cell's slots.
+    fn request_snapshot(&self, lines: &[SnapshotLine], text: &str) -> String {
+        let Some(marks) = &self.marks else {
+            return text.to_owned();
+        };
+        let lines: Vec<r3_forms::Line> = lines
+            .iter()
+            .map(|l| r3_forms::Line {
+                reference: l.reference.clone(),
+                role: l.role,
+                name: l.name.clone(),
+                value: l.value.clone(),
+                credential: l.credential,
+                frame: l.frame.clone(),
+            })
+            .collect();
+        r3_forms::masked(&lines, &marks.slots)
+    }
+
     pub fn trace(&self, line: &str) {
         if let Ok(mut f) = self.trace.lock() {
             let _ = writeln!(f, "{:.1} {line}", self.began.elapsed().as_secs_f64());
@@ -360,6 +457,10 @@ async fn ask(
             snapshot.as_deref().unwrap_or("")
         );
     }
+    let held = ctx
+        .marks
+        .as_ref()
+        .map(|m| m.held(&prompt, snapshot.as_deref()));
     let system = ctx.prompts.boundary.clone();
     let job = tokio::task::spawn_blocking(move || {
         let mut child = child;
@@ -378,6 +479,9 @@ async fn ask(
     if reply == Err(model::Fault::Bound) {
         ctx.trace("requests: the round has handed the door its bound; nothing was sent");
         return Err(End::NotRun("requests"));
+    }
+    if let (Some(marks), Some(held)) = (&ctx.marks, held) {
+        marks.count(held);
     }
     Ok((child, reply))
 }
@@ -1032,7 +1136,8 @@ async fn compile_steps(
         );
         within_wall(ctx, began, tally)?;
         let taken = child.take().ok_or(End::NotRun("model"))?;
-        let (back, reply) = ask(ctx, taken, prompt, Some(text.clone()), "action").await?;
+        let snapshot = ctx.request_snapshot(&lines, &text);
+        let (back, reply) = ask(ctx, taken, prompt, Some(snapshot), "action").await?;
         *child = Some(back);
         if let Some(end) = host_end(&reply) {
             ctx.trace(&format!("call={call} end={end}"));
@@ -1472,7 +1577,14 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
             ctx,
             taken,
             ctx.prompts.goal.trim_end().to_string(),
-            Some(body::message_text(m)),
+            Some(match &ctx.marks {
+                Some(marks) => r3_forms::message(
+                    m["subject"].as_str().unwrap_or(""),
+                    m["body"]["content"].as_str().unwrap_or(""),
+                    &marks.slots,
+                ),
+                None => body::message_text(m),
+            }),
             "text",
         )
         .await?;
@@ -1492,7 +1604,13 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
             Ok(r) => {
                 tally.tokens_in += r.tokens_in;
                 tally.tokens_out += r.tokens_out;
-                let counted = body::counted(&r.text, r.tokens_out, ctx.reply_tokens);
+                // r3 U0.10: in the form with the runner's mask a body that holds a mark's head is no body, as
+                // in the runner's writer.
+                let marked = ctx.marks.is_some()
+                    && body::body_of(&r.text, r.tokens_out, ctx.reply_tokens)
+                        .is_some_and(r3_forms::holds_a_mark);
+                let counted =
+                    !marked && body::counted(&r.text, r.tokens_out, ctx.reply_tokens);
                 ctx.trace(&format!(
                     "body bytes={} tokens_out={} counted={counted}",
                     r.text.len(),

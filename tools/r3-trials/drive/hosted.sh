@@ -7,6 +7,9 @@ usage: sh tools/r3-trials/drive/hosted.sh --tier low_cost_hosted|frontier --ceil
            --browser PATH --port N --model TOKEN --list FILE --key-file FILE [--cell TASK:SEED]
        sh tools/r3-trials/drive/hosted.sh --standin --tier low_cost_hosted|frontier --ceiling MINOR
            --browser PATH --port N
+       sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR
+           [--passes N] [--browser PATH] [--port N]
+       sh tools/r3-trials/drive/hosted.sh --marks --standin --ceiling MINOR [--browser PATH] [--port N]
        sh tools/r3-trials/drive/hosted.sh --help
 
 Runs every cell of the driver trial (contracts.md A13.6) with the door halvo-model of
@@ -63,6 +66,52 @@ requests= counts the requests handed to the door, each behind a hold; starts= th
 and runs= the egress check's lines that the round read: where the two differ, the round exits 1
 and gives no verdict.
 
+--marks is the form with the runner's mask (unit U0.10); its rule is
+docs/r3/trials/driver-hosted-marks.md. It runs the tier frontier and then the tier
+low_cost_hosted in ONE call, under the ONE ceiling MINOR and one count, each tier N passes over
+the nine cells (--passes, 1 to 9; without it 1). The snapshot of every request is made by the
+runner's own maker of a snapshot, which the tool compiles from
+crates/halvo-runner/src/model/snapshot.rs: a page's lines with the mark [slot NAME] in the place
+of each text of a slot of the task, and a message with the From line From: [slot reply_senders].
+A cell runs no recovery, and a body that holds the head of a mark is no body. One tier makes at
+most 198 requests a pass: 192 in compiles and 6 for replies. The form takes no --tier, --model,
+--list or --cell: the model token of a tier is the model word of its row of
+crates/halvo-route/data/hosts.tsv with _ for each - and each dot, and the script writes the list
+of each tier, the one entry host:443 of that row's origin, into the run's directory. Without
+--browser it takes the Chrome of this system's usual place, and without --port 18471. It refuses
+to start while a tracked file of the checkout is changed (REFUSED tree): its first line is
+
+  commit head=<40 hex> mask=<sha256 of the mask's source file>
+
+Behind each cell's ends line it prints
+
+  marks model=<token> machine=<m> task=<t> seed=<n> attempt=<pass> requests=<n> with_mark=<n> slot_text=<n>
+
+behind each tier's host line
+
+  count tier=<tier> model=<token> drive=<k> of=<n> reply=<k> of=<n> typed_credential=<n>
+        effects_without_confirm=<n> marked=<k> of=<n> slot_text=<n>
+
+(one line), and at its end
+
+  records requests=<n> requests_sha256=<hex> answers=<n> answers_sha256=<hex>
+  verdict driver=<token|none> path=<A|B> writer=<token|none>
+
+It keeps every request line whole as it hands it to the door in door-requests.jsonl and every
+line that the door gave back in door-answers.jsonl, in the order of the asks, with door-asks.txt,
+which names the cell of each ask; the records line gives their counts and their SHA-256. No byte
+of the key stands in them. Where the round gave a verdict line it writes block.txt beside
+lines.txt: the commit, attempt, drive, reply, marks, count, records and verdict lines alone.
+
+--marks --standin is the control of that form: two passes of both tiers against the scripted
+host, which also answers the third ask for a reply body with a body that holds the head of a
+mark; then the cell bill:1 once more under a ceiling of 1 minor unit, which must end notrun with
+the cause ceiling and send nothing. It reads the lines against control/hosted-marks-expected.txt,
+the requests that the scripted host received against the spend lines, the record of the scripted
+host for a mark in each cell's requests and for no text of a slot of the three seeds, every file
+of the run's directory for the made-up key, and the block for its eight kinds of line, and prints
+last "control mode=hosted-marks machine=<m> result=<as_expected|differs>".
+
 The four prompt files must have the SHA-256 of the prompt lines of docs/r3/trials/driver.md
 (REFUSED prompts). The cells keep their directories under one directory under TMPDIR or
 /tmp, with host-requests.txt (the bodies that the scripted host received) and count.txt (the
@@ -70,7 +119,8 @@ count's row); the script removes nothing.
 
 Exit 0: every cell ran (and, --standin, the reading is as expected). 1: a cell printed
 notrun or the reading differs. 2: a refusal, one line "REFUSED <cause>: <detail>" on
-standard error; the causes are usage, prices, prompts, browser, port, list, row and machine.
+standard error; the causes are usage, prices, prompts, browser, port, list, row, machine and
+tree.
 EOF
 }
 
@@ -84,6 +134,8 @@ root=$(CDPATH='' cd -- "$here/../../.." && pwd -P) || refuse usage "the root of 
 cd "$root" || refuse usage "the root of the repository cannot be entered"
 
 standin=
+marks=
+passes=
 tier=
 ceiling=
 browser=
@@ -106,7 +158,12 @@ while [ $# -gt 0 ]; do
       standin=yes
       shift
       ;;
-    --tier | --ceiling | --browser | --port | --model | --list | --key-file | --cell)
+    --marks)
+      [ -z "$marks" ] || refuse usage "--marks is given twice"
+      marks=yes
+      shift
+      ;;
+    --tier | --ceiling | --browser | --port | --model | --list | --key-file | --cell | --passes)
       [ $# -ge 2 ] || refuse usage "$1 has no value"
       case $1 in
         --cell) [ -z "$cell_given" ] || refuse usage "--cell is given twice"; cell_given=yes; cell=$2 ;;
@@ -117,6 +174,7 @@ while [ $# -gt 0 ]; do
         --model) [ -z "$model" ] || refuse usage "--model is given twice"; model=$2 ;;
         --list) [ -z "$list" ] || refuse usage "--list is given twice"; list=$2 ;;
         --key-file) [ -z "$key_file" ] || refuse usage "--key-file is given twice"; key_file=$2 ;;
+        --passes) [ -z "$passes" ] || refuse usage "--passes is given twice"; passes=$2 ;;
       esac
       shift 2
       ;;
@@ -130,10 +188,26 @@ if [ -n "$cell_given" ]; then
   esac
   [ -z "$standin" ] || refuse usage "--cell is not taken with --standin: the control reads all nine cells"
 fi
-case $tier in
-  low_cost_hosted | frontier) ;;
-  *) refuse usage "--tier takes low_cost_hosted or frontier" ;;
-esac
+if [ -n "$marks" ]; then
+  [ -z "$tier$model$list$cell_given" ] ||
+    refuse usage "--marks takes no --tier, --model, --list or --cell: it runs both tiers, and takes the token and the list of each from the table of hosts"
+  if [ -n "$standin" ]; then
+    [ -z "$passes" ] || refuse usage "--marks --standin takes no --passes: the control runs two passes"
+    passes=2
+  fi
+  case ${passes:=1} in
+    [123456789]) ;;
+    *) refuse usage "--passes takes 1 to 9" ;;
+  esac
+  tiers='frontier low_cost_hosted'
+else
+  [ -z "$passes" ] || refuse usage "--passes is taken with --marks alone"
+  case $tier in
+    low_cost_hosted | frontier) ;;
+    *) refuse usage "--tier takes low_cost_hosted or frontier" ;;
+  esac
+  tiers=$tier
+fi
 case $ceiling in
   '' | 0* | *[!0123456789]*) refuse usage "--ceiling takes 1 to 100000000 minor units" ;;
 esac
@@ -143,14 +217,26 @@ esac
 # form reads the source of the tier's rate in the tracked price file of this checkout, which the
 # door is built from, before anything else, and refuses while it is a fixture's.
 if [ -z "$standin" ]; then
-  source=$(awk -F '\t' -v t="$tier" '$1 == t { print $4 }' crates/halvo-route/data/prices.tsv) ||
-    refuse prices "crates/halvo-route/data/prices.tsv cannot be read"
-  case $source in
-    '') refuse prices "crates/halvo-route/data/prices.tsv has no rate for the tier $tier" ;;
-    fixture:*) refuse prices "the rate of the tier $tier in crates/halvo-route/data/prices.tsv has the source $source, a fixture's: the paid round starts only on the host's own rates with their date" ;;
-  esac
+  for t in $tiers; do
+    source=$(awk -F '\t' -v t="$t" '$1 == t { print $4 }' crates/halvo-route/data/prices.tsv) ||
+      refuse prices "crates/halvo-route/data/prices.tsv cannot be read"
+    case $source in
+      '') refuse prices "crates/halvo-route/data/prices.tsv has no rate for the tier $t" ;;
+      fixture:*) refuse prices "the rate of the tier $t in crates/halvo-route/data/prices.tsv has the source $source, a fixture's: the paid round starts only on the host's own rates with their date" ;;
+    esac
+  done
 fi
 
+system=$(uname -s) || refuse usage "uname -s failed"
+if [ -n "$marks" ]; then
+  [ -n "$port" ] || port=18471
+  if [ -z "$browser" ]; then
+    case $system in
+      Darwin) browser='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' ;;
+      MINGW* | MSYS* | CYGWIN*) browser='C:\Program Files\Google\Chrome\Application\chrome.exe' ;;
+    esac
+  fi
+fi
 case $port in
   '' | 0* | *[!0123456789]*) refuse port "--port takes a number from 1024 to 65535" ;;
 esac
@@ -179,7 +265,6 @@ for name in boundary.txt goal-bill.txt goal-order.txt goal-reply.txt; do
     refuse prompts "prompts/$name has no prompt line of docs/r3/trials/driver.md with its SHA-256 $hex"
 done
 
-system=$(uname -s) || refuse usage "uname -s failed"
 case $system in
   Darwin)
     exe=
@@ -195,6 +280,18 @@ case $system in
     ;;
 esac
 
+# The row of the table of hosts for the tier $1, as "origin model adapter", and its one check.
+row_of() {
+  fields=$(awk -F '\t' -v t="$1" '$1 == t { print $2, $3, $4; n++ } END { exit n != 1 }' crates/halvo-route/data/hosts.tsv) ||
+    refuse row "crates/halvo-route/data/hosts.tsv holds no one row for the tier $1"
+  origin=${fields%% *}
+  rest=${fields#* }
+  case $origin in
+    https://*) ;;
+    *) refuse row "the origin of the row is no https:// origin" ;;
+  esac
+}
+
 adapter=anthropic-messages-2026-10-21
 if [ -n "$standin" ]; then
   [ -z "$model$list$key_file" ] || refuse usage "--standin takes no --model, --list or --key-file"
@@ -208,23 +305,50 @@ if [ -n "$standin" ]; then
   row="host tier=$tier origin=$origin model=stand-in-model adapter=$adapter"
 else
   [ "$machine" = mac ] || refuse machine "the paid round is ONE round on one Mac, not on $machine"
-  case $model in
-    '' | none | synthetic | *[!abcdefghijklmnopqrstuvwxyz0123456789_]*) refuse usage "--model takes a model token" ;;
-  esac
+  if [ -z "$marks" ]; then
+    case $model in
+      '' | none | synthetic | *[!abcdefghijklmnopqrstuvwxyz0123456789_]*) refuse usage "--model takes a model token" ;;
+    esac
+  fi
   [ -n "$key_file" ] && [ -f "$key_file" ] || refuse usage "--key-file names no file"
-  [ -n "$list" ] && [ -f "$list" ] || refuse list "--list names no file"
-  fields=$(awk -F '\t' -v t="$tier" '$1 == t { print $2, $3, $4; n++ } END { exit n != 1 }' crates/halvo-route/data/hosts.tsv) ||
-    refuse row "crates/halvo-route/data/hosts.tsv holds no one row for the tier $tier"
-  origin=${fields%% *}
-  rest=${fields#* }
-  case $origin in
-    https://*) ;;
-    *) refuse row "the origin of the row is no https:// origin" ;;
-  esac
-  row="host tier=$tier origin=$origin model=${rest%% *} adapter=${rest#* }"
-  entries=$(awk '/^\[/ || /^#/ || /^[[:space:]]*$/ { next } { print; n++ } END { exit n != 1 }' "$list") ||
-    refuse list "$list holds no one entry"
-  [ "$entries" = "${origin#https://}:443" ] || refuse list "the one entry of $list is not ${origin#https://}:443"
+  if [ -z "$marks" ]; then
+    [ -n "$list" ] && [ -f "$list" ] || refuse list "--list names no file"
+    row_of "$tier"
+    row="host tier=$tier origin=$origin model=${rest%% *} adapter=${rest#* }"
+    entries=$(awk '/^\[/ || /^#/ || /^[[:space:]]*$/ { next } { print; n++ } END { exit n != 1 }' "$list") ||
+      refuse list "$list holds no one entry"
+    [ "$entries" = "${origin#https://}:443" ] || refuse list "the one entry of $list is not ${origin#https://}:443"
+  fi
+fi
+
+# The form with the runner's mask (r3 U0.10): for each tier its model token, its origin and the model
+# word of its row, joined by commas as r3-drive takes them; the lists are written behind the builds.
+if [ -n "$marks" ]; then
+  models=
+  origins=
+  words=
+  for t in $tiers; do
+    if [ -n "$standin" ]; then
+      token=standin_$t
+      origin=http://127.0.0.1:47201
+      word=stand-in-model
+    else
+      row_of "$t"
+      word=${rest%% *}
+      [ "${rest#* }" = "$adapter" ] || refuse row "the adapter of the row of the tier $t is not $adapter"
+      token=$(printf '%s' "$word" | tr '.-' '__')
+      case $token in
+        '' | none | synthetic | *[!abcdefghijklmnopqrstuvwxyz0123456789_]*) refuse row "the model word of the row of the tier $t gives no model token" ;;
+      esac
+    fi
+    models=${models:+$models,}$token
+    origins=${origins:+$origins,}$origin
+    words=${words:+$words,}$word
+  done
+  changed=$(git status --porcelain --untracked-files=no) || refuse tree "git status cannot read the checkout"
+  [ -z "$changed" ] || refuse tree "a tracked file of the checkout is changed: a round runs at a commit, which its first line names"
+  head=$(git rev-parse HEAD) || refuse tree "git rev-parse cannot read the head"
+  mask=$(sha_of crates/halvo-runner/src/model/snapshot.rs) || refuse tree "the mask's source file cannot be read"
 fi
 
 command -v node >/dev/null 2>&1 || refuse usage "node is not on the PATH"
@@ -235,6 +359,11 @@ if [ -n "$standin" ]; then
 fi
 
 notrun() {
+  if [ -n "$marks" ]; then
+    echo "notrun model=${models%%,*} machine=$machine task=bill seed=1 cause=$1"
+    [ -z "$standin" ] || echo "control mode=hosted-marks machine=$machine result=differs"
+    exit 1
+  fi
   echo "notrun model=$model machine=$machine task=bill seed=1 cause=$1"
   [ -z "$standin" ] || echo "control mode=hosted machine=$machine result=differs"
   exit 1
@@ -251,12 +380,33 @@ fi
 [ -x "$drive" ] && [ -x "$door" ] || notrun build
 
 dir=$(mktemp -d "${TMPDIR:-/tmp}/r3-hosted-round.XXXXXX") || notrun tmp
-set -- --round --repo "$root" --model "$model" --settings docs/r3/model-settings.toml \
-  --browser "$browser" --port "$port" --machine "$machine" --run-dir "$dir" --door "$door" \
-  --tier "$tier" --ceiling "$ceiling" --origin "$origin" --egress-list "$list"
+if [ -n "$marks" ]; then
+  # The list of each tier: the stand-in's is the tracked list of the loopback; the paid form's is the one
+  # entry host:443 of the tier's origin, written here in the form of that tracked list.
+  lists=
+  for t in $tiers; do
+    if [ -n "$standin" ]; then
+      one=scripts/egress/lists/loopback.txt
+    else
+      row_of "$t"
+      one=$dir/list-$t.txt
+      printf '[fixed]\n%s:443\n[agent]\n' "${origin#https://}" >"$one" || notrun tmp
+    fi
+    lists=${lists:+$lists,}$one
+  done
+  set -- --round --form marks --passes "$passes" --repo "$root" --model "$models" \
+    --settings docs/r3/model-settings.toml --browser "$browser" --port "$port" --machine "$machine" \
+    --run-dir "$dir" --door "$door" --tier "$(printf '%s' "$tiers" | tr ' ' ',')" --ceiling "$ceiling" \
+    --origin "$origins" --egress-list "$lists" --host-model "$words" --adapter "$adapter"
+else
+  set -- --round --repo "$root" --model "$model" --settings docs/r3/model-settings.toml \
+    --browser "$browser" --port "$port" --machine "$machine" --run-dir "$dir" --door "$door" \
+    --tier "$tier" --ceiling "$ceiling" --origin "$origin" --egress-list "$list"
+fi
+standin_key=u08-stand-in-key-made-up-not-a-host-key
 if [ -n "$standin" ]; then
   keys=$(mktemp -d "${TMPDIR:-/tmp}/r3-hosted-key.XXXXXX") || notrun tmp
-  printf '%s\n' u08-stand-in-key-made-up-not-a-host-key >"$keys/key.txt" || notrun tmp
+  printf '%s\n' "$standin_key" >"$keys/key.txt" || notrun tmp
   set -- "$@" --key-file "$keys/key.txt" --standin-host 47201
 else
   set -- "$@" --key-file "$key_file"
@@ -274,18 +424,99 @@ stop() {
 }
 trap stop INT TERM
 
-"$drive" "$@" >"$dir/lines.txt" &
+if [ -z "$marks" ]; then
+  "$drive" "$@" >"$dir/lines.txt" &
+  pid=$!
+  wait "$pid"
+  status=$?
+  pid=
+  cat "$dir/lines.txt"
+  echo "$row"
+  [ -n "$standin" ] || exit "$status"
+
+  echo "$row" >>"$dir/lines.txt"
+  sent=$(grep -c '^--- request ' "$dir/host-requests.txt" 2>/dev/null)
+  result=$(awk -v sent="${sent:-0}" '
+    function same(want, got,   w, g, n, m, i, a, b) {
+      n = split(want, w, " ")
+      m = split(got, g, " ")
+      if (n != m) return 0
+      for (i = 1; i <= n; i++) {
+        if (w[i] == g[i]) continue
+        split(w[i], a, "=")
+        split(g[i], b, "=")
+        if (a[2] == "*" && a[1] == b[1]) continue
+        return 0
+      }
+      return 1
+    }
+    FILENAME == ARGV[1] {
+      if ($1 == "line") { sub(/^line /, ""); want[++nw] = $0 }
+      next
+    }
+    /^(attempt|drive|reply|ends|notrun|spend|egress|host) / {
+      got[++ng] = $0
+      if ($1 == "spend") for (i = 2; i <= NF; i++) if ($i ~ /^requests=/) counted = substr($i, 10)
+    }
+    END {
+      if (nw != ng || counted != sent) bad++
+      for (i = 1; i <= nw && i <= ng; i++) if (!same(want[i], got[i])) bad++
+      print (bad ? "differs" : "as_expected")
+    }' tools/r3-trials/drive/control/hosted-expected.txt "$dir/lines.txt")
+  echo "control mode=hosted machine=$machine result=$result"
+  [ "$status" -eq 0 ] && [ "$result" = as_expected ] && exit 0
+  exit 1
+fi
+
+# The form with the runner's mask (r3 U0.10). lines.txt holds every line: the commit line, the lines of
+# r3-drive without its verdict line, the records line, and the verdict line last.
+"$drive" "$@" >"$dir/drive-lines.txt" &
 pid=$!
 wait "$pid"
 status=$?
 pid=
+: >>"$dir/door-requests.jsonl"
+: >>"$dir/door-answers.jsonl"
+requests=$(grep -c '' "$dir/door-requests.jsonl")
+answers=$(grep -c '' "$dir/door-answers.jsonl")
+requests_sha=$(sha_of "$dir/door-requests.jsonl") || notrun tmp
+answers_sha=$(sha_of "$dir/door-answers.jsonl") || notrun tmp
+{
+  echo "commit head=$head mask=$mask"
+  grep -v '^verdict ' "$dir/drive-lines.txt"
+  echo "records requests=$requests requests_sha256=$requests_sha answers=$answers answers_sha256=$answers_sha"
+  grep '^verdict ' "$dir/drive-lines.txt"
+} >"$dir/lines.txt"
 cat "$dir/lines.txt"
-echo "$row"
+# THE BLOCK, written in this one place, where the round gave a verdict line: the eight kinds of line of
+# lines.txt in its order, and no other line.
+block_kinds='commit attempt drive reply marks count records verdict'
+if grep -q '^verdict ' "$dir/lines.txt"; then
+  awk -v kinds="$block_kinds" '
+    BEGIN { n = split(kinds, k, " "); for (i = 1; i <= n; i++) kind[k[i]] = 1 }
+    ($1 in kind) { print }' "$dir/lines.txt" >"$dir/block.txt" || notrun tmp
+fi
 [ -n "$standin" ] || exit "$status"
 
-echo "$row" >>"$dir/lines.txt"
+# The control. The ceiling's stop, once: the cell bill:1 of the tier frontier again, under a ceiling of 1
+# minor unit, with a record of the scripted host of its own.
+mkdir "$dir/ceiling" || notrun tmp
+"$drive" --round --form marks --repo "$root" --model "${models%%,*}" \
+  --settings docs/r3/model-settings.toml --browser "$browser" --port "$port" --machine "$machine" \
+  --run-dir "$dir/ceiling" --door "$door" --tier frontier --ceiling 1 --origin "${origins%%,*}" \
+  --egress-list scripts/egress/lists/loopback.txt --host-model "${words%%,*}" --adapter "$adapter" \
+  --key-file "$keys/key.txt" --standin-host 47201 --cell bill:1 >"$dir/ceiling-lines.txt" &
+pid=$!
+wait "$pid"
+ceiling_status=$?
+pid=
+cat "$dir/ceiling-lines.txt"
+
+# The five readings. (1) The lines against the expected ones, and (2) the requests that the scripted host
+# received against the spend lines; the ceiling's cell must have sent none.
 sent=$(grep -c '^--- request ' "$dir/host-requests.txt" 2>/dev/null)
-result=$(awk -v sent="${sent:-0}" '
+past=$(grep -c '^--- request ' "$dir/ceiling/host-requests.txt" 2>/dev/null)
+result=$(cat "$dir/lines.txt" "$dir/ceiling-lines.txt" | awk -v sent="${sent:-0}" -v past="${past:-0}" '
   function same(want, got,   w, g, n, m, i, a, b) {
     n = split(want, w, " ")
     m = split(got, g, " ")
@@ -303,15 +534,63 @@ result=$(awk -v sent="${sent:-0}" '
     if ($1 == "line") { sub(/^line /, ""); want[++nw] = $0 }
     next
   }
-  /^(attempt|drive|reply|ends|notrun|spend|egress|host) / {
+  /^(commit|attempt|drive|reply|ends|marks|notrun|spend|egress|host|count|records|verdict) / {
     got[++ng] = $0
-    if ($1 == "spend") for (i = 2; i <= NF; i++) if ($i ~ /^requests=/) counted = substr($i, 10)
+    if ($1 == "spend") for (i = 2; i <= NF; i++) if ($i ~ /^requests=/) counted += substr($i, 10)
   }
   END {
-    if (nw != ng || counted != sent) bad++
+    if (nw != ng || counted != sent || past != 0) bad++
     for (i = 1; i <= nw && i <= ng; i++) if (!same(want[i], got[i])) bad++
     print (bad ? "differs" : "as_expected")
-  }' tools/r3-trials/drive/control/hosted-expected.txt "$dir/lines.txt")
-echo "control mode=hosted machine=$machine result=$result"
-[ "$status" -eq 0 ] && [ "$result" = as_expected ] && exit 0
+  }' tools/r3-trials/drive/control/hosted-marks-expected.txt -)
+# (3) The record of the scripted host: a mark in the requests of every cell, by the tool's own marks
+# lines and by the three marks in the record itself, and no text of a slot of the three seeds; the word
+# "Payment method" must be there, so that a record that was not read cannot pass.
+unmarked=$(grep -c -E '^marks .* (with_mark=0|slot_text=[1-9])' "$dir/lines.txt" 2>/dev/null)
+node -e '
+  const fs = require("fs");
+  for (const seed of [1, 2, 3]) {
+    const data = JSON.parse(fs.readFileSync(`tools/fixture-server/variants/data/seed-${seed}.json`, "utf8"));
+    for (const task of ["bill", "order", "reply"]) {
+      for (const slot of data.bindings[task].slots) {
+        for (const value of slot.value) console.log(slot.name === "start" ? `${value}:${process.argv[1]}` : value);
+      }
+    }
+  }' "$port" >"$dir/slot-texts.txt" || notrun tmp
+texts=$(grep -c '' "$dir/slot-texts.txt" 2>/dev/null)
+held=$(grep -c -F -f "$dir/slot-texts.txt" "$dir/host-requests.txt" 2>/dev/null)
+read_words=$(grep -c -F 'Payment method' "$dir/host-requests.txt" 2>/dev/null)
+marked=0
+for mark in '[slot instrument]' '[slot seller]' '[slot reply_senders]'; do
+  grep -q -F "$mark" "$dir/host-requests.txt" 2>/dev/null && marked=$((marked + 1))
+done
+# (4) The made-up key in no file of the run's directory, with the count of the files that were read.
+files=$(find "$dir/." -type f | grep -c '')
+keyed=$(grep -r -l -F "$standin_key" "$dir/." | grep -c '')
+# A count that could not be read reads as a fault: no number, no pass.
+unmarked=${unmarked:-1}
+texts=${texts:-0}
+held=${held:-1}
+read_words=${read_words:-0}
+files=${files:-0}
+keyed=${keyed:-1}
+# (5) The block: its eight kinds of line and no other, the commit line first, the verdict line last, and no
+# path in it.
+block=differs
+if [ -f "$dir/block.txt" ]; then
+  block=$(awk -v kinds="$block_kinds" '
+    BEGIN { n = split(kinds, k, " "); for (i = 1; i <= n; i++) kind[k[i]] = 1 }
+    !($1 in kind) || /[\/\\]/ { bad++ }
+    NR == 1 && $1 != "commit" { bad++ }
+    { last = $1 }
+    END { print (bad || last != "verdict" || NR == 0 ? "differs" : "as_expected") }' "$dir/block.txt")
+fi
+echo "control readings lines=$result sent=${sent:-0} past_the_ceiling=${past:-0} unmarked=$unmarked slot_texts=$texts held=$held read_words=$read_words marks=$marked files=$files keyed=$keyed block=$block"
+if [ "$result" != as_expected ] || [ "$unmarked" -ne 0 ] || [ "$texts" -eq 0 ] || [ "$held" -ne 0 ] ||
+  [ "$read_words" -eq 0 ] || [ "$marked" -ne 3 ] || [ "$files" -eq 0 ] || [ "$keyed" -ne 0 ] ||
+  [ "$block" != as_expected ] || [ "$status" -ne 0 ] || [ "$ceiling_status" -ne 1 ]; then
+  result=differs
+fi
+echo "control mode=hosted-marks machine=$machine result=$result"
+[ "$result" = as_expected ] && exit 0
 exit 1

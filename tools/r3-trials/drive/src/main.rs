@@ -17,7 +17,7 @@ use lines::{Cell, Kind, Run};
 
 const USAGE: &str = "r3-drive --repo DIR --model TOKEN --weights FILE --child FILE --settings FILE --task bill|order|reply --seed 1|2|3 --browser PATH --port N --machine NAME --run-dir DIR [--compile-variant NAME]";
 
-const ROUND_USAGE: &str = "r3-drive --round --repo DIR --model TOKEN --settings FILE --browser PATH --port N --machine NAME --run-dir DIR --door FILE --tier low_cost_hosted|frontier --ceiling MINOR --key-file FILE --origin ORIGIN [--egress-list FILE] [--standin-host PORT] [--cell TASK:SEED]";
+const ROUND_USAGE: &str = "r3-drive --round --repo DIR --model TOKEN --settings FILE --browser PATH --port N --machine NAME --run-dir DIR --door FILE --tier low_cost_hosted|frontier --ceiling MINOR --key-file FILE --origin ORIGIN [--egress-list FILE] [--standin-host PORT] [--cell TASK:SEED] [--form marks --host-model WORD --adapter WORD [--passes N], with one value for each tier, joined by commas, in --tier, --model, --origin, --egress-list and --host-model]";
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Args {
@@ -35,6 +35,10 @@ struct Args {
     /// A variant of the fixture for the compile run alone, which only the control passes (ruling
     /// CP-179, the Addition on H9 (c)); a cell of the trial passes none.
     compile_variant: Option<String>,
+    /// The pass of the round in which a cell of the form with the runner's mask runs (r3 U0.10), which no
+    /// argument sets: none in every other form. With it a cell runs no recovery, its compile and its write
+    /// are numbered by the pass, and its three replays go on from the pass before.
+    attempt: Option<u32>,
 }
 
 fn parse(argv: &[String]) -> Result<Args, String> {
@@ -228,15 +232,20 @@ async fn cell(
     };
     let result: Result<(), End> = async {
         if args.task == "reply" {
-            before(Kind::Write, 1);
-            let (run, bodies) = drive::write(&ctx).await?;
+            before(Kind::Write, args.attempt.unwrap_or(1));
+            let (mut run, bodies) = drive::write(&ctx).await?;
+            run.i = args.attempt.unwrap_or(run.i);
             out(&lines::attempt(&cell, &run));
-            out(&lines::reply(&cell, bodies, &run));
+            out(&match args.attempt {
+                Some(pass) => lines::reply_marks(&cell, bodies, &run, pass),
+                None => lines::reply(&cell, bodies, &run),
+            });
             return Ok(());
         }
         let mut runs: Vec<Run> = Vec::new();
-        before(Kind::Compile, 1);
-        let (compiled, mut steps) = drive::compile(&ctx).await?;
+        before(Kind::Compile, args.attempt.unwrap_or(1));
+        let (mut compiled, mut steps) = drive::compile(&ctx).await?;
+        compiled.i = args.attempt.unwrap_or(compiled.i);
         out(&lines::attempt(&cell, &compiled));
         runs.push(compiled);
         let playbook: Vec<String> = steps.iter().map(|s| s.to_json(&args.task)).collect();
@@ -255,22 +264,33 @@ async fn cell(
                 }
             }
         }
-        for (kind, i) in [
-            (Kind::Replay, 1),
-            (Kind::Replay, 2),
-            (Kind::Replay, 3),
-            (Kind::Recover, 1),
-        ] {
-            let run = if parses {
-                before(kind, i);
+        // r3 U0.10: a cell of the form with the runner's mask runs no recovery, and the replays of its pass
+        // are numbered behind those of the pass before, three a pass.
+        let kinds: &[(Kind, u32)] = match args.attempt {
+            Some(_) => &[(Kind::Replay, 1), (Kind::Replay, 2), (Kind::Replay, 3)],
+            None => &[
+                (Kind::Replay, 1),
+                (Kind::Replay, 2),
+                (Kind::Replay, 3),
+                (Kind::Recover, 1),
+            ],
+        };
+        for (kind, i) in kinds.iter().copied() {
+            let numbered = args.attempt.map_or(i, |pass| 3 * (pass - 1) + i);
+            let mut run = if parses {
+                before(kind, numbered);
                 drive::replay(&ctx, &steps, kind, i).await?
             } else {
                 Run::missed(kind, i)
             };
+            run.i = numbered;
             out(&lines::attempt(&cell, &run));
             runs.push(run);
         }
-        out(&lines::drive(&cell, &runs));
+        out(&match args.attempt {
+            Some(pass) => lines::drive_marks(&cell, &runs, pass),
+            None => lines::drive(&cell, &runs),
+        });
         Ok(())
     }
     .await;
@@ -361,6 +381,7 @@ fn ctx_of(args: &Args, inputs: Inputs, model: model::Spec, stop: Stop) -> Ctx {
         trace: std::sync::Mutex::new(inputs.trace),
         began: std::time::Instant::now(),
         clock: Box::new(drive::SystemClock),
+        marks: None,
     }
 }
 
@@ -380,7 +401,7 @@ const CELLS: [(&str, u8); 9] = [
 /// The hosted round (unit U0.8): every cell of A13.6 in one process, with the door `halvo-model` as
 /// the child, the key read once, and one count whose cap is the ceiling. `--cell <task>:<seed>`
 /// (r3 U0.8b) makes it a round of that one cell, under the same count and the same bound.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct Round {
     repo: PathBuf,
     model: String,
@@ -397,13 +418,27 @@ struct Round {
     egress_list: Option<PathBuf>,
     standin_host: Option<u16>,
     cells: Vec<(&'static str, u8)>,
+    /// The form with the runner's mask (r3 U0.10, `--form marks`): every tier of `tiers` in order under the
+    /// ONE count, each with its model token, its origin, its list and the model word of its row of the table
+    /// of hosts, and `passes` passes over the cells. In every other form each list holds one value, which is
+    /// `tier`, `model`, `origin` and `egress_list` above.
+    marks: bool,
+    passes: u32,
+    tiers: Vec<String>,
+    models: Vec<String>,
+    origins: Vec<String>,
+    egress_lists: Vec<PathBuf>,
+    host_models: Vec<String>,
+    adapter: String,
 }
 
 fn parse_round(argv: &[String]) -> Result<Round, String> {
     let mut r = Round {
         cells: CELLS.to_vec(),
+        passes: 1,
         ..Round::default()
     };
+    let list = |value: &str| -> Vec<String> { value.split(',').map(str::to_owned).collect() };
     let mut seen: Vec<&str> = Vec::new();
     let mut it = argv.iter();
     while let Some(flag) = it.next() {
@@ -415,8 +450,13 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
         let port = |v: &str| v.parse::<u16>().ok().filter(|p| *p >= 1024);
         match flag.as_str() {
             "--repo" => r.repo = PathBuf::from(value),
-            "--model" if action::is_name(value) && value != "none" && value != "synthetic" => {
-                r.model = value.clone()
+            "--model"
+                if value
+                    .split(',')
+                    .all(|m| action::is_name(m) && m != "none" && m != "synthetic") =>
+            {
+                r.models = list(value);
+                r.model = r.models[0].clone();
             }
             "--settings" => r.settings = PathBuf::from(value),
             "--browser" => r.browser = PathBuf::from(value),
@@ -424,8 +464,13 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
             "--machine" if action::is_name(&value.replace('-', "_")) => r.machine = value.clone(),
             "--run-dir" => r.run_dir = PathBuf::from(value),
             "--door" => r.door = PathBuf::from(value),
-            "--tier" if matches!(value.as_str(), "low_cost_hosted" | "frontier") => {
-                r.tier = value.clone()
+            "--tier"
+                if value
+                    .split(',')
+                    .all(|t| matches!(t, "low_cost_hosted" | "frontier")) =>
+            {
+                r.tiers = list(value);
+                r.tier = r.tiers[0].clone();
             }
             "--ceiling" => {
                 r.ceiling = value
@@ -436,11 +481,27 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
             }
             "--key-file" => r.key_file = PathBuf::from(value),
             "--origin"
-                if value.starts_with("https://") || value.starts_with("http://127.0.0.1:") =>
+                if value
+                    .split(',')
+                    .all(|o| o.starts_with("https://") || o.starts_with("http://127.0.0.1:")) =>
             {
-                r.origin = value.clone()
+                r.origins = list(value);
+                r.origin = r.origins[0].clone();
             }
-            "--egress-list" => r.egress_list = Some(PathBuf::from(value)),
+            "--egress-list" => {
+                r.egress_lists = value.split(',').map(PathBuf::from).collect();
+                r.egress_list = r.egress_lists.first().cloned();
+            }
+            "--form" if value == "marks" => r.marks = true,
+            "--passes" => {
+                r.passes = value
+                    .parse()
+                    .ok()
+                    .filter(|n| (1..=9).contains(n) && !value.starts_with('0'))
+                    .ok_or("--passes takes 1 to 9")?
+            }
+            "--host-model" => r.host_models = list(value),
+            "--adapter" => r.adapter = value.clone(),
             "--standin-host" => {
                 r.standin_host = Some(port(value).ok_or("--standin-host takes 1024 to 65535")?)
             }
@@ -450,7 +511,7 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
                     .find(|(task, seed)| format!("{task}:{seed}") == *value)
                     .ok_or("--cell takes bill:1 to reply:3")?]
             }
-            "--model" | "--machine" | "--tier" | "--origin" => {
+            "--model" | "--machine" | "--tier" | "--origin" | "--form" => {
                 return Err(format!("{flag} takes no {value}"))
             }
             other => return Err(format!("unknown argument {other}")),
@@ -472,6 +533,29 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
     ];
     if let Some(missing) = wanted.iter().find(|w| !seen.contains(w)) {
         return Err(format!("{missing} is missing"));
+    }
+    let tiers = r.tiers.len();
+    if r.marks {
+        let twice = (0..tiers).any(|n| r.tiers[..n].contains(&r.tiers[n]));
+        let lists = r.egress_lists.is_empty() || r.egress_lists.len() == tiers;
+        if twice
+            || r.models.len() != tiers
+            || r.origins.len() != tiers
+            || r.host_models.len() != tiers
+            || !lists
+            || r.adapter.is_empty()
+        {
+            return Err("--form marks takes each tier once, and a model, an origin and a --host-model for each tier, a list for each or none, and --adapter".to_owned());
+        }
+    } else if tiers != 1
+        || r.models.len() != 1
+        || r.origins.len() != 1
+        || r.egress_lists.len() > 1
+        || ["--passes", "--host-model", "--adapter"]
+            .iter()
+            .any(|flag| seen.contains(flag))
+    {
+        return Err("more than one tier, model, origin or list, --passes, --host-model and --adapter are taken with --form marks alone".to_owned());
     }
     Ok(r)
 }
@@ -583,6 +667,7 @@ async fn round(
             machine: r.machine.clone(),
             run_dir: dir.clone(),
             compile_variant: None,
+            attempt: None,
         };
         let cell_lines = Cell {
             model: &r.model,
@@ -611,6 +696,7 @@ async fn round(
                 spend: spend.clone(),
                 dir: r.repo.clone(),
                 starts: starts.clone(),
+                records: None,
             }),
         };
         let mut ctx = ctx_of(&args, inputs, spec, stop.clone());
@@ -657,6 +743,182 @@ async fn round(
     stopped
 }
 
+/// The round of the form with the runner's mask (r3 U0.10): every tier of `r.tiers` in order under the ONE
+/// count `spend`, each tier `r.passes` passes over the cells, each cell with the runner's own mask on every
+/// request (`drive::Marks`), no recovery, and its requests and answers kept whole in the round's directory
+/// (`model::Records`). Behind each cell's lines it writes the `ends` line and the `marks` line; behind each
+/// tier's cells the `spend` line, with a list the `egress` line, the `host` line and, where the round runs
+/// every cell, the `count` line; and last, where the tier frontier ran every cell with no `notrun` line and
+/// its egress lines are as many as its door's starts, the `verdict` line. It stops at the first cell that
+/// prints `notrun` and gives that line's cause. Every door starts through `door_command`, as in `round`.
+async fn marks_round(
+    r: &Round,
+    key: model::Key,
+    spend: std::sync::Arc<std::sync::Mutex<model::Spend>>,
+    stop: Stop,
+    out: &dyn Fn(&str),
+    loopback: Option<u16>,
+) -> Option<&'static str> {
+    let passes = u64::from(r.passes);
+    let replies = r.cells.iter().filter(|(task, _)| *task == "reply").count() as u64;
+    let drives = r.cells.len() as u64 - replies;
+    let of = lines::Of {
+        drive: drives * passes,
+        reply: replies * passes,
+        cells: (drives + replies) * passes,
+    };
+    // A compile asks at most `CALLS_MAX` times and a write asks for two bodies.
+    let bound = of.drive * drive::CALLS_MAX as u64 + of.reply * 2;
+    let whole = r.cells.len() == CELLS.len();
+    let mut stopped = None;
+    let mut frontier: Option<(String, lines::Counted)> = None;
+    for (n, tier) in r.tiers.iter().enumerate() {
+        let of_tier = Round {
+            tier: tier.clone(),
+            model: r.models[n].clone(),
+            origin: r.origins[n].clone(),
+            egress_list: r.egress_lists.get(n).cloned(),
+            ..r.clone()
+        };
+        let Ok(priced) = halvo_route::tier::Tier::parse(tier) else {
+            stopped = Some("usage");
+            break;
+        };
+        if let Ok(mut s) = spend.lock() {
+            s.turn_to(priced, bound);
+        }
+        let (program, door_args) = door_command(&of_tier, loopback);
+        let starts = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let mut dirs: Vec<PathBuf> = Vec::new();
+        let said = std::cell::RefCell::new(Vec::<String>::new());
+        let say = |line: &str| {
+            said.borrow_mut().push(line.to_owned());
+            out(line);
+        };
+        'cells: for pass in 1..=r.passes {
+            for (task, seed) in &r.cells {
+                let dir = r
+                    .run_dir
+                    .join(format!("{tier}-pass-{pass}-{task}-seed-{seed}"));
+                let args = Args {
+                    repo: r.repo.clone(),
+                    model: of_tier.model.clone(),
+                    weights: PathBuf::new(),
+                    child: r.door.clone(),
+                    settings: r.settings.clone(),
+                    task: task.to_string(),
+                    seed: *seed,
+                    browser: r.browser.clone(),
+                    port: r.port,
+                    machine: r.machine.clone(),
+                    run_dir: dir.clone(),
+                    compile_variant: None,
+                    attempt: Some(pass),
+                };
+                let cell_lines = Cell {
+                    model: &of_tier.model,
+                    machine: &r.machine,
+                    task,
+                    seed: *seed,
+                };
+                let made = std::fs::create_dir(&dir)
+                    .map_err(|_| "the cell's directory cannot be made")
+                    .and_then(|()| inputs(&args));
+                let inputs = match made {
+                    Ok(i) => i,
+                    Err(e) => {
+                        eprintln!("{e}");
+                        say(&lines::notrun(&cell_lines, "usage"));
+                        stopped = Some("usage");
+                        break 'cells;
+                    }
+                };
+                let spec = model::Spec {
+                    program: program.clone(),
+                    args: door_args.clone(),
+                    stderr: dir.join("model-stderr.txt"),
+                    hosted: Some(model::Hosted {
+                        key: key.clone(),
+                        spend: spend.clone(),
+                        dir: r.repo.clone(),
+                        starts: starts.clone(),
+                        records: Some(model::Records {
+                            dir: r.run_dir.clone(),
+                            cell: format!(
+                                "tier={tier} model={} task={task} seed={seed} attempt={pass}",
+                                of_tier.model
+                            ),
+                        }),
+                    }),
+                };
+                let marked = std::sync::Arc::new(std::sync::Mutex::new(lines::Marked::default()));
+                let mut ctx = ctx_of(&args, inputs, spec, stop.clone());
+                ctx.reply_tokens = None;
+                let marks = drive::Marks::of(&ctx.data["bindings"][*task], r.port, marked.clone());
+                ctx.marks = Some(marks);
+                let before = spend.lock().map(|s| s.ends()).unwrap_or_default();
+                let began = std::time::Instant::now();
+                let cause = cell(args, ctx, &say, None).await;
+                eprintln!(
+                    "round cell task={task} seed={seed} ms={} tier={tier} pass={pass}",
+                    began.elapsed().as_millis()
+                );
+                let after = spend.lock().map(|s| s.ends()).unwrap_or_default();
+                say(&lines::ends(
+                    &cell_lines,
+                    after[0].saturating_sub(before[0]),
+                    after[1].saturating_sub(before[1]),
+                ));
+                let held = marked.lock().map(|m| *m).unwrap_or_default();
+                say(&lines::marks(&cell_lines, pass, &held));
+                dirs.push(dir);
+                if cause.is_some() {
+                    stopped = cause;
+                    break 'cells;
+                }
+            }
+        }
+        if let Ok(s) = spend.lock() {
+            say(&s.line());
+            let _ = std::fs::write(r.run_dir.join("count.txt"), s.row());
+            if !s.within() {
+                eprintln!("the count's sum is above the ceiling");
+            }
+        }
+        let mut sound = stopped.is_none();
+        if let Some(list) = &of_tier.egress_list {
+            let started = starts.load(std::sync::atomic::Ordering::SeqCst);
+            let (line, agree) = egress_line(list, &of_tier.origin, started, &dirs);
+            say(&line);
+            if !agree {
+                eprintln!(
+                    "the egress check's lines are not as many as the door's {started} starts: the round gives no verdict"
+                );
+                stopped = stopped.or(Some("egress"));
+                sound = false;
+            }
+        }
+        say(&format!(
+            "host tier={tier} origin={} model={} adapter={}",
+            of_tier.origin, r.host_models[n], r.adapter
+        ));
+        if whole {
+            let counted = lines::counted(&said.borrow());
+            say(&lines::count(tier, &of_tier.model, &counted, &of));
+            if tier == "frontier" && sound {
+                frontier = Some((of_tier.model.clone(), counted));
+            }
+        }
+        if stopped.is_some() {
+            break;
+        }
+    }
+    if let Some((model, counted)) = &frontier {
+        out(&lines::verdict(model, counted, &of));
+    }
+    stopped
+}
+
 fn round_main(argv: &[String]) -> ExitCode {
     let r = match parse_round(argv) {
         Ok(r) => r,
@@ -697,7 +959,11 @@ fn round_main(argv: &[String]) -> ExitCode {
                 match host::Host::start(
                     port,
                     Some(r.run_dir.join("host-requests.txt")),
-                    host::Walk::Ends,
+                    if r.marks {
+                        host::Walk::Marks
+                    } else {
+                        host::Walk::Ends
+                    },
                 ) {
                     Ok(h) => Some(h),
                     Err(e) => {
@@ -709,7 +975,12 @@ fn round_main(argv: &[String]) -> ExitCode {
             None => None,
         };
         let loopback = host.as_ref().map(host::Host::port);
-        match round(&r, key, spend, stop, &out, loopback, None).await {
+        let stopped = if r.marks {
+            marks_round(&r, key, spend, stop, &out, loopback).await
+        } else {
+            round(&r, key, spend, stop, &out, loopback, None).await
+        };
+        match stopped {
             None => ExitCode::SUCCESS,
             Some(_) => ExitCode::from(1),
         }
@@ -968,6 +1239,7 @@ mod tests {
             egress_list: None,
             standin_host: None,
             cells: cells.to_vec(),
+            ..Round::default()
         }
     }
 
@@ -1458,6 +1730,224 @@ mod tests {
             ),
             (None, true, true, true, 0, true, Vec::<&PathBuf>::new()),
             "lines: {lines:?}"
+        );
+    }
+
+    /// Runs a round of the form with the runner's mask against `host` and gives its lines and the cause of
+    /// its `notrun` line.
+    fn run_marks(
+        r: &Round,
+        key: model::Key,
+        host: &host::Host,
+    ) -> (Vec<String>, Option<&'static str>) {
+        let tier = halvo_route::tier::Tier::parse(&r.tiers[0]).expect("a tier");
+        let spend = model::Spend::new(tier, r.ceiling).expect("a count");
+        let spend = std::sync::Arc::new(std::sync::Mutex::new(spend));
+        let lines = std::cell::RefCell::new(Vec::new());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        let (_keep, rx) = tokio::sync::watch::channel(false);
+        let cause = rt.block_on(marks_round(
+            r,
+            key,
+            spend,
+            Stop(rx),
+            &|l: &str| lines.borrow_mut().push(l.to_string()),
+            Some(host.port()),
+        ));
+        (lines.into_inner(), cause)
+    }
+
+    /// The value of `key` on a line of the round.
+    fn word<'a>(line: &'a str, key: &str) -> &'a str {
+        line.split(' ')
+            .find_map(|w| w.strip_prefix(key)?.strip_prefix('='))
+            .unwrap_or("")
+    }
+
+    /// r3 U0.10: a round of the form with the runner's mask, two tiers and one pass over the cells `bill` 1,
+    /// `order` 1 and `reply` 1 and 2, against the scripted host on the port of the tracked list of the
+    /// loopback, each door started under the egress check with that list, as `door_command` starts it. Read
+    /// at the host and in the round's own files: the check's lines are as many as the door's starts, with
+    /// nothing denied; every cell's requests hold a mark, and the three marks of the tasks reached the
+    /// host; no request that the host received holds the text of a slot of a cell (each value of the
+    /// fixture's bindings, the start address with the port); the made-up key stands in no line and in no
+    /// file of the round, the two kept records among them, while the host did get it in a head; the kept
+    /// requests and the kept answers are as many as the requests that the host received; and the reply cell
+    /// whose first body holds a mark's head counts one body of two.
+    #[test]
+    #[ignore = "a whole hosted round against the scripted host, with a browser, node and the door; run by its check 65-drive-hosted"]
+    fn a_round_with_the_mask_sends_no_slot_text_and_no_key() {
+        let key = "u010-test-key-made-up-not-a-host-key";
+        let b = bench("marks");
+        let read = model::Key::of(key.as_bytes()).expect("a key");
+        let host = host::Host::start(47201, None, host::Walk::Marks).expect("the scripted host");
+        let cells = [("bill", 1), ("order", 1), ("reply", 1), ("reply", 2)];
+        let list = PathBuf::from("scripts/egress/lists/loopback.txt");
+        let port = 18497;
+        let origin = "http://127.0.0.1:47201".to_string();
+        let r = Round {
+            marks: true,
+            passes: 1,
+            egress_lists: vec![list.clone(), list],
+            tiers: vec!["frontier".into(), "low_cost_hosted".into()],
+            models: vec!["standin_frontier".into(), "standin_low_cost_hosted".into()],
+            origins: vec![origin.clone(), origin],
+            host_models: vec!["stand-in-model".into(), "stand-in-model".into()],
+            adapter: "anthropic-messages-2026-10-21".into(),
+            ..round_of(&b, port, &cells)
+        };
+        let (lines, cause) = run_marks(&r, read, &host);
+        let mut texts: Vec<String> = Vec::new();
+        for (task, seed) in cells {
+            let seed_file = b.repo.join(format!(
+                "tools/fixture-server/variants/data/seed-{seed}.json"
+            ));
+            let data: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(seed_file).expect("a seed file"))
+                    .expect("a seed");
+            for slot in data["bindings"][task]["slots"].as_array().expect("slots") {
+                for value in slot["value"].as_array().expect("values") {
+                    let value = value.as_str().expect("a text");
+                    texts.push(if slot["name"] == "start" {
+                        format!("{value}:{port}")
+                    } else {
+                        value.to_owned()
+                    });
+                }
+            }
+        }
+        let received = host.received();
+        let bodies: Vec<String> = received
+            .iter()
+            .map(|q| String::from_utf8_lossy(&q.body).into_owned())
+            .collect();
+        let holding_a_text: Vec<&String> = texts
+            .iter()
+            .filter(|t| bodies.iter().any(|body| body.contains(t.as_str())))
+            .collect();
+        let marks_at_the_host: Vec<bool> = ["[slot instrument]", "[slot seller]", "[slot reply_senders]"]
+            .iter()
+            .map(|mark| bodies.iter().any(|body| body.contains(mark)))
+            .collect();
+        let marks: Vec<&String> = lines.iter().filter(|l| l.starts_with("marks ")).collect();
+        let unmarked: Vec<&&String> = marks
+            .iter()
+            .filter(|l| word(l, "with_mark") == "0" || word(l, "slot_text") != "0")
+            .collect();
+        let handed: u64 = marks
+            .iter()
+            .map(|l| word(l, "requests").parse::<u64>().expect("a count"))
+            .sum();
+        let kept = |name: &str| {
+            std::fs::read_to_string(b.dir.join(name))
+                .unwrap_or_default()
+                .lines()
+                .count() as u64
+        };
+        let sent_with_the_key = received
+            .iter()
+            .filter(|q| q.head.contains(&format!("x-api-key: {key}")))
+            .count();
+        let mut all = Vec::new();
+        files(&b.dir, &mut all);
+        let holding_the_key: Vec<&PathBuf> = all
+            .iter()
+            .filter(|p| {
+                std::fs::read(p)
+                    .unwrap_or_default()
+                    .windows(key.len())
+                    .any(|w| w == key.as_bytes())
+            })
+            .collect();
+        let second_reply: Vec<(&str, &str)> = lines
+            .iter()
+            .filter(|l| l.starts_with("reply model=standin_frontier ") && word(l, "seed") == "2")
+            .map(|l| (word(l, "attempt"), word(l, "bodies")))
+            .collect();
+        let egress: Vec<(&str, &str, &str)> = lines
+            .iter()
+            .filter(|l| l.starts_with("egress "))
+            .map(|l| (word(l, "starts"), word(l, "runs"), word(l, "denied")))
+            .collect();
+        println!(
+            "marks: {} cells, {handed} requests handed, {} received, {} texts searched, {} files read",
+            marks.len(),
+            received.len(),
+            texts.len(),
+            all.len()
+        );
+        assert_eq!(
+            (
+                cause,
+                marks.len(),
+                unmarked,
+                holding_a_text,
+                marks_at_the_host,
+                (handed, kept(model::REQUESTS), kept(model::ANSWERS), kept(model::ASKS)),
+                sent_with_the_key as u64,
+                lines.iter().filter(|l| l.contains(key)).count(),
+                holding_the_key,
+                second_reply,
+                egress,
+            ),
+            (
+                None,
+                8,
+                Vec::<&&String>::new(),
+                Vec::<&String>::new(),
+                vec![true, true, true],
+                (
+                    received.len() as u64,
+                    received.len() as u64,
+                    received.len() as u64,
+                    received.len() as u64
+                ),
+                received.len() as u64,
+                0,
+                Vec::<&PathBuf>::new(),
+                vec![("1", "1")],
+                vec![("4", "4", "0"), ("4", "4", "0")],
+            ),
+            "lines: {lines:?}"
+        );
+    }
+
+    /// r3 U0.10: the crate of the forms brings the runner's own file in and defines no mask of its own:
+    /// its lib holds one module, whose one attribute of a path names the runner's snapshot.rs, that file
+    /// stands, and no maker, no mark and no pass of the mask is defined in the lib itself.
+    #[test]
+    fn the_forms_are_the_runners_own_file() {
+        let lib = include_str!("../../forms/src/lib.rs");
+        let runners = "../../../../crates/halvo-runner/src/model/snapshot.rs";
+        let attribute = format!("#[{} = \"{runners}\"]", "path");
+        let attributes: Vec<&str> = lib
+            .lines()
+            .map(str::trim)
+            .filter(|l| l.starts_with(&format!("#[{}", "path")))
+            .collect();
+        let modules: Vec<&str> = lib
+            .lines()
+            .map(str::trim)
+            .filter(|l| l.starts_with("mod ") || l.starts_with("pub mod "))
+            .collect();
+        let own: Vec<&str> = ["struct Snapshot", "fn mask(", "fn forms(", "fn cleaned(", "MARK_HEAD"]
+            .into_iter()
+            .filter(|word| lib.contains(word))
+            .collect();
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../forms/src")
+            .join(runners);
+        assert_eq!(
+            (attributes, modules, own, file.is_file()),
+            (
+                vec![attribute.as_str()],
+                vec!["mod snapshot;"],
+                Vec::<&str>::new(),
+                true
+            )
         );
     }
 
