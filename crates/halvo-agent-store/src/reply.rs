@@ -1,11 +1,14 @@
 use std::collections::BTreeMap;
 
 use halvo_schema::executable::body::{
-    ListReplies, ListRepliesReply, ListedReply, LoadReplies, LoadRepliesReply, PutReplyRow, Stored,
-    CHECKPOINTS_REPLY_MAX,
+    KeptReply, ListReplies, ListRepliesReply, ListedReply, LoadReplies, LoadRepliesReply,
+    LoadReplyBody, PutReplyRow, Stored, CHECKPOINTS_REPLY_MAX,
 };
 use halvo_schema::executable::names::{EffectState, ReplyState};
-use halvo_schema::executable::{AgentReply, CoordinatorReply, ProviderId, RunId, RunnerReply};
+use halvo_schema::executable::text::V1;
+use halvo_schema::executable::{
+    AgentReply, AgentReplyBody, CoordinatorReply, ProviderId, RunId, RunnerReply,
+};
 use halvo_schema::{AgentId, ErrorName, TypedRecord};
 
 use crate::errors::{refused, Own};
@@ -49,8 +52,52 @@ pub(crate) fn put(
     if row.state == ReplyState::Begun && others(&all, &b.agent, &row.message) == Some(Held::Sent) {
         return Err(Own::Effect.into());
     }
-    day::commit(host, now, vec![record(rows::AGENT_REPLY, row.to_json())?])?;
+    let mut records = vec![record(rows::AGENT_REPLY, row.to_json())?];
+    if let (Some(body), Some(draft)) = (&b.body, &row.draft) {
+        let kept = AgentReplyBody {
+            v: V1,
+            workflow: row.workflow.clone(),
+            agent: row.agent.clone(),
+            run: row.run.clone(),
+            day: day::of(&*host, now),
+            at: now.at,
+            message: row.message.clone(),
+            draft: draft.clone(),
+            body: body.clone(),
+        };
+        records.push(record(rows::AGENT_REPLY_BODY, kept.to_json())?);
+    }
+    day::commit(host, now, records)?;
     Ok(stored())
+}
+
+/// The reply of `load_reply_body` (r3 U7.9): the kept text of the body's draft of its message, only while the body's
+/// agent's own newest row of the message is `drafted` with that draft, a draft that waits; null where it is not, and
+/// where no row of `agent_reply_body` of the agent, the message and the draft stands. The order of A7.4 gives a draft
+/// one first `drafted` row, so one such row at most.
+pub(crate) fn load_body(
+    host: &dyn Host,
+    now: Now,
+    b: &LoadReplyBody,
+) -> Result<RunnerReply, ErrorName> {
+    bind::runner_agent(host, &b.agent)?;
+    bind::own_run(host, now, &b.run, &b.agent)?;
+    bind::open_run(host, &b.run)?;
+    let all = rows::replies(host.rows())?;
+    let waits = of_message(&all, &b.agent, &b.message)
+        .last()
+        .is_some_and(|newest| {
+            newest.state == ReplyState::Drafted && newest.draft.as_ref() == Some(&b.draft)
+        });
+    let kept = if waits {
+        rows::reply_bodies(host.rows())?
+            .into_iter()
+            .find(|k| k.agent == b.agent && k.message == b.message && k.draft == b.draft)
+            .map(|k| k.body)
+    } else {
+        None
+    };
+    Ok(RunnerReply::Kept(KeptReply { kept }))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

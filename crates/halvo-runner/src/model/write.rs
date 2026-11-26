@@ -12,8 +12,10 @@
 //! key, no door); the person's cap (`over_cap`) and an agreement taken back at the hold (`no_agreement`) end the
 //! writer for the rest of the step; a refusal of the door, a cut that leaves no body, a body over the bound and a body
 //! that holds a mark give the const text for that message. A message whose own newest row is `drafted` with its
-//! draft, a draft of an earlier run that waits, gets no second body: no request, the const text. A missing key
-//! (`no_model_key`) and every other end of `ask` end the run as `ask` says, before any draft.
+//! draft, a draft of an earlier run that waits, is not asked of the writer: the draft step gives it the text that the
+//! store keeps for that draft, with the source `model`, or the const text where none is kept, and makes no request
+//! (crate::connect, r3 U7.9). A missing key (`no_model_key`) and every other end of `ask` end the run as `ask` says,
+//! before any draft.
 
 use halvo_connect::Message;
 use halvo_schema::executable::body::LoadReply;
@@ -48,8 +50,9 @@ pub(crate) const LINE_MAX: usize = 131_072;
 
 /// The most bytes of the JSON text of a body's value, its pieces of `OwnValue` as a list: ten such bodies, each
 /// beside a `to` of its most 320 bytes at six bytes of JSON a byte and a subject of at most 1,000 bytes, fit the one
-/// confirmation frame of a send step (`FRAME_JSON_MAX`, 65,536 bytes).
-pub(crate) const BODY_JSON_MAX: usize = 3_072;
+/// confirmation frame of a send step (`FRAME_JSON_MAX`, 65,536 bytes). It is the store's bound of a kept text
+/// (`REPLY_BODY_JSON_MAX`, r3 U7.9), so that the store keeps every body that the writer gives.
+pub(crate) const BODY_JSON_MAX: usize = halvo_schema::executable::record::REPLY_BODY_JSON_MAX;
 
 /// The body of a reply and its source: `model` for the writer model's text, `const` for the const text of A11.4.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -130,16 +133,16 @@ fn fitted(mut request: ModelRequest, level: Level) -> ModelRequest {
 }
 
 impl Runner {
-    /// The body of the reply to `message` of a run whose load is `loaded`, by the rules of this module; `waits` where
-    /// the message's own newest row is `drafted` with its draft.
+    /// The body of the reply to `message` of a run whose load is `loaded`, by the rules of this module, for a message
+    /// whose own newest row is not `drafted` with its draft (r3 U7.9: the draft step asks no body for a draft that
+    /// waits).
     pub(crate) fn reply_body(
         &mut self,
         writer: &mut Writer,
         loaded: &LoadReply,
         message: &Message,
-        waits: bool,
     ) -> Result<Body, Stop> {
-        if waits || writer.ended {
+        if writer.ended {
             return Ok(Body::constant());
         }
         let Ok(picked) = route::picked(loaded, Call::Write) else {

@@ -26,8 +26,10 @@ pub const ERROR_NAMES: &[&str] = &[
 /// The kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin capture
 /// `agent_config`, kept, and `agent_run`, bounded at 93 days; of origin own `agent_playbook` and `agent_bindings`,
 /// kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days, `agent_checkpoint`,
-/// bounded at 93 days, `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`, and
-/// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent, and
+/// bounded at 93 days, `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`,
+/// `agent_reply_body`, bounded at 35 days, the text of a reply that a writer model wrote, as cut, for the draft of one
+/// message, which the handler of `reply_row` stores in the commit of the first `drafted` row of that draft (r3 U7.9),
+/// and `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent, and
 /// `agent_finished`, kept, one row for each playbook number that a compile finished (CP-182), and `agent_agreement`,
 /// kept, at most one row for an agent: the person's yes for that agent to a hosted model, with the ceiling tier under
 /// `tier`, under `hosts` triples of a hosted tier, an origin and a model word, among them one of the ceiling, none of
@@ -259,6 +261,25 @@ pub const KINDS: &[KindEntry] = &[
             ("state", FieldType::Name),
         ],
         example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":1,"day":20768,"at":1794339000000000003,"message":"msg-utility-0001","draft":"draft-utility-0001","effect":null,"state":"drafted"}"#,
+    },
+    KindEntry {
+        name: "agent_reply_body",
+        class: RetentionClass::Bounded { days: 35 },
+        origin: Origin::Own,
+        family: "agent",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("agent", FieldType::Id),
+            ("run", FieldType::Id),
+            ("day", FieldType::Day),
+            ("at", FieldType::Instant),
+            ("message", FieldType::OwnText),
+            ("draft", FieldType::OwnText),
+            ("body", FieldType::OwnText),
+        ],
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","day":20768,"at":1794339000000000003,"message":"msg-utility-0001","draft":"draft-utility-0001","body":["Thank you, the bill is paid."]}"#,
     },
     KindEntry {
         name: "agent_start",

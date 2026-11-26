@@ -116,7 +116,9 @@ use crate::{bind, checkpoint, count, day, effect, end, reply};
 ///   `begun` with its draft and effect only when that effect's newest row of the row's run is `not_made`, which the
 ///   runner alone writes; nothing follows `committed`, `unknown` or `withheld`. Then
 ///   `effect` for a `begun` row while another agent's newest row of the message is `begun`, `committed` or
-///   `unknown`, by the same function that gives the list `blocked` of `load_replies`. It stores the row. A named
+///   `unknown`, by the same function that gives the list `blocked` of `load_replies`. It stores the row, and, where
+///   the body carries `body` beside a `drafted` row with no effect, in the same commit a row of `agent_reply_body`
+///   with that text, the row's ids, message and draft, and the request's day and instant (r3 U7.9). A named
 ///   limit: a clock set back more than two days past the day of a run's end record leaves that record out of the
 ///   read, so a `begun` row of the ended run is stored and stays `begun` (CP-227).
 /// - `load_replies`: for each id asked, in the order asked, the newest row of the body's agent; in `blocked` each
@@ -124,6 +126,10 @@ use crate::{bind, checkpoint, count, day, effect, end, reply};
 ///   in `blocked_withheld` each other id for which another agent's newest row is `withheld`; no row and no key of
 ///   another agent. `internal` for a reply that does not answer the body or that its writer refuses, so that no
 ///   reply holds fewer rows than the store has for the ids asked.
+/// - `load_reply_body` (r3 U7.9): `{"kept":<the text>}` where the body's agent's own newest row of the message is
+///   `drafted` with the body's draft and a row of `agent_reply_body` of the agent, the message and that draft
+///   stands; else `{"kept":null}`, also once the reply has moved on (`begun`, `committed`, `unknown`, `lost`,
+///   `withheld`), whose row then stays in the store until its 35 days have passed. No text of another agent.
 /// - `model_hold` and `model_settle` (r7 8.1L; the coordinator's log lines 16775, 17277 and 17330) answer no record:
 ///   they hold and settle the cost of one model request against the person's count, ONE row of the kind
 ///   `model_count` for all agents together, which they replace by the host's removal call of a person's kind in one
@@ -158,6 +164,7 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::DropSession(b) => drop_session(host, now, &b),
         RunnerCall::ModelHold(b) => count::hold(host, now, &b),
         RunnerCall::ModelSettle(b) => count::settle(host, now, &b),
+        RunnerCall::LoadReplyBody(b) => reply::load_body(&*host, now, &b),
     }
 }
 

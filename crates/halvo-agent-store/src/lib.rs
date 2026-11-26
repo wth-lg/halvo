@@ -26,6 +26,8 @@ mod agreement_tests;
 mod answers_tests;
 #[cfg(test)]
 mod page_end_tests;
+#[cfg(test)]
+mod reply_tests;
 
 pub use coordinator::{coordinator, GOES_ON_AFTER};
 pub use effect::allowed_not_done;

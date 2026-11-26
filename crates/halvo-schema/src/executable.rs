@@ -31,7 +31,8 @@ pub use names::{
 };
 pub use record::{
     AgentAgreement, AgentBindings, AgentCheckpoint, AgentEffect, AgentFinished, AgentLog,
-    AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, Hosted, ModelCount, ModelKey,
+    AgentPlaybook, AgentReply, AgentReplyBody, AgentRun, AgentSession, AgentStart, Hosted,
+    ModelCount, ModelKey,
 };
 pub use senders::{is_sender, reply_senders, same_address, Senders, SendersError};
 pub use step::{ExecutableStep, Playbook};
@@ -61,6 +62,7 @@ record::run_list! { names_with_run_list
     "agent_session",
     "agent_checkpoint",
     "agent_reply",
+    "agent_reply_body",
     "agent_start",
     "agent_finished",
     "agent_agreement",
@@ -378,4 +380,6 @@ record::run_list! { names_with_run_list
     "new_model_count",
     "sheet_answers",
     "source",
+    "load_reply_body",
+    "body",
 }
