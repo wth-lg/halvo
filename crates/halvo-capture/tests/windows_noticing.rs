@@ -3,11 +3,11 @@
 
 //! The walk of the check 59-windows-noticing (scripts/r1/ci.d/59-windows-noticing.sh): the
 //! windows and the input of one run that shows the noticing of a repeated task on a hosted
-//! Windows machine. The check copies this test's executable to `EXCEL.EXE` and to
-//! `noticing-pass.exe` and starts both by name from its own shell; the program under the file
-//! name `EXCEL.EXE` is the check's own and not Microsoft Excel.
+//! Windows machine. The check copies this test's executable to `EXCEL.EXE`, to
+//! `noticing-pass.exe` and to `noticing-watch.exe` and starts each by name from its own shell;
+//! the program under the file name `EXCEL.EXE` is the check's own and not Microsoft Excel.
 //!
-//! The one test has two roles, by the switch `HALVO_NOTICING_ROLE`:
+//! The one test has three roles, by the switch `HALVO_NOTICING_ROLE`:
 //!
 //! - `workbook` shows the window `Budget.xlsx - Excel` and a second window `Notes`, serves its
 //!   messages for the whole run and takes one step at a time from the check: the check writes
@@ -20,12 +20,18 @@
 //!   check tells a title record of that window from one of the workbook's by its bytes, and
 //!   hands the front back to the workbook's window right behind the message that activated it,
 //!   before it serves another message.
+//! - `watcher` shows no window, makes no input and never asks for the front. The check starts
+//!   it before the app, and it writes one line into `watch.lines` of the directory for each
+//!   window that took the front and for each window of the app that it first sees visible, with
+//!   the milliseconds since the app's start; the check prints the lines.
 //!
 //! No click of the walk lands outside its own two windows: before each click it reads the
 //! top-level window under its click point.
 
 use std::collections::hash_map::RandomState;
+use std::collections::HashSet;
 use std::hash::{BuildHasher, Hasher};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -53,11 +59,11 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GetAncestor, GetClassNameW,
-    GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsWindow, IsWindowVisible,
-    PeekMessageW, RegisterClassW, SetCursorPos, SetForegroundWindow, SetWindowPos, ShowWindow,
-    TranslateMessage, WindowFromPoint, EVENT_SYSTEM_FOREGROUND, GA_ROOT, HWND_TOPMOST, MSG,
-    PM_REMOVE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_SHOWNOACTIVATE, WINEVENT_OUTOFCONTEXT,
-    WM_ACTIVATE, WNDCLASSW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW,
+    GetForegroundWindow, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, IsWindow,
+    IsWindowVisible, PeekMessageW, RegisterClassW, SetCursorPos, SetForegroundWindow, SetWindowPos,
+    ShowWindow, TranslateMessage, WindowFromPoint, EVENT_SYSTEM_FOREGROUND, GA_ROOT, HWND_TOPMOST,
+    MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_SHOWNOACTIVATE,
+    WINEVENT_OUTOFCONTEXT, WM_ACTIVATE, WNDCLASSW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW,
 };
 
 #[link(name = "kernel32")]
@@ -87,7 +93,7 @@ const CLICKS: u32 = 12;
 /// How long Halvo's own window stays in front at the return `own`.
 const OWN_STAY: Duration = Duration::from_millis(3_000);
 
-/// The longest life of either role, under the limit of the check's script.
+/// The longest life of a role, under the limit of the check's script.
 const WALK_LIMIT: Duration = Duration::from_secs(1_750);
 
 /// One foreground event as Windows raised it: the window, the event's time in the
@@ -100,11 +106,20 @@ struct Seen {
     file: String,
 }
 
+/// The bytes that the capture service's inventory counts for a title record beside the path of
+/// the window's program and the title, each as a JSON string holds it: the record's other
+/// signs with a sequence number of one digit and the reason `app_change`, and the line's end.
+const TITLE_RECORD_BESIDE: usize = 163;
+
 /// Set by the window procedure at the message that activates a window of this process.
 static ACTIVATED: AtomicBool = AtomicBool::new(false);
 
 /// The foreground events since the last step's end.
 static SEEN: Mutex<Vec<Seen>> = Mutex::new(Vec::new());
+
+/// The foreground events that the watcher has not written yet: the event's time in the
+/// milliseconds of the tick count, and the words of its line.
+static LISTED: Mutex<Vec<(u32, String)>> = Mutex::new(Vec::new());
 
 #[test]
 #[ignore = "check 59-windows-noticing runs it by name on a hosted Windows runner: it shows windows and makes pointer input"]
@@ -120,7 +135,8 @@ fn the_walk_takes_its_steps_from_the_check() {
     match role.as_str() {
         "workbook" => workbook(&dir, &switch(DATA_DIR_SWITCH)),
         "passer" => passer(&dir),
-        other => panic!("{ROLE_SWITCH} is {other}, neither workbook nor passer"),
+        "watcher" => watcher(&dir),
+        other => panic!("{ROLE_SWITCH} is {other}, none of workbook, passer and watcher"),
     }
 }
 
@@ -161,6 +177,21 @@ unsafe extern "system" fn on_foreground(
     };
     if let Ok(mut all) = SEEN.lock() {
         all.push(seen);
+    }
+}
+
+unsafe extern "system" fn on_foreground_listed(
+    _hook: HWINEVENTHOOK,
+    _event: u32,
+    hwnd: HWND,
+    _id_object: i32,
+    _id_child: i32,
+    _thread: u32,
+    time: u32,
+) {
+    let words = format!("at=front {}", listed(hwnd));
+    if let Ok(mut all) = LISTED.lock() {
+        all.push((time, words));
     }
 }
 
@@ -289,6 +320,12 @@ fn class_of(window: HWND) -> String {
 
 /// The file name of the program that owns `window`, or `-` where it cannot be read.
 fn file_of(window: HWND) -> String {
+    let path = path_of(window);
+    word(path.rsplit(['\\', '/']).next().unwrap_or(""))
+}
+
+/// The path of the file of the program that owns `window`, or nothing where it cannot be read.
+fn path_of(window: HWND) -> String {
     let mut pid = 0u32;
     // SAFETY: `pid` is a live u32 that the call writes the process id into.
     unsafe {
@@ -296,7 +333,7 @@ fn file_of(window: HWND) -> String {
     }
     // SAFETY: OpenProcess takes plain values; the handle is closed once below.
     let Ok(handle) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }) else {
-        return "-".to_string();
+        return String::new();
     };
     let mut buf = [0u16; 1024];
     let mut len = buf.len() as u32;
@@ -315,10 +352,64 @@ fn file_of(window: HWND) -> String {
         let _ = CloseHandle(handle);
     }
     if read.is_err() {
-        return "-".to_string();
+        return String::new();
     }
-    let path = String::from_utf16_lossy(&buf[..(len as usize).min(buf.len())]);
-    word(path.rsplit(['\\', '/']).next().unwrap_or(""))
+    String::from_utf16_lossy(&buf[..(len as usize).min(buf.len())])
+}
+
+/// The title of `window` as the system holds it: its first 511 units.
+fn title_of(window: HWND) -> String {
+    let mut buf = [0u16; 512];
+    // SAFETY: `buf` is a live buffer whose length the call takes.
+    let len = unsafe { GetWindowTextW(window, &mut buf) };
+    String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
+}
+
+/// The bytes that `text` takes inside a JSON string of the capture service's record.
+fn json_len(text: &str) -> usize {
+    text.chars()
+        .map(|c| match c {
+            '"' | '\\' | '\u{8}' | '\u{c}' | '\n' | '\r' | '\t' => 2,
+            c if u32::from(c) < 0x20 => 6,
+            c => c.len_utf8(),
+        })
+        .sum()
+}
+
+/// The words of one line of the watcher for `window`, read now: the file name of its program,
+/// its class, whether it is visible, its size, its handle, the bytes of a title record of it
+/// by `TITLE_RECORD_BESIDE`, and its title whole, with a space in the place of a control sign;
+/// the title stands last because it may hold spaces.
+fn listed(window: HWND) -> String {
+    let path = path_of(window);
+    let title = title_of(window);
+    let record = if path.is_empty() {
+        "-".to_string()
+    } else {
+        (TITLE_RECORD_BESIDE + json_len(&path) + json_len(&title)).to_string()
+    };
+    let (width, height) = rect_of(window).map_or((0, 0), |rect| {
+        (rect.right - rect.left, rect.bottom - rect.top)
+    });
+    // SAFETY: IsWindowVisible reads a handle value.
+    let visible = unsafe { IsWindowVisible(window) }.as_bool();
+    let shown: String = title
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    format!(
+        "file={} class={} visible={} size={width}x{height} window={:#x} record={record} title={shown}",
+        word(path.rsplit(['\\', '/']).next().unwrap_or("")),
+        class_of(window),
+        yes_no(visible),
+        window.0 as usize
+    )
+}
+
+/// The time of the system in the milliseconds of the tick count, as it stamps its events.
+fn now_tick() -> u32 {
+    // SAFETY: GetTickCount takes no argument and returns a value.
+    unsafe { GetTickCount() }
 }
 
 fn rect_of(window: HWND) -> Option<RECT> {
@@ -889,5 +980,97 @@ fn passer(dir: &Path) {
             }
             std::thread::sleep(Duration::from_millis(1));
         }
+    }
+}
+
+/// The role `watcher`. It installs the hook that the workbook installs and serves its own
+/// messages; it makes no window and no input and never asks for the front. Into `watch.lines`
+/// it writes one line for the window in front at its start, for each window for which the
+/// system raised a foreground event, for each window of the app when it first sees it visible,
+/// and for the window in front when it sees each of the check's marks `app.go`, `baseline.go`
+/// and `title-end.go`. A line holds the milliseconds since it saw `app.go`, which the check
+/// writes right behind the app's start, and `-` where it never saw that mark. It looks for the
+/// marks every 10 ms and at the app's windows every 50 ms.
+fn watcher(dir: &Path) {
+    // SAFETY: SetWinEventHook takes the event range, no module and a callback with the
+    // WINEVENTPROC signature; out-of-context hooks need no module.
+    let hook = unsafe {
+        SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND,
+            EVENT_SYSTEM_FOREGROUND,
+            None,
+            Some(on_foreground_listed),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT,
+        )
+    };
+    assert!(
+        !hook.is_invalid(),
+        "SetWinEventHook: {}",
+        windows::core::Error::from_thread()
+    );
+    let mut out = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("watch.lines"))
+        .expect("the watcher's list can be opened");
+    println!(
+        "walk: role=watcher, a third program of the check; it shows no window and lists the windows that take the front"
+    );
+    let mut waiting = vec![(now_tick(), format!("at=watch-start {}", listed(front())))];
+    let mut base: Option<u32> = None;
+    let mut marks = vec!["baseline", "title-end"];
+    let mut visible: HashSet<usize> = HashSet::new();
+    let mut looked: Option<Instant> = None;
+    write_whole(&dir.join("watch.ready"), "ready\n");
+    let began = Instant::now();
+    while began.elapsed() < WALK_LIMIT && !dir.join("end.go").exists() {
+        pump(Duration::from_millis(10));
+        if let Ok(mut all) = LISTED.lock() {
+            waiting.append(&mut all);
+        }
+        let tick = now_tick();
+        if base.is_none() && dir.join("app.go").exists() {
+            base = Some(tick);
+            waiting.push((tick, format!("at=app-start {}", listed(front()))));
+        }
+        marks.retain(|mark| {
+            if !dir.join(format!("{mark}.go")).exists() {
+                return true;
+            }
+            waiting.push((tick, format!("at={mark} {}", listed(front()))));
+            false
+        });
+        if looked.is_none_or(|at| at.elapsed() >= Duration::from_millis(50)) {
+            looked = Some(Instant::now());
+            for window in top_windows() {
+                // SAFETY: IsWindowVisible reads a handle value.
+                if !unsafe { IsWindowVisible(window) }.as_bool() {
+                    continue;
+                }
+                if visible.insert(window.0 as usize)
+                    && file_of(window).eq_ignore_ascii_case(APP_FILE)
+                {
+                    waiting.push((tick, format!("at=shown {}", listed(window))));
+                }
+            }
+        }
+        if let Some(base) = base {
+            for (at, words) in waiting.drain(..) {
+                let line = format!("watch: ms={} {words}", at.wrapping_sub(base) as i32);
+                println!("{line}");
+                let _ = writeln!(out, "{line}");
+            }
+        }
+    }
+    for (_, words) in waiting.drain(..) {
+        let line = format!("watch: ms=- {words}");
+        println!("{line}");
+        let _ = writeln!(out, "{line}");
+    }
+    // SAFETY: `hook` is the valid handle that this thread installed above.
+    unsafe {
+        let _ = UnhookWinEvent(hook);
     }
 }

@@ -23,11 +23,14 @@ step_s=40
 row_s=40
 poll_s=2
 tries=3
+watch_s=20
+watch_wait_s=2
 # The carriage return that ends a line of a program of Windows; measure reads it.
 cr=
 
 # The run's state first, the FAIL line last: the driver reads the last line as the verdict.
 fail() {
+  show_watch end
   show_state
   end_all
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -60,7 +63,7 @@ show_state() {
   done <"$work/ctl-status.txt"
   [ -n "${artifacts:-}" ] || return 0
   cp "$work/daemon.err.txt" "$work/ctl-status.txt" "$artifacts/" || printf 'noticing: the state files could not be saved among the artifacts\n'
-  for file in walk.out passer.out app.err; do
+  for file in walk.out passer.out watch.out app.err; do
     [ ! -f "$work/$file" ] || mask <"$work/$file" >"$artifacts/$file.txt"
   done
 }
@@ -124,7 +127,7 @@ walk_do() {
 }
 
 show_walk() {
-  for file in walk.out passer.out app.err; do
+  for file in walk.out passer.out watch.out app.err; do
     [ -f "$work/$file" ] || continue
     tail -n 20 "$work/$file" | LC_ALL=C tr -c '[:print:]\n' '?' | sed "s/^/noticing $file: /"
   done
@@ -142,13 +145,82 @@ start_walk() {
     "$work/$1" --ignored --exact --nocapture "$walk_test" >"$work/$3" 2>&1 &
 }
 
+# Starts the third program of the check, which shows no window, makes no input and lists the
+# windows that take the front, and waits until it stands, watch_s at most: its list begins
+# before the app starts.
+start_watch() {
+  start_walk noticing-watch.exe watcher watch.out
+  started=yes
+  watch_waited=0
+  while [ ! -f "$steps/watch.ready" ]; do
+    if [ "$watch_waited" -ge "$watch_s" ]; then
+      show_walk
+      fail "occasion 0, stage service: the third program of the check, which lists the windows in front, was not ready within $watch_s s"
+    fi
+    pause 1
+    watch_waited=$((watch_waited + 1))
+  done
+}
+
+# Writes the mark $1 for the third program of the check, which lists the window in front when
+# it sees the mark.
+watch_mark() {
+  printf '' >"$steps/$1.go" || fail "occasion $occasion, stage $stage: the mark $1 cannot be written"
+}
+
+# Prints the lines of the list that the third program of the check writes, each line once. The
+# call title stands at the end of the stage title of occasion 1: it waits, watch_wait_s at most,
+# for the line of the mark title-end and prints the lines up to it. The call end stands at the
+# run's end and before a FAIL line: it prints the lines that no call has printed.
+show_watch() {
+  [ -n "${steps:-}" ] || return 0
+  [ -f "$steps/watch.lines" ] || return 0
+  watch_waited=0
+  while :; do
+    watch_total=0
+    watch_end=0
+    while IFS= read -r line; do
+      watch_total=$((watch_total + 1))
+      case $line in
+        *' at=title-end '*) [ "$watch_end" -ne 0 ] || watch_end=$watch_total ;;
+      esac
+    done <"$steps/watch.lines"
+    [ "$1" = title ] || break
+    [ "$watch_end" -eq 0 ] || break
+    [ "$watch_waited" -lt "$watch_wait_s" ] || break
+    pause 1
+    watch_waited=$((watch_waited + 1))
+  done
+  if [ "$1" = title ]; then
+    watch_titled=yes
+    watch_words='to the end of the stage title of occasion 1'
+    if [ "$watch_end" -eq 0 ]; then
+      watch_end=$watch_total
+      watch_words="$watch_words, whose mark the list did not hold within $watch_wait_s s"
+    fi
+  else
+    watch_end=$watch_total
+    watch_words='behind the stage title of occasion 1'
+    [ "$watch_titled" = yes ] || watch_words='to the failure'
+  fi
+  printf 'watch: the list %s, %s lines:\n' "$watch_words" "$((watch_end - watch_shown))"
+  watch_n=0
+  while IFS= read -r line; do
+    watch_n=$((watch_n + 1))
+    [ "$watch_n" -gt "$watch_shown" ] || continue
+    [ "$watch_n" -le "$watch_end" ] || break
+    printf '%s\n' "${line%"$cr"}"
+  done <"$steps/watch.lines"
+  watch_shown=$watch_end
+}
+
 # Every program of the run that the machine holds, one line each: the name, the process id, the
 # id of its parent and its command line.
 list_processes() {
   script=$work/list.ps1
   [ -f "$script" ] || cat >"$script" <<'EOF' || return 1
 $ErrorActionPreference = "Stop"
-$names = "halvo.exe", "halvo-capture.exe", "halvo-owner.exe", "halvo-analysis.exe", "EXCEL.EXE", "noticing-pass.exe"
+$names = "halvo.exe", "halvo-capture.exe", "halvo-owner.exe", "halvo-analysis.exe", "EXCEL.EXE", "noticing-pass.exe", "noticing-watch.exe"
 $found = Get-CimInstance -ClassName Win32_Process | Where-Object { $names -contains $_.Name }
 foreach ($p in $found) {
   [Console]::Out.WriteLine(("{0} {1} {2} {3} {4}" -f $p.Name, $p.ProcessId, $p.ParentProcessId, $p.ExecutablePath, $p.CommandLine))
@@ -163,9 +235,9 @@ end_process() {
   taskkill //F //PID "$1" >/dev/null 2>&1
 }
 
-# Ends what the run started: the walk and its second copy by their end file, the service by ctl
-# stop, then every program whose line holds the name of the run's directory, and each child of
-# one of those.
+# Ends what the run started: the walk and its two other copies by their end file, the service by
+# ctl stop, then every program whose line holds the name of the run's directory, and each child
+# of one of those.
 end_all() {
   [ -n "${started:-}" ] || return 0
   started=
@@ -678,6 +750,8 @@ cases() {
   c_titles=0
   c_fa=0
   c_tbytes=0
+  watch_shown=0
+  watch_titled=no
   for program in halvo halvo-capture halvo-owner halvo-analysis; do
     [ -f "$bin/$program$suffix" ] || fail "occasion 0, stage service: no $program$suffix in $bin"
   done
@@ -694,11 +768,13 @@ cases() {
   token=${work##*/}
   printf 'walked: a program of the check under the file name EXCEL.EXE, not Microsoft Excel\n'
   trap end_all EXIT
+  start_watch
   now
   mark=$stamp
   lap_mark=$stamp
   walk_began=$stamp
   start_app
+  watch_mark app
   waited=0
   while :; do
     read_status
@@ -732,6 +808,7 @@ cases() {
   occasion=1
   stage=title
   form=new-title
+  watch_mark baseline
   read_counts
   o_pointer=$c_pointer
   o_titles=$c_titles
@@ -740,6 +817,7 @@ cases() {
   walk_do front "$step_s"
   need_own
   wait_count titles $((o_titles + 1)) "$title_s"
+  watch_mark title-end
   if [ "$met" = no ]; then
     read_status
     field front "$walk_line"
@@ -747,6 +825,7 @@ cases() {
   fi
   book_bytes=$(((c_tbytes - o_bytes) / (c_titles - o_titles)))
   stage_ok "title occasion=1 ok window_title=+$((c_titles - o_titles)) foreground_app=+$((c_fa - o_fa)) pointer=+$((c_pointer - o_pointer)) title_bytes=+$((c_tbytes - o_bytes))"
+  show_watch title
   clicks_stage
   t_hold=$c_titles
   f_hold=$c_fa
@@ -857,6 +936,7 @@ cases() {
   lap row
   printf 'orders: O4=not-met O5=not-met\n'
   printf 'seconds:%s walk=%s\n' "$laps" "$((stamp - walk_began))"
+  show_watch end
   show_state
   end_all
 }
@@ -963,6 +1043,7 @@ measure() {
   [ -f "$exe" ] || fail "the test executable that cargo named does not exist"
   cp "$exe" "$work/EXCEL.EXE" || fail "the walk's program cannot be copied to EXCEL.EXE"
   cp "$exe" "$work/noticing-pass.exe" || fail "the walk's program cannot be copied to noticing-pass.exe"
+  cp "$exe" "$work/noticing-watch.exe" || fail "the walk's program cannot be copied to noticing-watch.exe"
   first_programs "$work/build.json" "$work/first-programs.txt"
   now
   test_built=$stamp
@@ -1001,6 +1082,8 @@ fixture() {
   early_s=30
   step_s=5
   row_s=5
+  watch_s=4
+  watch_wait_s=2
   w_clock=1000
   w_idle=40
   w_pointer=0
@@ -1037,8 +1120,20 @@ fixture() {
   start_app() {
     : >"$err"
   }
+  # The world's third program stands at once, and its list is whole from the start, with one
+  # line behind the mark title-end. In the mode the-watcher-is-not-ready it never stands.
   start_walk() {
-    :
+    [ "$2" = watcher ] || return 0
+    [ "$mode" != the-watcher-is-not-ready ] || return 0
+    printf 'ready\n' >"$steps/watch.ready"
+    {
+      printf 'watch: ms=-40 at=watch-start file=explorer.exe class=Progman visible=yes size=1024x768 window=0x10010 record=203 title=Program Manager\n'
+      printf 'watch: ms=0 at=app-start file=explorer.exe class=Progman visible=yes size=1024x768 window=0x10010 record=203 title=Program Manager\n'
+      printf 'watch: ms=5200 at=baseline file=explorer.exe class=Progman visible=yes size=1024x768 window=0x10010 record=203 title=Program Manager\n'
+      printf 'watch: ms=6100 at=front file=EXCEL.EXE class=HalvoNoticingWorkbook visible=yes size=420x240 window=0x30044 record=311 title=Budget.xlsx - Excel\n'
+      printf 'watch: ms=9000 at=title-end file=EXCEL.EXE class=HalvoNoticingWorkbook visible=yes size=420x240 window=0x30044 record=311 title=Budget.xlsx - Excel\n'
+      printf 'watch: ms=31000 at=shown file=halvo.exe class=Tauri_Window visible=yes size=620x720 window=0x50112 record=213 title=Halvo\n'
+    } >"$steps/watch.lines"
   }
   end_all() {
     :
@@ -1236,16 +1331,23 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
 
 # Runs the case $1 on the stand-ins and holds its verdict against $2, PASS or FAIL. A FAIL must
 # hold the text $3 in its last line, and the text $4 there too where the case gives one; a PASS
-# must hold $3 in any line.
+# must hold $3 in any line. Where the case gives a text $5, some line must hold it.
 run_case() {
   sh "$self" --fixture "$1" "$work/$1" >"$work/$1.out" 2>&1
   code=$?
   last=
   holds=no
+  listed=${5:-}
+  [ -n "$listed" ] || listed_holds=yes
+  [ -z "$listed" ] || listed_holds=no
   while IFS= read -r line; do
     last=$line
     case $line in
       *"$3"*) [ "$2" = FAIL ] || holds=yes ;;
+    esac
+    [ -n "$listed" ] || continue
+    case $line in
+      *"$listed"*) listed_holds=yes ;;
     esac
   done <"$work/$1.out"
   case $code:$last in
@@ -1262,6 +1364,7 @@ run_case() {
       *) holds=no ;;
     esac
   fi
+  [ "$listed_holds" = yes ] || holds=no
   [ "$holds" = yes ] || got=$got-without-the-text
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
   if [ "$got" != "$2" ]; then
@@ -1283,9 +1386,14 @@ self_test() {
   run_case green PASS 'stage row occasion=3 ok state=running proposals=1 stored=1 category=spreadsheet_fill count=3 by_hand=no'
   run_case two-titles-at-each-return PASS 'stage return-short occasion=2 ok foreground_app=+2 window_title=+2 title_bytes=+120, the titles are the workbook'"'"'s, wanted +2 and +1 or +2;'
   run_case second-pair-comes-late PASS 'second worker occasion=3: 1 batch lines behind the own one, 1 commit lines behind its commit, waited 2 s'
+  # The list of the check's third program: its lines to the end of the stage title of occasion 1
+  # come there, the later ones at the run's end, and all that stand where a run fails before.
+  run_case the-fronts-are-listed PASS 'watch: the list to the end of the stage title of occasion 1, 5 lines:' '' 'watch: ms=6100 at=front file=EXCEL.EXE class=HalvoNoticingWorkbook visible=yes size=420x240 window=0x30044 record=311 title=Budget.xlsx - Excel'
+  run_case the-later-fronts-are-listed PASS 'watch: the list behind the stage title of occasion 1, 1 lines:' '' 'watch: ms=31000 at=shown file=halvo.exe class=Tauri_Window visible=yes size=620x720 window=0x50112 record=213 title=Halvo'
+  run_case the-watcher-is-not-ready FAIL '(occasion 0, stage service: the third program of the check, which lists the windows in front, was not ready within 4 s)'
   run_case service-no-fresh-lease FAIL '(occasion 0, stage service: within 4 s ctl status read desired=running capture=running capture_reason=- lease=none'
   run_case service-no-window-of-the-app FAIL '(occasion 0, stage service: no window of the app'
-  run_case no-title-count FAIL '(occasion 1, stage title: window_title=+0 within 4 s behind the click into the window; pointer=+1 foreground_app=+1; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at='
+  run_case no-title-count FAIL '(occasion 1, stage title: window_title=+0 within 4 s behind the click into the window; pointer=+1 foreground_app=+1; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at=' '' 'watch: the list to the failure, 6 lines:'
   run_case eleven-clicks FAIL '(occasion 1, stage clicks: pointer=+11 of 12 within 4 s; events_pending=0 events_lost=0 title_read_errors=0 last_flush_at='
   run_case no-batch-line FAIL '(occasion 1, stage search: no batch line within 80 s of the last input; walk idle_ms=250000;'
   run_case episodes-zero-at-occasion-one FAIL '(occasion 1, stage episode: form=new-title batch end=newest records=15 episodes=0, wanted end=newest episodes=1 records>=13'
