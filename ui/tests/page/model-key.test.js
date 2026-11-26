@@ -74,13 +74,36 @@ test("the_section_shows_only_at_a_host_with_its_texts_behind_the_agents", async 
   assert.equal(page.byId("model-key-label").htmlFor, "model-key-field");
   assert.equal(
     page.text("model-key-text"),
-    `Paste the key from your account at ${HOST}. Halvo keeps it on this computer, protected in the same way as your recordings, and sends it to ${HOST} alone.`,
+    `Paste the key from your account at ${HOST}. Halvo keeps it on this computer, protected in the same way as your recordings, and sends it nowhere but ${HOST}.`,
   );
   assert.equal(page.visible("model-key-field"), true);
   assert.equal(page.text("model-key-save"), "Save the key");
   assert.equal(page.visible("model-key-state"), true);
   const sections = page.document.querySelectorAll("section").map((s) => s.id);
   assert.equal(sections[sections.indexOf("agents-section") + 1], "model-key-section");
+});
+
+/** r4 U3.34, S1 as the coordinator ruled it (log line 23311): while the reply of model_key_state names a host and says
+ * hands_back true, the first line of the part says that no agent of this version asks an AI model, in each state of the
+ * key; where the field is false or missing it shows nothing, and at no host the section with it is hidden. */
+test("u334_the_part_says_first_that_no_agent_asks_a_model_while_every_row_hands_back", async () => {
+  const said = `No agent of this version of Halvo asks an AI model, so a key that you save here is used by nothing, Halvo sends nothing to ${HOST}, and nothing is spent.`;
+  for (const state of ["saved", "none", "not_known"]) {
+    const page = await openPage({ replies: { model_key_state: () => ({ host: HOST, state, hands_back: true }) } });
+    assert.equal(page.visible("model-key-no-agent"), true, state);
+    assert.equal(page.text("model-key-no-agent"), said, state);
+    assert.equal(page.byId("model-key-no-agent").parentNode.children[0].id, "model-key-no-agent", `${state}: first in the part`);
+    assert.equal(page.text("model-key-state"), STATE[state], state);
+  }
+  for (const reply of [{ hands_back: false }, {}]) {
+    const page = await openPage({ replies: { model_key_state: () => ({ host: HOST, state: "saved", ...reply }) } });
+    assert.equal(page.visible("model-key-section"), true, JSON.stringify(reply));
+    assert.equal(page.visible("model-key-no-agent"), false, JSON.stringify(reply));
+    assert.equal(page.text("model-key-no-agent"), "", JSON.stringify(reply));
+  }
+  const none = await openPage({ replies: { model_key_state: () => ({ host: null, hands_back: true }) } });
+  assert.equal(none.visible("model-key-section"), false);
+  assert.equal(none.visible("model-key-no-agent"), false);
 });
 
 test("the_key_field_is_a_password_field", async () => {
