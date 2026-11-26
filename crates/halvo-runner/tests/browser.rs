@@ -17,7 +17,7 @@ use halvo_schema::Category;
 use support::browser::{
     bearing, cond, entries_below, extract_amount, fixture_sign_in, framed_cond, framed_step,
     from_slot, handback, hosted, hosted_headed, hosted_mac, hosted_on_mac, konst, navigate,
-    own_start_us, pay_click, print_entries, print_outside_the_profile, profile_of, say,
+    own_start_us, pay_click, print_entries, print_outside_the_profile, profile_of, say, serve_copy,
     serve_finding, serve_in, serve_with, step, Fixture, Forwarder, Made, SEED_1,
 };
 use support::connect::decision;
@@ -1954,4 +1954,206 @@ fn a_payment_that_the_site_answers_with_a_redirect_is_made_at_its_receipt_page()
     );
     let (made, due) = payments(&paid);
     assert_eq!(made, [due], "{}", paid.state);
+}
+
+/// The page of r3 U7.10's compile: the amount due alone in its element and a form whose button `Pay now` posts the
+/// form's token and amount to `/charge`, a navigation of the top document.
+const U710_PAY: &str = r#"<!doctype html><title>pay</title><h1>Pay your bill</h1><p>Amount due</p><p data-testid="amount">12.34</p><form method="post" action="/charge"><input type="hidden" name="token" value="halvo-runner-u710-token"><input type="hidden" name="amount" value="12.34"><button data-testid="pay-now">Pay now</button></form>"#;
+
+/// The made-up key that the test's supervisor gives for `model_key`, which the stand-in door reads and keeps not.
+const U710_KEY: &str = "made-up-key-u710-Rq4Lw8Zt-3c1b";
+
+/// One compile of r3 U7.10 with the person's `answer` on its card: a copy of the built runner and of the stand-in
+/// door (as `halvo-model`) in a directory of their own, the bill's compile cell open by `--stand-in-policy`, the
+/// door's answers (extract the amount due, click Pay now, done), and the fixture's page `/pay`.
+fn u710_compile(
+    test: &str,
+    n: u8,
+    browser: &std::path::Path,
+    answer: Answer,
+) -> (Seen, Fixture, std::path::PathBuf) {
+    let dir = support::scratch(&format!("u710-{n}"));
+    let exe = std::env::consts::EXE_SUFFIX;
+    let runner = dir.join(format!("halvo-runner{exe}"));
+    std::fs::copy(support::RUNNER, &runner).expect("copy the runner");
+    std::fs::copy(
+        env!("CARGO_BIN_EXE_halvo-runner-stand-in-door"),
+        dir.join(format!("halvo-model{exe}")),
+    )
+    .expect("copy the stand-in door");
+    std::fs::write(
+        dir.join("answers.txt"),
+        [
+            r#"{"action":"extract","ref":"@ref:12.34@","slot":null,"key":null,"name":"amount_due"}"#,
+            r#"{"action":"click","ref":"@ref:Pay now@","slot":null,"key":null,"name":null}"#,
+            r#"{"action":"done","ref":null,"slot":null,"key":null,"name":null}"#,
+        ]
+        .join("\n"),
+    )
+    .expect("the door's answers");
+    let release = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../halvo-route/data/policy.tsv"),
+    )
+    .expect("the release table");
+    let row = release
+        .lines()
+        .find(|line| line.starts_with("utility_bill_payment\tcompile\t"))
+        .expect("the bill's compile row");
+    let open = release.replacen(
+        &format!("{row}\n"),
+        "utility_bill_payment\tcompile\tfrontier\thigh\tline_met\t4\t4\n",
+        1,
+    );
+    let policy = dir.join("policy.tsv");
+    std::fs::write(&policy, open).expect("the stand-in policy");
+    let fixture = Fixture::start(&[("/pay", U710_PAY), ("/charge", CHARGED)]);
+    let mut sup = web_agent(n, &fixture);
+    sup.mode = "compile";
+    sup.config.tier = halvo_schema::executable::names::ModelTier::Frontier;
+    sup.slots = vec![
+        slot("start", &fixture.url("/pay")),
+        slot("payee", "Larkspur Power"),
+        slot("instrument", "Card ending 4417"),
+    ];
+    sup.more = vec![
+        "--hosted".to_owned(),
+        "frontier".to_owned(),
+        "--stand-in-policy".to_owned(),
+        policy.to_string_lossy().into_owned(),
+    ];
+    let seen = serve_copy(
+        &sup,
+        browser,
+        &runner,
+        |frame, _| match frame {
+            FromRunner::Browser(_) => Act::With(browser_reply()),
+            FromRunner::Secret(_) => Act::With(ToRunner::SecretReply(
+                halvo_schema::executable::frame::SecretReply::Stored(
+                    halvo_schema::executable::text::SecretText::parse(U710_KEY).expect("a key"),
+                ),
+            )),
+            FromRunner::Confirm(_) => decision(frame, |_| answer),
+            _ => Act::Answer,
+        },
+        LONG,
+    );
+    say(
+        test,
+        &format!(
+            "{answer:?}: done {:?}, states {:?}",
+            seen.done(),
+            seen.states()
+        ),
+    );
+    (seen, fixture, dir)
+}
+
+/// r3 U7.10, THE PROOF ON A REAL BROWSER (the coordinator's rulings of 2026-11-26, P1, P6, P8, M3 and M5), on the
+/// hosted macos job alone: a COMPILE of the bill, whose model is the stand-in door, carries out its paying click on
+/// the fixture's form, a POST navigation of the top document. The rule holds that request at the click's own act; the
+/// card is asked; after the test's `allow_once` ONE `POST /charge` reaches the fixture, with the form's token and
+/// amount, the run ends `completed` with the effect `committed`, and the stored playbook's last step is the effect
+/// step. After a `reject_once` no POST reaches it and the run ends `declined`. It prints the browser's product and
+/// version as the browser gives it, and the first request that the door received, whole.
+#[test]
+fn u710_a_compile_pays_once_at_a_forms_navigation_after_the_yes() {
+    let test = "u710_a_compile_pays_once_at_a_forms_navigation_after_the_yes";
+    if cfg!(windows) {
+        say(
+            test,
+            "not run: it starts a real browser, on the hosted macos job alone",
+        );
+        return;
+    }
+    let Some(browser) = hosted(test) else {
+        return;
+    };
+    let version = std::process::Command::new(&browser)
+        .arg("--version")
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+        .unwrap_or_default();
+    say(
+        test,
+        &format!("the browser's product and version: {version}"),
+    );
+
+    let (seen, fixture, dir) = u710_compile(test, 254, &browser, Answer::AllowOnce);
+    let first = std::fs::read_to_string(dir.join("first-request.json")).unwrap_or_default();
+    say(
+        test,
+        &format!("the first request of the compile: {}", first.trim_end()),
+    );
+    let charges: Vec<_> = fixture
+        .requests()
+        .into_iter()
+        .filter(|r| r.method == "POST")
+        .collect();
+    assert_eq!(
+        charges.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
+        ["/charge"],
+        "one payment: rows {:?}, states {:?}, stderr {}",
+        rows(&seen),
+        seen.states(),
+        seen.stderr
+    );
+    for field in ["halvo-runner-u710-token", "amount=12.34"] {
+        assert!(
+            charges[0]
+                .bytes
+                .windows(field.len())
+                .any(|w| w == field.as_bytes()),
+            "the form's {field}"
+        );
+    }
+    assert_eq!(
+        seen.frames
+            .iter()
+            .filter(|f| matches!(f, FromRunner::Confirm(_)))
+            .count(),
+        1,
+        "one card"
+    );
+    assert_eq!(
+        seen.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ],
+        "{}",
+        seen.stderr
+    );
+    let stored: Vec<String> = seen
+        .frames
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Store(s) => match s.request.body() {
+                RunnerCall::PutPlaybook(b) => Some(
+                    b.steps
+                        .iter()
+                        .map(|step| format!("{} {}", step.verb.as_str(), step.effect.as_str()))
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            },
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert_eq!(
+        stored.last().map(String::as_str),
+        Some("click request"),
+        "{stored:?}"
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+
+    let (seen, fixture, _) = u710_compile(test, 255, &browser, Answer::RejectOnce);
+    assert!(
+        fixture.requests().iter().all(|r| r.method != "POST"),
+        "no POST after the no: {}",
+        seen.stderr
+    );
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
 }

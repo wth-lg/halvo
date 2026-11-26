@@ -18,8 +18,9 @@ use halvo_schema::{AgentId, WorkflowId};
 /// computer, so it checks the form of `--model` and keeps it not. `--hosted` names the hosted tier that the person
 /// allowed this agent to use, as the supervisor library writes it from its start's field `hosted` (r3 U7.2a), and a
 /// compile of an agent at a hosted tier that it does not name hands its work back and asks for no key and holds no
-/// cost (crate::model). A build with the feature `loopback`, and the crate's unit tests, take one argument more,
-/// `--stand-in-person` (`STAND_IN_PERSON`); every other build refuses it as an unknown argument.
+/// cost (crate::model). A build with the feature `loopback`, and the crate's unit tests, take two arguments more,
+/// `--stand-in-person` (`STAND_IN_PERSON`) and `--stand-in-policy <file>` (`STAND_IN_POLICY`); every other build
+/// refuses each as an unknown argument.
 #[derive(Debug)]
 pub(crate) struct Args {
     pub run: RunId,
@@ -43,6 +44,10 @@ pub(crate) struct Args {
     pub person: bool,
     /// The hosted tier of `--hosted`, the person's agreement to that tier; none without the argument.
     pub hosted: Option<ModelTier>,
+    /// The file of `--stand-in-policy`, a build with the feature `loopback` alone (`STAND_IN_POLICY`); none without
+    /// the argument.
+    #[cfg(feature = "loopback")]
+    pub stand_in_policy: Option<PathBuf>,
 }
 
 /// The switch of the tests' builds alone (r3 U5.15r, the coordinator's ruling of log line 16634 (1)): it says that a
@@ -67,6 +72,40 @@ fn stand_in_person(key: &OsString, given: &mut bool) -> Result<bool, Usage> {
 /// Never: a build without the feature `loopback` knows no switch of the tests and holds no text of it.
 #[cfg(not(any(test, feature = "loopback")))]
 fn stand_in_person(_: &OsString, _: &mut bool) -> Result<bool, Usage> {
+    Ok(false)
+}
+
+/// The argument of the tests' builds alone (r3 U7.10; the coordinator's ruling of 2026-11-26, P6): a file in the form
+/// of the router's table (crates/halvo-route/data/policy.tsv) that the runner reads in the place of the release table
+/// (crate::route), so that a test of the whole runner reaches a compile. It is compiled only with the feature `loopback`, which no shipped program turns on (the
+/// crate's unit tests are built with it); every other build refuses it as an unknown argument.
+#[cfg(feature = "loopback")]
+pub(crate) const STAND_IN_POLICY: &str = "--stand-in-policy";
+
+/// Whether `key` is `STAND_IN_POLICY`, whose value `at` then gives and `given` notes; a second one is refused.
+#[cfg(feature = "loopback")]
+fn stand_in_policy<'a>(
+    key: &OsString,
+    at: &mut impl Iterator<Item = &'a OsString>,
+    given: &mut Option<PathBuf>,
+) -> Result<bool, Usage> {
+    if key != STAND_IN_POLICY {
+        return Ok(false);
+    }
+    let file = at.next().ok_or("a key with no value")?;
+    if given.replace(PathBuf::from(file)).is_some() {
+        return Err("--stand-in-policy twice");
+    }
+    Ok(true)
+}
+
+/// Never: a build without the feature `loopback` knows no argument of the tests and holds no text of it.
+#[cfg(not(feature = "loopback"))]
+fn stand_in_policy<'a>(
+    _: &OsString,
+    _: &mut impl Iterator<Item = &'a OsString>,
+    _: &mut Option<PathBuf>,
+) -> Result<bool, Usage> {
     Ok(false)
 }
 
@@ -165,6 +204,7 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
     let mut values: [Option<&OsString>; 9] = [None; 9];
     let mut headed = false;
     let mut stand_in = false;
+    let mut policy_file = None;
     let mut at = args.iter();
     while let Some(key) = at.next() {
         if key == "--headed" {
@@ -175,6 +215,9 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
             continue;
         }
         if stand_in_person(key, &mut stand_in)? {
+            continue;
+        }
+        if stand_in_policy(key, &mut at, &mut policy_file)? {
             continue;
         }
         let key = text(key, "an argument that is not UTF-8")?;
@@ -207,6 +250,8 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
         headed,
         person: headed || stand_in,
         hosted: hosted_tier.map(hosted).transpose()?,
+        #[cfg(feature = "loopback")]
+        stand_in_policy: policy_file,
     })
 }
 
