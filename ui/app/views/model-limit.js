@@ -40,7 +40,8 @@
 
   var host = null;
   var reply = null;
-  var lines, label, field, setButton, said, controlRow;
+  var drawn = null;
+  var lines, label, field, setButton, said, controlRow, later;
   var flying = 0;
 
   function localOf(ms) {
@@ -80,20 +81,32 @@
   /** Draws the state's sentences. The state not_known shows its sentence alone: no control, and no answer of a press, whose words name the control. */
   function draw() {
     var keys = shownKeys();
-    lines.replaceChildren();
-    keys.forEach(function (key) {
-      lines.appendChild(Halvo.el("p", { id: "model-limit-" + key.split("_").join("-"), text: filled(SENTENCE[key]) }));
-    });
     var known = keys[0] !== "not_known";
+    var texts = keys.map(function (key) {
+      return filled(SENTENCE[key]);
+    });
+    var fieldWords = known ? filled(w.MODEL_LIMIT_FIELD) : "";
+    var next = JSON.stringify([keys, texts, fieldWords]);
+    if (next === drawn) return;
+    drawn = next;
+    lines.replaceChildren();
+    keys.forEach(function (key, at) {
+      lines.appendChild(Halvo.el("p", { id: "model-limit-" + key.split("_").join("-"), text: texts[at] }));
+    });
     controlRow.classList.toggle("hidden", !known);
-    label.textContent = known ? filled(w.MODEL_LIMIT_FIELD) : "";
+    label.textContent = fieldWords;
     if (!known) said.textContent = "";
     controls();
   }
 
+  function cannotTell() {
+    return shownKeys()[0] === "not_known";
+  }
+
   /** While a command of the part is in flight the control sends nothing; it also waits for a text in the field. */
   function controls() {
-    setButton.disabled = flying > 0 || field.value === "";
+    var off = flying > 0 || field.value === "";
+    if (!controlRow.classList.contains("hidden") && setButton.disabled !== off) setButton.disabled = off;
   }
 
   function inFlight(on) {
@@ -109,11 +122,13 @@
         inFlight(false);
         reply = answer && typeof answer === "object" ? answer : null;
         draw();
+        later();
       },
       function () {
         inFlight(false);
         reply = null;
         draw();
+        later();
       },
     );
   }
@@ -169,6 +184,10 @@
       [heading, lines, controlRow, said].forEach(function (child) {
         element.appendChild(child);
       });
+      /** The part asks again by itself only while it shows the sentence of not_known, where its control is not laid out. */
+      later = Halvo.modelSection.asksAgain(function () {
+        if (flying === 0 && cannotTell()) read();
+      }, cannotTell);
       draw();
       read();
     },

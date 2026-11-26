@@ -12,6 +12,8 @@
   /** The replies of save_model_key and remove_model_key that set the state or read it again: a state read that one of them overtook changes nothing. */
   var answers = 0;
   var flying = false;
+  var WAITS = [1000, 2000, 4000, 8000, 16000];
+  var rows = [];
 
   /**
    * The section of the AI model, which shows only in a build whose app names a host (model_key_state), is open to
@@ -22,6 +24,39 @@
   Halvo.modelSection = {
     add: function (part) {
       parts.push(part);
+    },
+    /**
+     * A part that reads that Halvo cannot tell asks again by itself: behind each answer that leaves it so, after
+     * WAITS[0] ms, then WAITS[1] ms, and so on to the end of WAITS, and then no more. A wait begins only while the
+     * window is shown; a hiding ends the pending one, and a showing begins the row anew.
+     */
+    asksAgain: function (ask, cannotTell) {
+      var timer = null;
+      var asked = 0;
+      function end() {
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+      }
+      rows.push({
+        end: end,
+        anew: function () {
+          end();
+          asked = 0;
+          ask();
+        },
+      });
+      return function () {
+        end();
+        if (!cannotTell()) {
+          asked = 0;
+        } else if (asked < WAITS.length && document.visibilityState !== "hidden") {
+          timer = setTimeout(function () {
+            timer = null;
+            asked += 1;
+            ask();
+          }, WAITS[asked]);
+        }
+      };
     },
   };
 
@@ -81,17 +116,26 @@
       function (reply) {
         if (at !== answers) return;
         var named = reply && typeof reply.host === "string" && reply.host !== "";
-        host = named ? reply.host : null;
-        state = named && (reply.state === "saved" || reply.state === "none") ? reply.state : "not_known";
-        draw();
+        take(named ? reply.host : null, named && (reply.state === "saved" || reply.state === "none") ? reply.state : "not_known");
       },
       function () {
         if (at !== answers) return;
-        state = "not_known";
-        draw();
+        take(host, "not_known");
       },
     );
   }
+
+  function take(namedHost, readState) {
+    var stands = namedHost === host && readState === state;
+    host = namedHost;
+    state = readState;
+    if (!stands) draw();
+    later();
+  }
+
+  var later = Halvo.modelSection.asksAgain(read, function () {
+    return host !== null && state === "not_known";
+  });
 
   /** While save_model_key or remove_model_key is in flight the three controls send nothing; Save the key also waits for a text in the field. */
   function controls() {
@@ -110,6 +154,7 @@
     answers += 1;
     state = newState;
     draw();
+    later();
   }
 
   function failed(words) {
@@ -208,8 +253,14 @@
       draw();
     },
     show: function () {
-      read();
+      rows.forEach(function (row) {
+        row.anew();
+      });
     },
-    hide: function () {},
+    hide: function () {
+      rows.forEach(function (row) {
+        row.end();
+      });
+    },
   });
 })();
