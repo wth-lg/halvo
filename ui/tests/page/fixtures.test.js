@@ -22,6 +22,18 @@ test("the running status fixture renders the heading, the toggle, the totals and
   assert.equal(page.document.body.textContent.includes("store_backend"), false);
 });
 
+/** r4 U3.34, S3 as the coordinator ruled it (log line 23311): What Halvo keeps names what stays longer than the window
+ * and for how long, with the days of the status; a status of a service that does not run shows the sentence that waits. */
+test("u334 What Halvo keeps says what stays longer than the window, and a service that does not run shows the waiting sentence", async () => {
+  const page = await openPage({ replies: { capture_status: () => fixture("capture_status-running") } });
+  assert.equal(
+    page.text("window-text"),
+    "Halvo keeps the last 14 days of your work on this computer, encrypted. Older recordings are deleted automatically, but a summary of what Halvo noticed on a day stays for 93 days from that day, and the workflows that it noticed and your agents stay until you delete them.",
+  );
+  const off = await openPage({ replies: { capture_status: () => fixture("capture_status-not-running") } });
+  assert.equal(off.text("window-text"), "What Halvo records shows here once its capture service answers.");
+});
+
 test("the paused status fixture renders paused and Resume", async () => {
   const page = await openPage({ replies: { capture_status: () => fixture("capture_status-paused") } });
   assert.equal(page.text("state"), "Halvo is paused");

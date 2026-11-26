@@ -6,7 +6,7 @@ const { openPage, fixture } = require("../lib/page.js");
 
 const UNREADABLE = "Halvo cannot read its settings file. Reset settings keeps everything that Halvo has recorded and puts the settings back to how a new start has them.";
 const RESET = "Reset settings";
-const QUESTION = "Reset Halvo's settings? Halvo keeps everything that it has recorded. It stays paused until you press Resume, and from then on it records what a new start records:";
+const QUESTION = "Reset Halvo's settings? After the reset, Look for repeated tasks is on, also where you had turned it off. Halvo keeps everything that it has recorded. It stays paused until you press Resume, and from then on it records what a new start records:";
 const YES = "Yes, reset settings";
 const NEWER = "Halvo's settings file was saved by a newer version of Halvo. Update Halvo to read it, or use Delete everything, which resets it and also deletes everything that Halvo has recorded.";
 const DELETE_QUESTION = "Delete everything that Halvo has recorded on this computer? This cannot be undone. Copies that Halvo made next to your own files stay.";

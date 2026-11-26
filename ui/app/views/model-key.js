@@ -4,8 +4,10 @@
   var w = Halvo.words;
   var host = null;
   var state = null;
+  /** Whether the app says that every compile, recover and write row of the router's table hands back (r4 U3.34). */
+  var handsBack = false;
   var section = null;
-  var label, text, field, saveButton, stateLine, said, removeButton, confirmRemove, removeRow, removeQuestion, partsBox;
+  var noAgent, label, text, field, saveButton, stateLine, said, removeButton, confirmRemove, removeRow, removeQuestion, partsBox;
   var parts = [];
   var mounted = 0;
   var lines = [];
@@ -103,6 +105,8 @@
     if (section === null) return;
     section.classList.toggle("hidden", host === null);
     if (host === null) return;
+    noAgent.textContent = handsBack ? withHost(w.MODEL_NO_AGENT_ASKS) : "";
+    noAgent.classList.toggle("hidden", !handsBack);
     label.textContent = withHost(w.MODEL_KEY_LABEL);
     text.textContent = withHost(w.MODEL_KEY_TEXT);
     removeQuestion.textContent = withHost(w.MODEL_KEY_REMOVE_QUESTION);
@@ -117,26 +121,30 @@
     }
   }
 
-  /** Reads the host and the state from the app; a failed read leaves no host unnamed and a named one not known. */
+  /**
+   * Reads the host, the state and the fact hands_back from the app; a failed read leaves no host unnamed and a named
+   * one not known, and the fact as it stood. The fact holds only where the reply says true.
+   */
   function read() {
     var at = answers;
     return Halvo.ipc.call("model_key_state").then(
       function (reply) {
         if (at !== answers) return;
         var named = reply && typeof reply.host === "string" && reply.host !== "";
-        take(named ? reply.host : null, named && (reply.state === "saved" || reply.state === "none") ? reply.state : "not_known");
+        take(named ? reply.host : null, named && (reply.state === "saved" || reply.state === "none") ? reply.state : "not_known", named && reply.hands_back === true);
       },
       function () {
         if (at !== answers) return;
-        take(host, "not_known");
+        take(host, "not_known", handsBack);
       },
     );
   }
 
-  function take(namedHost, readState) {
-    var stands = namedHost === host && readState === state;
+  function take(namedHost, readState, readHandsBack) {
+    var stands = namedHost === host && readState === state && readHandsBack === handsBack;
     host = namedHost;
     state = readState;
+    handsBack = readHandsBack;
     if (!stands) draw();
     later();
   }
@@ -222,6 +230,7 @@
     mount: function (element) {
       section = element.parentNode;
       section.classList.add("hidden");
+      noAgent = Halvo.el("p", { id: "model-key-no-agent", class: "hidden" });
       label = Halvo.el("label", { id: "model-key-label", for: "model-key-field" });
       text = Halvo.el("p", { id: "model-key-text", class: "muted" });
       field = Halvo.el("input", { id: "model-key-field" });
@@ -254,7 +263,7 @@
       ]);
       removeRow.classList.add("confirm-row");
       partsBox = Halvo.el("div", { id: "model-key-parts" });
-      [label, text, Halvo.el("div", { class: "row" }, [field, saveButton]), stateLine, said, removeButton, removeRow, partsBox].forEach(function (child) {
+      [noAgent, label, text, Halvo.el("div", { class: "row" }, [field, saveButton]), stateLine, said, removeButton, removeRow, partsBox].forEach(function (child) {
         element.appendChild(child);
       });
       controls();
