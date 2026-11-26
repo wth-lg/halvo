@@ -399,9 +399,11 @@ pub fn round(control: &dyn Control, views: &Views, tray: Option<&TrayInstalled>)
     view
 }
 
-pub fn start(control: Arc<dyn Control>, views: Arc<Views>, tray: Option<TrayInstalled>) {
+/// The poller's thread: a round, then a sleep of `POLL`, for the app's life. Each pass reads from
+/// `tray` whether a tray stands; the tray's install fills it where a try stands.
+pub fn start(control: Arc<dyn Control>, views: Arc<Views>, tray: Arc<OnceLock<TrayInstalled>>) {
     std::thread::spawn(move || loop {
-        round(control.as_ref(), &views, tray.as_ref());
+        round(control.as_ref(), &views, tray.get());
         views.sleep(POLL);
     });
 }
