@@ -927,7 +927,9 @@ fn switch_of(name: SwitchName) -> Switch {
 /// doubt stands, since the row's first drop. And under a hold of secure input that the Mac's
 /// input source has read for 30 seconds or more, since its first reading, the parts that
 /// the floor drops under it and whose switch is on: typing only where the tap asked for the
-/// key types, window titles and screen activity; no entry where none of them is on.
+/// key types, window titles and screen activity; no entry where none of them is on. And
+/// typing, while the Mac's input source holds that keys were pressed through 30 seconds
+/// and none of them reached its tap, since the first reading of those seconds.
 fn left_out_of(parts: &StatusParts) -> Vec<proto::LeftOut> {
     let mut left_out = Vec::new();
     let doubt = parts.doubt_told.since.filter(|_| parts.left_out_in_doubt);
@@ -962,6 +964,14 @@ fn left_out_of(parts: &StatusParts) -> Vec<proto::LeftOut> {
                 since,
             });
         }
+    }
+    let no_key = parts.board.figures.no_key_since;
+    if let Some(since) = no_key.and_then(utc_second) {
+        left_out.push(proto::LeftOut {
+            cause: proto::LeftOutCause::NoKeyArrives,
+            what: vec![proto::LeftOutPart::Typing],
+            since,
+        });
     }
     left_out
 }

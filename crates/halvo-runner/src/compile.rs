@@ -220,9 +220,16 @@ fn bound_fields(
     }
 }
 
+/// The extracts that the bound fields of the category's effect step of A9.4 need, none for a category with no such
+/// step: what a click or a press of a compile reads again before its act in a build with the maker (r3 U7.10).
+#[cfg_attr(not(feature = "loopback"), allow(dead_code))]
+pub(crate) fn needed_extracts(category: SeedCategory) -> &'static [&'static str] {
+    bound_fields(category, "").map_or(&[], |(_, needed)| needed)
+}
+
 /// The effect step of A9.4 that a click or a press on `line` becomes where its state-changing request to `origin`, an
-/// origin of the bindings, was failed by the rule: the same act with the effect `request` and the bound fields of the
-/// category; with the extracts that they need.
+/// origin of the bindings, was failed or held by the rule: the same act with the effect `request` and the bound fields
+/// of the category; with the extracts that they need.
 fn effect_step(
     category: SeedCategory,
     n: usize,
@@ -528,8 +535,12 @@ impl Runner {
         self.compiling = matches!(action, Action::Click { .. } | Action::Press { .. });
         let done = self.web_step(&step, loaded);
         self.compiling = false;
+        #[cfg(feature = "loopback")]
+        if let Some(held) = self.held_click.take() {
+            return self.effect_held(drive, loaded, action, line, held, text);
+        }
         if let (Ok(()), Some(origin)) = (&done, self.effect_origin.take()) {
-            return self.effect(drive, loaded, action, line, &origin, text);
+            return self.effect(drive, loaded, action, line, &origin);
         }
         match done {
             Ok(()) => self.log(LogEvent::StepOk, Some(step.n), None)?,
@@ -566,11 +577,11 @@ impl Runner {
     }
 
     /// The effect step of a click or a press whose state-changing request to `origin`, an origin of the bindings, the
-    /// rule failed ((d1), the coordinator's log line 22533): written from the action by A9.4 and stored before its act,
-    /// then carried out by `web_step` as a replay carries it out: the browser's maker with its card and the person's
-    /// yes in a build with the feature `loopback`, `step_failed` before any act in every other build, where the run
-    /// then ends `failed` and the compile's number stays unfinished (A3.4). A category with no effect step of A9.4
-    /// ends the run `failed` with `step_failed`; a missing extract that the step's fields name, with `provenance`.
+    /// rule failed (`ClickWay::Fail`; (d1), the coordinator's log line 22533): written from the action by A9.4 and
+    /// stored, then `step_failed` before any act, as every build without the browser's maker carries an effect step
+    /// out: the run ends `failed` and the compile's number stays unfinished (A3.4). No second act is made (r3 U7.10,
+    /// the coordinator's point M2). A category with no effect step of A9.4 ends the run `failed` with `step_failed`; a
+    /// missing extract that the step's fields name, with `provenance`.
     fn effect(
         &mut self,
         drive: &mut Drive,
@@ -578,7 +589,6 @@ impl Runner {
         action: &Action,
         line: &SnapshotLine,
         origin: &WebOrigin,
-        text: String,
     ) -> Result<(), Stop> {
         let (step, needed) =
             effect_step(drive.category, drive.next(), action, line, origin.as_str())
@@ -589,7 +599,52 @@ impl Runner {
         self.keep(drive, step.clone())?;
         self.within(&loaded.config.limits)?;
         self.check()?;
-        match self.web_step(&step, loaded) {
+        Err(self.failed_step(&step, Cause::StepFailed, loaded.config.runtime))
+    }
+
+    /// The effect step of a click or a press whose state-changing request the rule HELD at its own act
+    /// (`ClickWay::Hold`, r3 U7.10; the coordinator's rulings of 2026-11-26, P1 and M2): written from the action by
+    /// A9.4 with the held request's origin and stored before its card; then the held request goes to its card by the
+    /// browser's maker (`Runner::release_a_compiles_request`), with no second act, and leaves ONCE at the person's
+    /// `allow_once`. Where the act holds not exactly one request, the category has no effect step of A9.4, an extract
+    /// that the step's fields name is missing, or the run's limits or the person's stop end the run first, every held
+    /// request is failed and nothing leaves.
+    #[cfg(feature = "loopback")]
+    fn effect_held(
+        &mut self,
+        drive: &mut Drive,
+        loaded: &LoadReply,
+        action: &Action,
+        line: &SnapshotLine,
+        held: crate::web::HeldClick,
+        text: String,
+    ) -> Result<(), Stop> {
+        let stop = |failure: Failure| match failure {
+            Failure::Stop(stop) => stop,
+            Failure::Step(cause) => failed(cause),
+        };
+        let Some(origin) = held.origin() else {
+            return Err(stop(self.let_nothing_leave(&held, "count")));
+        };
+        let Some((step, needed)) =
+            effect_step(drive.category, drive.next(), action, line, origin.as_str())
+        else {
+            let _ = self.let_nothing_leave(&held, "no_effect_step");
+            return Err(failed(Cause::StepFailed));
+        };
+        if needed.iter().any(|name| !self.kept.contains_key(*name)) {
+            let _ = self.let_nothing_leave(&held, "provenance");
+            return Err(failed(Cause::Provenance));
+        }
+        let kept = self
+            .keep(drive, step.clone())
+            .and_then(|()| self.within(&loaded.config.limits))
+            .and_then(|()| self.check());
+        if let Err(end) = kept {
+            let _ = self.let_nothing_leave(&held, "stop");
+            return Err(end);
+        }
+        match self.release_a_compiles_request(&step, loaded, held) {
             Ok(()) => self.log(LogEvent::StepOk, Some(step.n), None)?,
             Err(Failure::Stop(stop)) => return Err(stop),
             Err(Failure::Step(cause)) => {

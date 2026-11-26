@@ -130,6 +130,13 @@ pub(crate) struct Runner {
     /// The origin of the bindings to which such a click or press sent the state-changing request that the rule
     /// failed, which the drive takes to write the effect step.
     pub(crate) effect_origin: Option<WebOrigin>,
+    /// How such a click or press meets its state-changing request (r3 U7.10): the way of this build
+    /// (`ClickWay::BUILT`), which a unit test sets to the other way so that the tests read both.
+    pub(crate) click_way: crate::web::ClickWay,
+    /// The request that such a click or press held in a build with the browser's maker (r3 U7.10), which the drive
+    /// takes to write the effect step and to give to its card.
+    #[cfg(feature = "loopback")]
+    pub(crate) held_click: Option<crate::web::HeldClick>,
     /// The door that a unit test gives in the place of halvo-model beside the runner: a stand-in, or in the one test
     /// of crate::model::tests::real_door a script that starts the built door with its loopback port.
     #[cfg(test)]
@@ -168,6 +175,10 @@ impl Runner {
 
     /// A runner of `args` on `link`, before its run.
     pub(crate) fn new(args: Args, link: Link) -> Runner {
+        #[cfg(feature = "loopback")]
+        if let Some(file) = &args.stand_in_policy {
+            crate::route::stand_in_policy(file);
+        }
         Runner {
             args,
             link,
@@ -202,6 +213,9 @@ impl Runner {
             hosted: None,
             compiling: false,
             effect_origin: None,
+            click_way: crate::web::ClickWay::BUILT,
+            #[cfg(feature = "loopback")]
+            held_click: None,
             #[cfg(test)]
             stand_in_door: None,
             #[cfg(test)]
