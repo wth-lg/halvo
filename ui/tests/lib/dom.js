@@ -5,10 +5,11 @@ const RAW = new Set(["script", "style"]);
 
 // A read of a member that an object of this stand-in lacks throws, so that a page file which reads a
 // member that a real document has and this file does not fails its test instead of reading undefined.
-// Each kind of object that this file hands out has a Proxy at the bottom of its own prototype chain: a
-// read of a member that the object has, as its own or by a prototype, never reaches the Proxy. Each Proxy
-// stands on an object of this file; no prototype of the language itself is changed. The reads that
-// allowed() names are answered undefined, each for the reason written beside it.
+// Nodes, lists, class lists, styles and events each have a Proxy at the bottom of their own prototype
+// chain: a read of a member that the object has, as its own or by a prototype, never reaches the Proxy.
+// The object that getBoundingClientRect() returns and the map attributes have none. Each Proxy stands
+// on an object of this file; no prototype of the language itself is changed. The reads that allowed()
+// names are answered undefined, each for the reason written beside it.
 const POINTER_TYPES = new Set(["click", "dblclick", "auxclick", "contextmenu", "mousedown", "mouseup", "pointerdown", "pointerup"]);
 const ABSENT_IN_A_REAL_DOCUMENT = {
   // A real text node has neither, and a real document has no classList; the page tests and page.js read
@@ -18,6 +19,9 @@ const ABSENT_IN_A_REAL_DOCUMENT = {
 };
 
 function allowed(kind, prop, object) {
+  // The language reads then of every value that a promise carries, and a real object of each kind
+  // answers undefined there.
+  if (prop === "then") return true;
   // An index past the end of a list: a real NodeList answers undefined there.
   if (kind === "list") return /^(0|[1-9][0-9]*)$/.test(prop);
   // This stand-in lays nothing out, so a press that it makes has no point, where a real engine gives a
@@ -258,9 +262,9 @@ class Element extends Node {
     for (let n = this; n instanceof Element; n = n.parentNode) if (match(n)) return n;
     return null;
   }
-  // The checkedness of an input, as a real one has it: what a write set, else whether the element
-  // has the attribute checked. Unlike a real radio, a write does not uncheck the other radios of
-  // its group.
+  // The checkedness of an input: what a write set, else whether the element has the attribute
+  // checked. Unlike a real input, a press does not turn it, a write to one radio does not uncheck the
+  // other radios of its group, and a write to an element that is no input does not read back.
   get checked() {
     if (this.localName !== "input") return undefined;
     return this._checked ?? this.hasAttribute("checked");

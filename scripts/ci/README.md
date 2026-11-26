@@ -12,7 +12,7 @@ Start each command at the repo root.
 | `sh scripts/ci/run-ci-d.sh <job> --self-test` | Runs the self-test of each of those scripts, several at a time (see Self-tests at the same time). |
 | `sh scripts/ci/run-ci-d.sh <job> [--self-test] NAME...` | Runs only the named scripts. A NAME is the file name without `.sh`. |
 | `sh scripts/ci/run-ci-d.sh <job> --merge-gate` | Runs only the scripts that `scripts/ci/merge-gate.txt` names for `<job>` (see The merge gate). It takes no NAME and no `--self-test`. |
-| `sh scripts/ci/run-ci-d.sh <job> --slice <slice>` | Runs what `scripts/ci/slices.txt` names for the slice (`mon`, `tue`, `tue2`, `wed`, `wed2`, `thu`, `fri`, `sat` or `sun`) and `<job>`: first the self-tests, then the checks (see The slices). It takes no NAME and no `--self-test`. |
+| `sh scripts/ci/run-ci-d.sh <job> --slice <slice>` | Runs what `scripts/ci/slices.txt` names for the slice (`mon`, `tue`, `tue2`, `wed`, `wed2`, `thu`, `fri`, `sat`, `sun` or `pages`) and `<job>`: first the self-tests, then the checks (see The slices). It takes no NAME and no `--self-test`. |
 | `sh scripts/ci/run-ci-d.sh <job> --checks '<NAME> [<NAME>...]'` | Runs the named checks alone, each with its self-test first. A NAME that is a check of the other job alone is skipped with one line, and a NAME that is a check of neither job fails the call before anything starts. |
 | `sh scripts/ci/run-ci-d.sh --list [<job>]` | Prints the path of each script in the order of the run. |
 | `sh scripts/ci/run-ci-d.sh --rules` | Prints one line for each script: `<NN-name> (<jobs>): <rule>`. |
