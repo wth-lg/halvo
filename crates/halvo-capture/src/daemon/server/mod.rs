@@ -976,22 +976,55 @@ fn left_out_of(parts: &StatusParts) -> Vec<proto::LeftOut> {
     left_out
 }
 
+/// For how long behind its end a status tells of the last hold of secure input that a Mac's
+/// input source kept, counted by the system's clock.
+const HOLD_TOLD_FOR_SECONDS: u64 = 24 * 60 * 60;
+
 /// What the status says was left out before: the last row of drops by doubt that the floor
-/// tells of behind its end, as every record from the row's first drop to its end.
+/// tells of behind its end, as every record from the row's first drop to its end; and the last
+/// hold of secure input of a minute or more that a Mac's input source saw end, for
+/// [`HOLD_TOLD_FOR_SECONDS`] behind its end by the system's clock, with the parts that it left
+/// out, where it names one.
 fn left_out_before_of(parts: &StatusParts) -> Vec<proto::LeftOutBefore> {
     let times = parts
         .doubt_told
         .before
         .and_then(|(from, until)| Some((utc_second(from)?, utc_second(until)?)));
-    times
-        .map(|(from, until)| proto::LeftOutBefore {
-            cause: proto::LeftOutCause::Doubt,
-            what: vec![proto::LeftOutPart::Everything],
-            from,
-            until,
-        })
-        .into_iter()
-        .collect()
+    let doubt = times.map(|(from, until)| proto::LeftOutBefore {
+        cause: proto::LeftOutCause::Doubt,
+        what: vec![proto::LeftOutPart::Everything],
+        from,
+        until,
+    });
+    let hold = parts.board.figures.secure_hold_before.and_then(held_before);
+    doubt.into_iter().chain(hold).collect()
+}
+
+/// The entry of a hold of secure input that ended: none where [`HOLD_TOLD_FOR_SECONDS`] have
+/// passed since its end by the system's clock, where it names no part, or where a time does
+/// not read.
+fn held_before(hold: crate::source::HoldBefore) -> Option<proto::LeftOutBefore> {
+    let now = crate::floor::exclude::unix_seconds_now();
+    if now.saturating_sub(hold.until) >= HOLD_TOLD_FOR_SECONDS {
+        return None;
+    }
+    let what: Vec<proto::LeftOutPart> = [
+        (hold.typing, proto::LeftOutPart::Typing),
+        (hold.window_titles, proto::LeftOutPart::WindowTitles),
+        (hold.screen_activity, proto::LeftOutPart::ScreenActivity),
+    ]
+    .into_iter()
+    .filter_map(|(left, part)| left.then_some(part))
+    .collect();
+    if what.is_empty() {
+        return None;
+    }
+    Some(proto::LeftOutBefore {
+        cause: proto::LeftOutCause::SecureInput,
+        what,
+        from: utc_second(hold.from)?,
+        until: utc_second(hold.until)?,
+    })
 }
 
 fn utc_second(unix_seconds: u64) -> Option<UtcSecond> {

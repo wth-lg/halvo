@@ -168,7 +168,7 @@ pub trait SourceFactory {
 /// sources have told of the processes of Chrome and Edge and gives each of
 /// them a share of it too, so that a source started after a stop finds the
 /// decisions of the sources before it. A delete of everything empties that
-/// handle.
+/// handle and has the input figures forget the last hold that ended.
 #[cfg(target_os = "macos")]
 pub struct ServiceSources {
     foreground_writer: crate::macos::foreground::ForegroundWriter,
@@ -277,6 +277,10 @@ impl super::supervisor::SystemSources for ServiceSources {
 
     fn forget_browsers(&mut self) {
         self.browsers_told.forget();
+    }
+
+    fn forget_the_last_hold(&mut self) {
+        self.input_counters.forget_the_last_hold();
     }
 }
 

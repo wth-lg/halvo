@@ -248,6 +248,11 @@ pub trait SystemSources: SourceFactory {
     /// Forgets what the factory's sources have told of the processes of a
     /// browser: the supervisor's word at the slot of a delete of everything.
     fn forget_browsers(&mut self) {}
+
+    /// Forgets the last hold of secure input that ended, which a status tells
+    /// of behind its end: the supervisor's word at the slot of a delete of
+    /// everything.
+    fn forget_the_last_hold(&mut self) {}
 }
 
 /// The answer of a client's request for the system's question about one
@@ -1489,7 +1494,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// stop. The slot of a delete takes the loss of the last life back, so
     /// that no status prints it behind a delete of everything, has the floor
     /// forget the last stretch that it left out by doubt, and has the factory
-    /// forget what its sources have told of a browser's processes.
+    /// forget what its sources have told of a browser's processes and the last
+    /// hold of secure input that ended.
     #[cfg(any(target_os = "macos", windows))]
     pub(crate) fn set_slot_answering(
         &mut self,
@@ -1503,6 +1509,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 floor.forget_doubt_before();
             }
             self.factory.forget_browsers();
+            self.factory.forget_the_last_hold();
         }
         self.slot = slot;
         if let Some(ending) = self.follow_the_run_condition(owner, reply) {
