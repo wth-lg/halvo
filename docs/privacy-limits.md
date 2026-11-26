@@ -137,9 +137,12 @@ Where a sentence names a unit, that unit makes it true.
   press "Reset settings". Halvo reads the language from those settings and not from how
   a browser was started: a Chrome or Edge that was started with a language of its own on
   its command line (the argument `-AppleLanguages`) can show another language than the
-  one that Halvo reads, and where Halvo reads English for such a browser it would record
-  the title of a private window too, since that title does not end as the English one
-  does. Halvo records no title of any other browser that it knows by
+  one that Halvo reads, and where those settings read English, Halvo takes it for a
+  browser that shows English. In one run with German the title of such a browser's
+  private window was still left out, because it does not end with the browser's own
+  name; no run has read another language, and a language that ends that title with the
+  browser's own name, or with that name, " - " and a word, would have it recorded. Halvo
+  records no title of any other browser that it knows by
   name, such as Safari, Firefox, Brave, Opera or Vivaldi, with their beta, developer,
   nightly and test builds, and none of an app that your Mac lists as one that can open
   web links. Where Halvo cannot read that list, or cannot tell where such an app lies on
