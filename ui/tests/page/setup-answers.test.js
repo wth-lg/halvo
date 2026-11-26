@@ -204,3 +204,76 @@ test("behind a line that the core does not take the card keeps every line as typ
   await page.settle();
   for (const name of Object.keys(typed)) assert.equal(lineOf(page, name).value, "", `${name} of another item`);
 });
+
+/** Four set-up cards, a to d, each the item of the core's fixture needs_setup under an id and a title of its own, under a
+ * stand-in of the core that closes an item at the answer that may save it (`more` `no`), or at `close(id)`, and
+ * publishes each change with a new seq, as the core does. */
+function fourCards() {
+  const [base] = setup.items;
+  const ids = ["a", "b", "c", "d"];
+  const itemOf = (n) => String(ids.indexOf(n) + 4).padStart(32, "0");
+  let items = ids.map((n) => ({ ...base, item: itemOf(n), title: `${base.title} (${n})` }));
+  let seq = setup.seq;
+  let waiting = [];
+  const snapshot = () => ({ ...setup, seq, items });
+  const close = (id) => {
+    items = items.filter((item) => item.item !== id);
+    seq += 1;
+    const now = snapshot();
+    waiting.forEach((resolve) => resolve(now));
+    waiting = [];
+  };
+  const replies = {
+    agents_snapshot: () => snapshot(),
+    agents_next: (args) => (args.after !== seq ? snapshot() : new Promise((resolve) => waiting.push(resolve))),
+    agents_answer: (args) => {
+      if (args.choice === "choose" && args.more === "no") close(args.item);
+      return { ok: "yes" };
+    },
+  };
+  return { replies, itemOf, close };
+}
+
+test("u340_a_card_that_holds_the_focus_and_leaves_hands_it_to_the_next_heading_below_else_above_else_to_the_list_and_a_card_that_leaves_without_it_moves_nothing", async () => {
+  const core = fourCards();
+  const page = await openPage({ replies: core.replies });
+  const cardOf = (n) => page.document.querySelector(`button[data-act="choose"][data-param="${core.itemOf(n)}"]`).closest("li");
+  const headingOf = (n) => cardOf(n).querySelector("h3.hn-title");
+  /** Asserts that `el` holds the focus; the message names the element that does. */
+  const at = (el, what) => {
+    const now = page.document.activeElement;
+    assert.ok(now === el, `${what}: the focus is on ${now ? `${now.localName}.${now.className}` : "nothing"}`);
+  };
+  /** The person picks the card's one answer, puts the focus on Use these answers and presses it by the keyboard. */
+  const answer = async (n) => {
+    cardOf(n).querySelector('input[data-act="candidate"]').checked = true;
+    const use = cardOf(n).querySelector('button[data-act="choose"]');
+    use.focus();
+    await press(page, use);
+  };
+  assert.equal(page.document.querySelectorAll("li.hn-item").length, 4, "four cards");
+
+  const held = cardOf("a").querySelector('button[data-act="choose"]');
+  held.focus();
+  core.close(core.itemOf("b"));
+  await page.settle();
+  assert.equal(page.document.querySelectorAll("li.hn-item").length, 3, "b has left");
+  at(held, "a card that leaves without the focus moves nothing");
+
+  await answer("c");
+  assert.deepEqual(page.calls("agents_answer").map((c) => [c.args.item, c.args.choice, c.args.more]), [[core.itemOf("c"), "choose", "no"]]);
+  assert.equal(page.document.querySelectorAll("li.hn-item").length, 2, "c has left");
+  at(headingOf("d"), "the heading of the next card below");
+
+  await answer("d");
+  assert.equal(page.document.querySelectorAll("li.hn-item").length, 1, "d has left");
+  at(headingOf("a"), "none below: the heading of the nearest card above");
+
+  await answer("a");
+  const list = page.document.querySelector("ul.hn-items");
+  assert.equal(list.querySelectorAll("li.hn-item").length, 0, "a has left");
+  at(list, "no card: the list, which the needs view owns");
+  assert.equal(list.getAttribute("tabindex"), "-1", "the list takes the focus and is no control");
+  const named = page.document.getElementById(list.getAttribute("aria-labelledby"));
+  assert.equal(named && named.textContent, "What needs you", "the list's name is the heading of the view");
+});
