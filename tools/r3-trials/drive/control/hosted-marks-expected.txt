@@ -3,110 +3,110 @@ line attempt model=standin_frontier machine=* task=bill seed=1 kind=compile i=1 
 line attempt model=standin_frontier machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_frontier machine=* task=bill seed=1 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=bill seed=1 cut=1 declined=1
-line marks model=standin_frontier machine=* task=bill seed=1 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=bill seed=1 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=bill seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_frontier machine=* task=bill seed=2 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=bill seed=2 cut=0 declined=0
-line marks model=standin_frontier machine=* task=bill seed=2 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=bill seed=2 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=bill seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_frontier machine=* task=bill seed=3 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=bill seed=3 cut=0 declined=0
-line marks model=standin_frontier machine=* task=bill seed=3 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=bill seed=3 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=order seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=order seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_frontier machine=* task=order seed=1 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=order seed=1 cut=0 declined=0
-line marks model=standin_frontier machine=* task=order seed=1 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=order seed=1 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=order seed=2 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=order seed=2 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=2 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=2 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=order seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_frontier machine=* task=order seed=2 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=order seed=2 cut=0 declined=0
-line marks model=standin_frontier machine=* task=order seed=2 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=order seed=2 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=order seed=3 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=order seed=3 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=3 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=3 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=order seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_frontier machine=* task=order seed=3 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=order seed=3 cut=0 declined=0
-line marks model=standin_frontier machine=* task=order seed=3 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=order seed=3 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=reply seed=1 kind=write i=1 pass=no steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_frontier machine=* seed=1 bodies=1 of=2 wall_s=* model_tokens=* attempt=1
+line reply model=standin_frontier machine=* seed=1 i=1 bodies=1 of=2 wall_s=* model_tokens=*
 line ends model=standin_frontier machine=* task=reply seed=1 cut=1 declined=0
-line marks model=standin_frontier machine=* task=reply seed=1 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=reply seed=1 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=reply seed=2 kind=write i=1 pass=no steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_frontier machine=* seed=2 bodies=1 of=2 wall_s=* model_tokens=* attempt=1
+line reply model=standin_frontier machine=* seed=2 i=1 bodies=1 of=2 wall_s=* model_tokens=*
 line ends model=standin_frontier machine=* task=reply seed=2 cut=0 declined=0
-line marks model=standin_frontier machine=* task=reply seed=2 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=reply seed=2 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=reply seed=3 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_frontier machine=* seed=3 bodies=2 of=2 wall_s=* model_tokens=* attempt=1
+line reply model=standin_frontier machine=* seed=3 i=1 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_frontier machine=* task=reply seed=3 cut=0 declined=0
-line marks model=standin_frontier machine=* task=reply seed=3 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=reply seed=3 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=bill seed=1 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=bill seed=1 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=1 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=1 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_frontier machine=* task=bill seed=1 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=bill seed=1 cut=0 declined=0
-line marks model=standin_frontier machine=* task=bill seed=1 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=bill seed=1 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=2 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=bill seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_frontier machine=* task=bill seed=2 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=bill seed=2 cut=0 declined=0
-line marks model=standin_frontier machine=* task=bill seed=2 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=bill seed=2 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=bill seed=3 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=bill seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_frontier machine=* task=bill seed=3 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=bill seed=3 cut=0 declined=0
-line marks model=standin_frontier machine=* task=bill seed=3 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=bill seed=3 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=order seed=1 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=order seed=1 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=1 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=1 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_frontier machine=* task=order seed=1 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=order seed=1 cut=0 declined=0
-line marks model=standin_frontier machine=* task=order seed=1 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=order seed=1 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=order seed=2 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=order seed=2 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=2 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=2 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=order seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_frontier machine=* task=order seed=2 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=order seed=2 cut=0 declined=0
-line marks model=standin_frontier machine=* task=order seed=2 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=order seed=2 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=order seed=3 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_frontier machine=* task=order seed=3 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=3 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_frontier machine=* task=order seed=3 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_frontier machine=* task=order seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_frontier machine=* task=order seed=3 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_frontier machine=* task=order seed=3 cut=0 declined=0
-line marks model=standin_frontier machine=* task=order seed=3 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=order seed=3 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=reply seed=1 kind=write i=2 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_frontier machine=* seed=1 bodies=2 of=2 wall_s=* model_tokens=* attempt=2
+line reply model=standin_frontier machine=* seed=1 i=2 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_frontier machine=* task=reply seed=1 cut=0 declined=0
-line marks model=standin_frontier machine=* task=reply seed=1 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=reply seed=1 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=reply seed=2 kind=write i=2 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_frontier machine=* seed=2 bodies=2 of=2 wall_s=* model_tokens=* attempt=2
+line reply model=standin_frontier machine=* seed=2 i=2 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_frontier machine=* task=reply seed=2 cut=0 declined=0
-line marks model=standin_frontier machine=* task=reply seed=2 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=reply seed=2 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_frontier machine=* task=reply seed=3 kind=write i=2 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_frontier machine=* seed=3 bodies=2 of=2 wall_s=* model_tokens=* attempt=2
+line reply model=standin_frontier machine=* seed=3 i=2 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_frontier machine=* task=reply seed=3 cut=0 declined=0
-line marks model=standin_frontier machine=* task=reply seed=3 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_frontier machine=* task=reply seed=3 i=2 requests=* with_mark=* slot_text=0
 line spend tier=frontier requests=* spent_micro=* ceiling_minor=*
 line egress list=scripts/egress/lists/loopback.txt origin=http://127.0.0.1:47201 starts=18 runs=18 denied=0
 line host tier=frontier origin=http://127.0.0.1:47201 model=stand-in-model adapter=anthropic-messages-2026-10-21
@@ -115,119 +115,119 @@ line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=compi
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_low_cost_hosted machine=* task=bill seed=1 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=bill seed=1 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=bill seed=1 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=bill seed=1 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=bill seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_low_cost_hosted machine=* task=bill seed=2 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=bill seed=2 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=bill seed=2 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=bill seed=2 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=bill seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_low_cost_hosted machine=* task=bill seed=3 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=bill seed=3 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=bill seed=3 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=bill seed=3 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_low_cost_hosted machine=* task=order seed=1 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=order seed=1 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=order seed=1 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=order seed=1 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=order seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_low_cost_hosted machine=* task=order seed=2 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=order seed=2 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=order seed=2 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=order seed=2 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=order seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=1
+line drive model=standin_low_cost_hosted machine=* task=order seed=3 i=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=order seed=3 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=order seed=3 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=order seed=3 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=reply seed=1 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_low_cost_hosted machine=* seed=1 bodies=2 of=2 wall_s=* model_tokens=* attempt=1
+line reply model=standin_low_cost_hosted machine=* seed=1 i=1 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_low_cost_hosted machine=* task=reply seed=1 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=reply seed=1 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=reply seed=1 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=reply seed=2 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_low_cost_hosted machine=* seed=2 bodies=2 of=2 wall_s=* model_tokens=* attempt=1
+line reply model=standin_low_cost_hosted machine=* seed=2 i=1 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_low_cost_hosted machine=* task=reply seed=2 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=reply seed=2 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=reply seed=2 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=reply seed=3 kind=write i=1 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_low_cost_hosted machine=* seed=3 bodies=2 of=2 wall_s=* model_tokens=* attempt=1
+line reply model=standin_low_cost_hosted machine=* seed=3 i=1 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_low_cost_hosted machine=* task=reply seed=3 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=reply seed=3 attempt=1 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=reply seed=3 i=1 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=1 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_low_cost_hosted machine=* task=bill seed=1 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=bill seed=1 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=bill seed=1 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=bill seed=1 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=2 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=bill seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_low_cost_hosted machine=* task=bill seed=2 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=bill seed=2 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=bill seed=2 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=bill seed=2 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=bill seed=3 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=bill seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_low_cost_hosted machine=* task=bill seed=3 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=bill seed=3 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=bill seed=3 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=bill seed=3 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=1 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_low_cost_hosted machine=* task=order seed=1 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=order seed=1 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=order seed=1 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=order seed=1 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=2 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=order seed=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_low_cost_hosted machine=* task=order seed=2 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=order seed=2 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=order seed=2 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=order seed=2 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=compile i=2 pass=yes steps=* wall_s=* tokens_in=* tokens_out=*
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=replay i=4 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=replay i=5 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
 line attempt model=standin_low_cost_hosted machine=* task=order seed=3 kind=replay i=6 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
-line drive model=standin_low_cost_hosted machine=* task=order seed=3 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0 attempt=2
+line drive model=standin_low_cost_hosted machine=* task=order seed=3 i=2 compile=ok replays_ok=3 of=3 recover=notread steps=* wall_s=* model_tokens=* typed_credential=0 effects_without_confirm=0
 line ends model=standin_low_cost_hosted machine=* task=order seed=3 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=order seed=3 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=order seed=3 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=reply seed=1 kind=write i=2 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_low_cost_hosted machine=* seed=1 bodies=2 of=2 wall_s=* model_tokens=* attempt=2
+line reply model=standin_low_cost_hosted machine=* seed=1 i=2 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_low_cost_hosted machine=* task=reply seed=1 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=reply seed=1 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=reply seed=1 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=reply seed=2 kind=write i=2 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_low_cost_hosted machine=* seed=2 bodies=2 of=2 wall_s=* model_tokens=* attempt=2
+line reply model=standin_low_cost_hosted machine=* seed=2 i=2 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_low_cost_hosted machine=* task=reply seed=2 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=reply seed=2 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=reply seed=2 i=2 requests=* with_mark=* slot_text=0
 line attempt model=standin_low_cost_hosted machine=* task=reply seed=3 kind=write i=2 pass=yes steps=0 wall_s=* tokens_in=* tokens_out=*
-line reply model=standin_low_cost_hosted machine=* seed=3 bodies=2 of=2 wall_s=* model_tokens=* attempt=2
+line reply model=standin_low_cost_hosted machine=* seed=3 i=2 bodies=2 of=2 wall_s=* model_tokens=*
 line ends model=standin_low_cost_hosted machine=* task=reply seed=3 cut=0 declined=0
-line marks model=standin_low_cost_hosted machine=* task=reply seed=3 attempt=2 requests=* with_mark=* slot_text=0
+line marks model=standin_low_cost_hosted machine=* task=reply seed=3 i=2 requests=* with_mark=* slot_text=0
 line spend tier=low_cost_hosted requests=* spent_micro=* ceiling_minor=*
 line egress list=scripts/egress/lists/loopback.txt origin=http://127.0.0.1:47201 starts=18 runs=18 denied=0
 line host tier=low_cost_hosted origin=http://127.0.0.1:47201 model=stand-in-model adapter=anthropic-messages-2026-10-21
 line count tier=low_cost_hosted model=standin_low_cost_hosted drive=12 of=12 reply=6 of=6 typed_credential=0 effects_without_confirm=0 marked=18 of=18 slot_text=0
-line records requests=* requests_sha256=* answers=* answers_sha256=*
+line records asks=* requests_sha256=* answers_sha256=*
 line verdict driver=standin_frontier path=A writer=none
 line notrun model=standin_frontier machine=* task=bill seed=1 cause=ceiling
 line ends model=standin_frontier machine=* task=bill seed=1 cut=0 declined=0
-line marks model=standin_frontier machine=* task=bill seed=1 attempt=1 requests=0 with_mark=0 slot_text=0
+line marks model=standin_frontier machine=* task=bill seed=1 i=1 requests=0 with_mark=0 slot_text=0
 line spend tier=frontier requests=0 spent_micro=0 ceiling_minor=1
 line egress list=scripts/egress/lists/loopback.txt origin=http://127.0.0.1:47201 starts=* runs=* denied=0
 line host tier=frontier origin=http://127.0.0.1:47201 model=stand-in-model adapter=anthropic-messages-2026-10-21

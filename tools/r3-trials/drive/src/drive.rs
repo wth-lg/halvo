@@ -1609,8 +1609,7 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
                 let marked = ctx.marks.is_some()
                     && body::body_of(&r.text, r.tokens_out, ctx.reply_tokens)
                         .is_some_and(r3_forms::holds_a_mark);
-                let counted =
-                    !marked && body::counted(&r.text, r.tokens_out, ctx.reply_tokens);
+                let counted = !marked && body::counted(&r.text, r.tokens_out, ctx.reply_tokens);
                 ctx.trace(&format!(
                     "body bytes={} tokens_out={} counted={counted}",
                     r.text.len(),

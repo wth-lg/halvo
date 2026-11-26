@@ -46,9 +46,10 @@ pub struct Hosted {
 /// The kept records of a round of the form with the runner's mask (r3 U0.10), three files of the round's
 /// directory `dir`, each appended in the order of the asks: `REQUESTS`, every request line whole as the
 /// harness hands it to the door; `ANSWERS`, every line whole as the door gives it back, a reply or a refusal;
-/// and `ASKS`, one line an ask that names its cell (`cell`, the words `tier=.. model=.. task=.. seed=..
-/// attempt=..`), its id, its grammar and whether a line came back. No byte of the key stands in them: the key
-/// goes to the door before any request, by `Child::start` alone, and is no part of a request line.
+/// where none came back an empty line, so that the two files pair line by line; and `ASKS`, one line an ask
+/// that names its cell (`cell`, the words `tier=.. model=.. task=.. seed=.. i=..`), its id, its grammar and
+/// whether a line came back. No byte of the key stands in them: the key goes to the door before any request,
+/// by `Child::start` alone, and is no part of a request line.
 #[derive(Clone, Debug)]
 pub struct Records {
     pub dir: PathBuf,
@@ -556,9 +557,7 @@ impl Child {
             (&sent, self.hosted.as_ref().and_then(|h| h.records.as_ref()))
         {
             records.append(REQUESTS, &line);
-            if read > 0 {
-                records.append(ANSWERS, reply);
-            }
+            records.append(ANSWERS, if read > 0 { reply } else { "" });
             records.append(
                 ASKS,
                 &format!(

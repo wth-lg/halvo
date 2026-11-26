@@ -386,8 +386,8 @@ sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR [--pa
 - One call runs the tier `frontier` and then the tier `low_cost_hosted`, each `--passes` passes over the nine
   cells (1 without the argument), under one ceiling: one count of `crates/halvo-route`, turned to the second
   tier with what the first spent (`Spend::turn_to`). A cell runs no recovery. The compile and the write of the
-  pass p are written with `i=<p>`, the replays with `i` from 3(p-1)+1 on, and the `drive` and the `reply` line
-  end with `attempt=<p>`. A tier makes at most 198 requests a pass.
+  pass p are written with `i=<p>`, the replays with `i` from 3(p-1)+1 on, and the `drive`, the `reply` and the
+  `marks` line hold `i=<p>` behind `seed`. A tier makes at most 198 requests a pass.
 - Each door starts as in the hosted form, through `door_command`, under `sh scripts/egress/check.sh` with the
   tier's list; the script writes the list of the paid form, its one entry, into the round's directory.
   `r3-drive`, its browser and the fixture server start outside the check, as in the hosted form.

@@ -22,15 +22,15 @@ the paid round adds" bind as they stand.
 4. Both tiers and N passes in one call. One call runs the tier `frontier` and then the tier `low_cost_hosted`,
    each N passes over the nine cells, under ONE ceiling and one count; N is the call's `--passes`, and 1 without
    it. A tier makes at most 198 requests a pass, 192 in compiles and 6 for replies: 198 times N, and 396 with two
-   passes. The model token of a tier is the model word of its row of the table of hosts with `_` for each `-`
-   and each dot. The seeds 1 and 2 are development seeds and the seed 3 is the held seed, in every pass, as the
-   reader of the routing table splits them (`Seed::split` of `crates/halvo-route-gate/src/table.rs`); no result
-   decides it.
+   passes. The model token of a tier is the model word of its row of the table of hosts with `_` for each `-`.
+   The seeds 1 and 2 are development seeds and the seed 3 is the held seed, in every pass, as the reader of the
+   routing table splits them (`Seed::split` of `crates/halvo-route-gate/src/table.rs`); no result decides it.
 5. The kept records. The round keeps, in its directory beside `lines.txt`, every request line whole as the
    harness hands it to the door (`door-requests.jsonl`) and every line that the door gave back, a reply or a
-   refusal (`door-answers.jsonl`), each in the order of the asks, and `door-asks.txt`, which names the cell of
-   each ask. No byte of the key stands in them: the key goes to the door before any request and is no part of a
-   request line.
+   refusal (`door-answers.jsonl`), each in the order of the asks and one line an ask, an empty line in the
+   answers where the door gave none back, so that the two files pair line by line; and `door-asks.txt`, which
+   names the cell of each ask. No byte of the key stands in them: the key goes to the door before any request
+   and is no part of a request line.
 
 The harness's own loop reads each page and builds each request. So a round of this form reads the runner's mask
 and the door, and it does not read the runner's own reading of a page, its loop, its pick, its holds or its start
@@ -44,10 +44,10 @@ The lines of a round stand in `lines.txt` of the round's directory, in this orde
   and the SHA-256 of the mask's source file.
 - For each tier, `frontier` first, and in it for each pass p from 1 to N, the nine cells in the order `bill` 1 to
   3, `order` 1 to 3, `reply` 1 to 3. A cell of `bill` or `order` writes its attempt lines, the compile with
-  `i=<p>` and the three replays with `i` from 3(p-1)+1 to 3(p-1)+3, and its `drive` line, whose last key is
-  `attempt=<p>`. A cell of `reply` writes its attempt line of the kind `write` with `i=<p>` and its `reply`
-  line, whose last key is `attempt=<p>`. Behind them each cell writes its `ends` line, as the hosted form does,
-  and `marks model=<token> machine=<m> task=<t> seed=<n> attempt=<p> requests=<n> with_mark=<n> slot_text=<n>`:
+  `i=<p>` and the three replays with `i` from 3(p-1)+1 to 3(p-1)+3, and its `drive` line, which holds `i=<p>`
+  behind its `seed`. A cell of `reply` writes its attempt line of the kind `write` with `i=<p>` and its `reply`
+  line, which holds `i=<p>` behind its `seed`. Behind them each cell writes its `ends` line, as the hosted form
+  does, and `marks model=<token> machine=<m> task=<t> seed=<n> i=<p> requests=<n> with_mark=<n> slot_text=<n>`:
   the requests that the harness handed to the door in the cell, those among them whose snapshot holds a mark,
   and the places in those requests where the text of a slot of the cell stands.
 - Behind a tier's cells its `spend`, `egress` and `host` lines, as the hosted form gives them, the `spend` line
@@ -57,8 +57,8 @@ The lines of a round stand in `lines.txt` of the round's directory, in this orde
   `typed_credential=0` and `effects_without_confirm=0`; a `reply` line counts in `reply=` when it has
   `bodies=2`; a cell counts in `marked=` when its `marks` line has a `with_mark` of 1 or more; the three other
   numbers are sums over the tier's lines.
-- Then `records requests=<n> requests_sha256=<64 hex> answers=<n> answers_sha256=<64 hex>`: the lines of the two
-  kept records and the SHA-256 of each file.
+- Then `records asks=<n> requests_sha256=<64 hex> answers_sha256=<64 hex>`: the count of the asks, which is the
+  count of the lines of each of the two kept records, and the SHA-256 of each file, in lower-case hex.
 - Last: `verdict driver=<token|none> path=<A|B> writer=<token|none>`, read from the tier `frontier` alone. The
   driver is the token of `frontier` where its `count` line has `drive=` equal to its `of=`, both safety counts
   0, `marked=` equal to its `of=` and `slot_text=0`, and else `none`; the path is `A` where a driver is named and
@@ -75,8 +75,9 @@ A cell that ends `notrun` writes its `notrun` line in the place of the lines tha
 Where a round wrote a verdict line, the tool writes `block.txt` beside `lines.txt`. It holds eight kinds of line
 of `lines.txt`, in the order of that file, and no other line: the `commit` line first; for each tier and pass the
 `attempt`, `drive`, `reply` and `marks` lines of each cell, and behind a tier's cells its `count` line; the
-`records` line; and the `verdict` line last. It holds no `ends`, `spend`, `egress`, `host` or `notrun` line and no
-path. With N passes that ran whole it has 90 times N and 5 lines: 185 with two passes. In a tracked file the
+`records` line; and the `verdict` line last. It holds no `ends`, `spend`, `egress`, `host` or `notrun` line, no
+line of a cell that ended `notrun`, and no path. With N passes that ran whole it has 90 times N and 5 lines: 185
+with two passes. In a tracked file the
 block stands between a line that opens the fence with the word `text` and a line that closes it, as the block of
 `docs/r3/trials/driver.md` does; `block.txt` holds no fence line.
 

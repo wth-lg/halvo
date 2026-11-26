@@ -537,7 +537,8 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
     let tiers = r.tiers.len();
     if r.marks {
         let twice = (0..tiers).any(|n| r.tiers[..n].contains(&r.tiers[n]));
-        let lists = r.egress_lists.is_empty() || r.egress_lists.len() == tiers;
+        // Every door of this form starts under the egress check: a round with no list for a tier is refused.
+        let lists = r.egress_lists.len() == tiers;
         if twice
             || r.models.len() != tiers
             || r.origins.len() != tiers
@@ -545,7 +546,7 @@ fn parse_round(argv: &[String]) -> Result<Round, String> {
             || !lists
             || r.adapter.is_empty()
         {
-            return Err("--form marks takes each tier once, and a model, an origin and a --host-model for each tier, a list for each or none, and --adapter".to_owned());
+            return Err("--form marks takes each tier once, and a model, an origin, a list and a --host-model for each tier, and --adapter".to_owned());
         }
     } else if tiers != 1
         || r.models.len() != 1
@@ -750,7 +751,8 @@ async fn round(
 /// tier's cells the `spend` line, with a list the `egress` line, the `host` line and, where the round runs
 /// every cell, the `count` line; and last, where the tier frontier ran every cell with no `notrun` line and
 /// its egress lines are as many as its door's starts, the `verdict` line. It stops at the first cell that
-/// prints `notrun` and gives that line's cause. Every door starts through `door_command`, as in `round`.
+/// prints `notrun` and gives that line's cause. Every door starts through `door_command` with the tier's
+/// list, so under the egress check: a tier with no list starts no door.
 async fn marks_round(
     r: &Round,
     key: model::Key,
@@ -786,6 +788,12 @@ async fn marks_round(
         };
         if let Ok(mut s) = spend.lock() {
             s.turn_to(priced, bound);
+        }
+        // No door of this form starts outside the egress check: a tier with no list starts none.
+        if of_tier.egress_list.is_none() {
+            eprintln!("the tier {tier} has no list for the egress check: no door is started");
+            stopped = Some("usage");
+            break;
         }
         let (program, door_args) = door_command(&of_tier, loopback);
         let starts = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
@@ -845,7 +853,7 @@ async fn marks_round(
                         records: Some(model::Records {
                             dir: r.run_dir.clone(),
                             cell: format!(
-                                "tier={tier} model={} task={task} seed={seed} attempt={pass}",
+                                "tier={tier} model={} task={task} seed={seed} i={pass}",
                                 of_tier.model
                             ),
                         }),
@@ -1828,10 +1836,11 @@ mod tests {
             .iter()
             .filter(|t| bodies.iter().any(|body| body.contains(t.as_str())))
             .collect();
-        let marks_at_the_host: Vec<bool> = ["[slot instrument]", "[slot seller]", "[slot reply_senders]"]
-            .iter()
-            .map(|mark| bodies.iter().any(|body| body.contains(mark)))
-            .collect();
+        let marks_at_the_host: Vec<bool> =
+            ["[slot instrument]", "[slot seller]", "[slot reply_senders]"]
+                .iter()
+                .map(|mark| bodies.iter().any(|body| body.contains(mark)))
+                .collect();
         let marks: Vec<&String> = lines.iter().filter(|l| l.starts_with("marks ")).collect();
         let unmarked: Vec<&&String> = marks
             .iter()
@@ -1865,7 +1874,7 @@ mod tests {
         let second_reply: Vec<(&str, &str)> = lines
             .iter()
             .filter(|l| l.starts_with("reply model=standin_frontier ") && word(l, "seed") == "2")
-            .map(|l| (word(l, "attempt"), word(l, "bodies")))
+            .map(|l| (word(l, "i"), word(l, "bodies")))
             .collect();
         let egress: Vec<(&str, &str, &str)> = lines
             .iter()
@@ -1886,7 +1895,12 @@ mod tests {
                 unmarked,
                 holding_a_text,
                 marks_at_the_host,
-                (handed, kept(model::REQUESTS), kept(model::ANSWERS), kept(model::ASKS)),
+                (
+                    handed,
+                    kept(model::REQUESTS),
+                    kept(model::ANSWERS),
+                    kept(model::ASKS)
+                ),
                 sent_with_the_key as u64,
                 lines.iter().filter(|l| l.contains(key)).count(),
                 holding_the_key,
@@ -1933,10 +1947,16 @@ mod tests {
             .map(str::trim)
             .filter(|l| l.starts_with("mod ") || l.starts_with("pub mod "))
             .collect();
-        let own: Vec<&str> = ["struct Snapshot", "fn mask(", "fn forms(", "fn cleaned(", "MARK_HEAD"]
-            .into_iter()
-            .filter(|word| lib.contains(word))
-            .collect();
+        let own: Vec<&str> = [
+            "struct Snapshot",
+            "fn mask(",
+            "fn forms(",
+            "fn cleaned(",
+            "MARK_HEAD",
+        ]
+        .into_iter()
+        .filter(|word| lib.contains(word))
+        .collect();
         let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../forms/src")
             .join(runners);

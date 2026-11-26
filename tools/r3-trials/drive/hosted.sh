@@ -76,8 +76,8 @@ of each text of a slot of the task, and a message with the From line From: [slot
 A cell runs no recovery, and a body that holds the head of a mark is no body. One tier makes at
 most 198 requests a pass: 192 in compiles and 6 for replies. The form takes no --tier, --model,
 --list or --cell: the model token of a tier is the model word of its row of
-crates/halvo-route/data/hosts.tsv with _ for each - and each dot, and the script writes the list
-of each tier, the one entry host:443 of that row's origin, into the run's directory. Without
+crates/halvo-route/data/hosts.tsv with _ for each -, and the script writes the list of each
+tier, the one entry host:443 of that row's origin, into the run's directory. Without
 --browser it takes the Chrome of this system's usual place, and without --port 18471. It refuses
 to start while a tracked file of the checkout is changed (REFUSED tree): its first line is
 
@@ -85,7 +85,7 @@ to start while a tracked file of the checkout is changed (REFUSED tree): its fir
 
 Behind each cell's ends line it prints
 
-  marks model=<token> machine=<m> task=<t> seed=<n> attempt=<pass> requests=<n> with_mark=<n> slot_text=<n>
+  marks model=<token> machine=<m> task=<t> seed=<n> i=<pass> requests=<n> with_mark=<n> slot_text=<n>
 
 behind each tier's host line
 
@@ -94,23 +94,28 @@ behind each tier's host line
 
 (one line), and at its end
 
-  records requests=<n> requests_sha256=<hex> answers=<n> answers_sha256=<hex>
+  records asks=<n> requests_sha256=<hex> answers_sha256=<hex>
   verdict driver=<token|none> path=<A|B> writer=<token|none>
 
-It keeps every request line whole as it hands it to the door in door-requests.jsonl and every
-line that the door gave back in door-answers.jsonl, in the order of the asks, with door-asks.txt,
-which names the cell of each ask; the records line gives their counts and their SHA-256. No byte
-of the key stands in them. Where the round gave a verdict line it writes block.txt beside
-lines.txt: the commit, attempt, drive, reply, marks, count, records and verdict lines alone.
+The compile and the write of the pass p are written with i=<p>, the replays with i from 3(p-1)+1
+to 3(p-1)+3, and the drive and the reply line of the pass hold i=<p> behind seed. It keeps every
+request line whole as it hands it to the door in door-requests.jsonl and every line that the door
+gave back in door-answers.jsonl, one line an ask in each and in the order of the asks (an empty
+line where the door gave none back), with door-asks.txt, which names the cell of each ask; the
+records line gives the count of the asks and the SHA-256 of each of the two files. No byte of the
+key stands in them. Where the round gave a verdict line it writes block.txt beside lines.txt: the
+commit, attempt, drive, reply, marks, count, records and verdict lines alone, and no line of a
+cell that ended notrun.
 
 --marks --standin is the control of that form: two passes of both tiers against the scripted
 host, which also answers the third ask for a reply body with a body that holds the head of a
 mark; then the cell bill:1 once more under a ceiling of 1 minor unit, which must end notrun with
 the cause ceiling and send nothing. It reads the lines against control/hosted-marks-expected.txt,
-the requests that the scripted host received against the spend lines, the record of the scripted
-host for a mark in each cell's requests and for no text of a slot of the three seeds, every file
-of the run's directory for the made-up key, and the block for its eight kinds of line, and prints
-last "control mode=hosted-marks machine=<m> result=<as_expected|differs>".
+the requests that the scripted host received against the spend lines and against the kept records,
+the record of the scripted host for a mark in each cell's requests and for no text of a slot of
+the three seeds, every file of the run's directory for the made-up key, and the block for its
+eight kinds of line, and prints "control readings ..." with each count and last
+"control mode=hosted-marks machine=<m> result=<as_expected|differs>".
 
 The four prompt files must have the SHA-256 of the prompt lines of docs/r3/trials/driver.md
 (REFUSED prompts). The cells keep their directories under one directory under TMPDIR or
@@ -336,7 +341,7 @@ if [ -n "$marks" ]; then
       row_of "$t"
       word=${rest%% *}
       [ "${rest#* }" = "$adapter" ] || refuse row "the adapter of the row of the tier $t is not $adapter"
-      token=$(printf '%s' "$word" | tr '.-' '__')
+      token=$(printf '%s' "$word" | tr '-' '_')
       case $token in
         '' | none | synthetic | *[!abcdefghijklmnopqrstuvwxyz0123456789_]*) refuse row "the model word of the row of the tier $t gives no model token" ;;
       esac
@@ -484,17 +489,26 @@ answers_sha=$(sha_of "$dir/door-answers.jsonl") || notrun tmp
 {
   echo "commit head=$head mask=$mask"
   grep -v '^verdict ' "$dir/drive-lines.txt"
-  echo "records requests=$requests requests_sha256=$requests_sha answers=$answers answers_sha256=$answers_sha"
+  echo "records asks=$requests requests_sha256=$requests_sha answers_sha256=$answers_sha"
   grep '^verdict ' "$dir/drive-lines.txt"
 } >"$dir/lines.txt"
 cat "$dir/lines.txt"
 # THE BLOCK, written in this one place, where the round gave a verdict line: the eight kinds of line of
-# lines.txt in its order, and no other line.
+# lines.txt in its order, and no other line. A cell's attempt, drive and reply lines are held until its marks
+# line, which ends the cell, and are left out with it where the cell wrote a notrun line: every cell of a
+# block is whole.
 block_kinds='commit attempt drive reply marks count records verdict'
 if grep -q '^verdict ' "$dir/lines.txt"; then
   awk -v kinds="$block_kinds" '
     BEGIN { n = split(kinds, k, " "); for (i = 1; i <= n; i++) kind[k[i]] = 1 }
-    ($1 in kind) { print }' "$dir/lines.txt" >"$dir/block.txt" || notrun tmp
+    $1 == "notrun" { stopped = 1; next }
+    !($1 in kind) { next }
+    $1 == "attempt" || $1 == "drive" || $1 == "reply" { held[++cell] = $0; next }
+    $1 == "marks" {
+      if (!stopped) { for (i = 1; i <= cell; i++) print held[i]; print }
+      cell = 0; stopped = 0; next
+    }
+    { print }' "$dir/lines.txt" >"$dir/block.txt" || notrun tmp
 fi
 [ -n "$standin" ] || exit "$status"
 
@@ -585,10 +599,11 @@ if [ -f "$dir/block.txt" ]; then
     { last = $1 }
     END { print (bad || last != "verdict" || NR == 0 ? "differs" : "as_expected") }' "$dir/block.txt")
 fi
-echo "control readings lines=$result sent=${sent:-0} past_the_ceiling=${past:-0} unmarked=$unmarked slot_texts=$texts held=$held read_words=$read_words marks=$marked files=$files keyed=$keyed block=$block"
+echo "control readings lines=$result sent=${sent:-0} past_the_ceiling=${past:-0} asks=$requests answers=$answers unmarked=$unmarked slot_texts=$texts held=$held read_words=$read_words marks=$marked files=$files keyed=$keyed block=$block"
 if [ "$result" != as_expected ] || [ "$unmarked" -ne 0 ] || [ "$texts" -eq 0 ] || [ "$held" -ne 0 ] ||
   [ "$read_words" -eq 0 ] || [ "$marked" -ne 3 ] || [ "$files" -eq 0 ] || [ "$keyed" -ne 0 ] ||
-  [ "$block" != as_expected ] || [ "$status" -ne 0 ] || [ "$ceiling_status" -ne 1 ]; then
+  [ "$block" != as_expected ] || [ "$status" -ne 0 ] || [ "$ceiling_status" -ne 1 ] ||
+  [ "$requests" != "${sent:-0}" ] || [ "$answers" != "$requests" ]; then
   result=differs
 fi
 echo "control mode=hosted-marks machine=$machine result=$result"
