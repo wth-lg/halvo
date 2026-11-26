@@ -104,8 +104,11 @@
         if (mine !== reads) return;
         if (lastReply === null || JSON.stringify(reply) !== JSON.stringify(lastReply)) render(reply);
         if (reply.state === "deleting") readAgain = setTimeout(read, DELETING_READ_MS);
+        Halvo.readSucceeded("proposals");
       })
-      .catch(Halvo.showError);
+      .catch(function (e) {
+        Halvo.readFailed("proposals", e);
+      });
   }
   /** The delete view reads the list again behind an answer of a delete that is not a finished one. */
   Halvo.readWorkflows = read;

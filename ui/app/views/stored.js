@@ -138,7 +138,9 @@
         if (inv && typeof inv === "object") inv.sentAt = sentAt;
         inventory.set(inv);
       })
-      .catch(Halvo.showError);
+      .catch(function (e) {
+        Halvo.readFailed("stored", e);
+      });
   }
 
   function heading(text, cls) {
@@ -179,7 +181,13 @@
       Halvo.feed("status").on(renderStatus);
       inventory.on(function (inv) {
         if (inv && typeof inv === "object" && typeof inv.sentAt === "number" && inv.sentAt !== Halvo.answersSoFar()) return;
-        render(inv);
+        try {
+          render(inv);
+        } catch (e) {
+          Halvo.readFailed("stored", e);
+          return;
+        }
+        Halvo.readSucceeded("stored");
       });
       inventory.source(refresh);
       refresh();
