@@ -232,14 +232,44 @@ struct Queue {
     writer_gone: bool,
 }
 
+/// The events that the hand-offs of a Windows service set's sources dropped at a full queue,
+/// over every source that the set makes in the life of the service: a push into a hand-off that
+/// a stop has closed is not counted, and the slot of a delete of everything takes the count
+/// back to nought.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FullDrops(Arc<AtomicU64>);
+
+impl FullDrops {
+    pub(crate) fn read(&self) -> u64 {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn forget(&self) {
+        self.0.store(0, Ordering::Relaxed);
+    }
+
+    fn count(&self) {
+        self.0.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct LossCounts {
     lost: AtomicU64,
     coalesced: AtomicU64,
     dropped_at_stop: AtomicU64,
+    full: FullDrops,
 }
 
 impl LossCounts {
+    /// The counts of a hand-off whose drops at a full queue also count in `full`.
+    pub(crate) fn counting_full_drops_in(full: &FullDrops) -> Self {
+        Self {
+            full: full.clone(),
+            ..Self::default()
+        }
+    }
+
     fn lose(&self, events: u64) {
         self.lost.fetch_add(events, Ordering::Relaxed);
     }
@@ -337,8 +367,13 @@ impl Drop for HandOff {
 impl Producer {
     pub(crate) fn push(&self, event: FloorEvent) {
         let mut queue = self.shared.lock();
-        if queue.closed || queue.events.len() >= HANDOFF_CAPACITY {
+        if queue.closed {
             self.shared.counts.lose(1);
+            return;
+        }
+        if queue.events.len() >= HANDOFF_CAPACITY {
+            self.shared.counts.lose(1);
+            self.shared.counts.full.count();
             return;
         }
         queue.events.push_back(event);
@@ -617,6 +652,20 @@ pub(crate) struct Lifecycle {
 }
 
 impl Lifecycle {
+    /// The life of a source whose hand-offs count their drops at a full queue
+    /// in `full` as well.
+    pub(crate) fn counting_full_drops_in(full: &FullDrops) -> Self {
+        Self {
+            pump: None,
+            handoff: None,
+            counts: Arc::new(LossCounts::counting_full_drops_in(full)),
+            timed_out: None,
+            removal_failed: None,
+            stopped: false,
+            off: false,
+        }
+    }
+
     /// A begin whose switch is off: nothing is installed and the health reads
     /// Off until a begin with the switch on.
     pub(crate) fn off(&mut self) -> Result<Started, CaptureError> {

@@ -599,7 +599,8 @@ pub(crate) fn written_list(status: &DaemonStatus, name: &str) -> Option<String> 
 /// hold together is the error of its rule. On Windows it names the platform
 /// windows, lists no permission, reports no secure-input count, the custody
 /// dpapi and the password guard `none` while the keyboard source reads off
-/// (contracts.md C10.2).
+/// (contracts.md C10.2), and adds to the owner's `events_lost` the events that
+/// the sources' hand-offs dropped at a full queue.
 pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, StatusError> {
     let board = &parts.board;
     let snapshot = board.snapshot;
@@ -694,7 +695,9 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         }),
         drain_since: None,
         events_pending: snapshot.map_or(0, |snapshot| snapshot.events_pending),
-        events_lost: snapshot.map_or(0, |snapshot| snapshot.events_lost),
+        events_lost: snapshot
+            .map_or(0, |snapshot| snapshot.events_lost)
+            .saturating_add(figures.handoff_full_drops),
         dropped_frames: 0,
         pointer_coalesced: figures.pointer_coalesced,
         tap_disabled_timeout: figures.tap_disabled_timeout,

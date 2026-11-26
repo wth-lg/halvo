@@ -272,6 +272,11 @@ pub struct SourceCounters {
     /// after the hold had stood for a minute or more, which a status tells of behind its end;
     /// none before the first such hold of the process and behind a delete of everything.
     pub secure_hold_before: Option<HoldBefore>,
+    /// A Windows service set alone: the events that the hand-offs of its sources dropped at a
+    /// full queue in the life of the service, which the status adds to `events_lost`; a push
+    /// into a hand-off that a stop has closed is not counted, and the slot of a delete of
+    /// everything takes the count back to nought. Nought from every other source and on a Mac.
+    pub handoff_full_drops: u64,
 }
 
 /// A hold of the system's secure input that a Mac's input source saw end: the seconds, counted
@@ -985,6 +990,7 @@ mod tests {
             secure_hold_since: None,
             no_key_since: None,
             secure_hold_before: None,
+            handoff_full_drops: 0,
         };
         assert_eq!(SourceCounters::default(), zero);
         let health = SourceHealth::default();
