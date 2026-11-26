@@ -2362,6 +2362,65 @@ mod tests {
         );
     }
 
+    #[test]
+    fn an_ask_by_a_break_tells_the_gate_of_one_switch_for_another_window_and_of_none_for_the_window_of_the_visit(
+    ) {
+        use crate::sink::CarryEnd;
+        let (sink, writer) = crate::sink::channel(4);
+        let mut breaks = BreakLook::new(sink.carry_ends());
+        let mut bench = Bench::new();
+        bench.ask(B, AskBy::Front, 500);
+        bench.gate.focus_read_in(Some(B), 510, answered(false));
+        let at_first = bench.look(B, 516);
+        writer.carry_ended(CarryEnd::Front);
+        let asked = breaks.moved();
+        let switches = std::cell::Cell::new(0);
+        let by_a_break = |bench: &mut Bench, window: usize, tick: u32| {
+            let gate = &bench.gate;
+            bench.waiting.ask((window, AskBy::Break), (tick, tick), || {
+                switches.set(switches.get() + 1);
+                Some(gate.switched_to(window, tick))
+            })
+        };
+        by_a_break(&mut bench, B, 2_000);
+        let for_the_window_of_the_visit = (switches.get(), bench.look(B, 2_000));
+        by_a_break(&mut bench, C, 3_000);
+        let for_another_window = (
+            switches.get(),
+            bench.waiting.look(Some(&bench.gate), C, 3_000),
+        );
+        bench.gate.own_read_in(Some(C), 3_100, answered(false));
+        let decided = bench.waiting.look(Some(&bench.gate), C, 3_116);
+        assert_eq!(
+            (
+                at_first,
+                asked,
+                for_the_window_of_the_visit,
+                for_another_window
+            ),
+            (Some(true), true, (0, Some(true)), (1, Look::Wait(16))),
+            "the title at first; the look behind a counted foreground_app record; the switches \
+             told to the gate and the title's decision for an ask by that record of the window \
+             of the visit; and the switches told and the first look for an ask of another \
+             window"
+        );
+        assert!(
+            matches!(
+                decided,
+                Look::Decide(
+                    TitleAsk {
+                        window: C,
+                        why: TitleWhy::AppChange,
+                        tick: 3_000,
+                        ..
+                    },
+                    Some(_)
+                )
+            ),
+            "the ask of the other window at the read asked at its switch: {decided:?}"
+        );
+    }
+
     fn title_facts(units: usize) -> (String, usize, usize, bool) {
         use windows::Win32::UI::WindowsAndMessaging::GetWindowTextLengthW;
         let long: Vec<u16> = std::iter::repeat_n(u16::from(b'x'), units).collect();
