@@ -31,6 +31,7 @@ fn ready(stands: bool) -> ModelUse {
         limit: SpendLimit::Stands {
             amount: "20.00 USD".to_owned(),
             period: "month".to_owned(),
+            near: false,
         },
     }
 }
