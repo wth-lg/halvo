@@ -362,8 +362,8 @@ sh tools/r3-trials/drive/hosted.sh ... --cell bill:1    # one cell of the paid f
   The check `scripts/r3/ci.d/65-drive-hosted.sh` runs
   the tool's tests, the seven whole rounds of its tests against the scripted host
   (`cargo test --locked -- --ignored`), the paid form's refusal on a price file of fixture rates of
-  its own,
-  `--standin` and `--marks --standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by
+  its own and
+  `--standin`. It joins no slice and no merge gate (the coordinator's log line 17943): it runs by
   hand with named checks, the windows job alone, before the paid round and at each change of the
   trial tool or of the door.
 
@@ -409,7 +409,8 @@ sh tools/r3-trials/drive/hosted.sh --marks --key-file FILE --ceiling MINOR [--pa
   of a mark for the third ask for a reply body), two passes, then the cell `bill` 1 under a ceiling of 1 minor
   unit. It reads the lines against `control/hosted-marks-expected.txt`, makes the four other readings that
   `hosted.sh --help` names, and prints `control readings ...` and last `control mode=hosted-marks machine=..
-  result=..`. The check `scripts/r3/ci.d/65-drive-hosted.sh` runs it behind the hosted form's control.
+  result=..`. The check `scripts/r3/ci.d/66-drive-hosted-marks.sh` runs it, a row of its own beside check 65: by
+  hand, the windows job alone, in no slice and no merge gate.
 
 ## Revisions
 
