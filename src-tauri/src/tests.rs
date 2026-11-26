@@ -1390,14 +1390,18 @@ fn the_window_main_is_built_blank_and_hidden_from_the_set_up_alone_and_counts_lo
     ] {
         assert_eq!(app.matches(text).count(), count, "{text}");
     }
+    let first_try = app
+        .find("first_try(app.handle(), install, &tray)")
+        .expect("the tray's first try");
+    let poller = app
+        .find("poller::start(control, Arc::clone(&views), tray)")
+        .expect("the poller's start");
+    let window = app.find("main_window(").expect("the window's build");
     let guard = app
         .find("(parts.guard)(&window, site, sender)")
         .expect("the guard's call");
-    let tray = app
-        .find("let tray = match parts.tray")
-        .expect("the tray's install");
     let decided = app.find("match answer.try_recv()").expect("the decision");
-    assert!(guard < tray && tray < decided);
+    assert!(first_try < window && poller < window && window < guard && guard < decided);
 }
 
 #[cfg(windows)]
