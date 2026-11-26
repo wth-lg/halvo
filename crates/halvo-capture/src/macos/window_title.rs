@@ -458,6 +458,57 @@ pub fn focused_window_title(pid: libc::pid_t) -> Result<Option<TitleText>, Title
     })
 }
 
+/// For the hosted probe 66-mac-browser-language alone, which never lands: the
+/// titles of the elements that the attribute `list` holds, read from the
+/// element under the attribute `container` of the app `pid`, or from the app
+/// itself. With `AXMenuBar` and `AXChildren` it gives the names of the menu
+/// bar's own items, and nothing under a menu is read.
+#[cfg(test)]
+pub(crate) fn titles_under(
+    pid: libc::pid_t,
+    container: Option<&str>,
+    list: &str,
+) -> Result<Vec<String>, TitleError> {
+    use core_foundation::array::CFArray;
+    if !accessibility_trusted() {
+        return Err(TitleError::NotTrusted);
+    }
+    let app = application_element(pid)?;
+    if let Some(app) = AxElement::checked(&app) {
+        set_deadline(app);
+    }
+    let holder = match container {
+        Some(container) => {
+            let Some(holder) = copy_attribute(&app, container)? else {
+                return Ok(Vec::new());
+            };
+            if let Some(holder) = AxElement::checked(&holder) {
+                set_deadline(holder);
+            }
+            holder
+        }
+        None => app,
+    };
+    let Some(items) = copy_attribute(&holder, list)? else {
+        return Ok(Vec::new());
+    };
+    let items = items.downcast::<CFArray>().ok_or(TitleError::NotAString)?;
+    let mut titles = Vec::new();
+    for item in items.iter() {
+        // SAFETY: the item is a live CF object that the array holds.
+        let item = unsafe { CFType::wrap_under_get_rule(*item as CFTypeRef) };
+        if let Some(item) = AxElement::checked(&item) {
+            set_deadline(item);
+        }
+        let title = copy_attribute(&item, "AXTitle")?
+            .and_then(|title| title.downcast::<CFString>())
+            .map(|title| title.to_string())
+            .unwrap_or_default();
+        titles.push(title);
+    }
+    Ok(titles)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

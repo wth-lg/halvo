@@ -3516,4 +3516,699 @@ mod tests {
             CaptureError::Start("the foreground thread was not started".into())
         );
     }
+
+    // The hosted probe 66-mac-browser-language, which never lands: everything
+    // from here to the end of the module.
+
+    /// The titles of the probe's two pages: the first window's and the
+    /// private window's.
+    const MBL_TITLE: &str = "Halvo probe page";
+    const MBL_PRIVATE_TITLE: &str = "Halvo probe private page";
+
+    /// `vnode_fdinfowithpath` of the system's `sys/proc_info.h`, which the
+    /// libc crate does not hold: a `proc_fileinfo` of 24 bytes, then the
+    /// file's `vnode_info_path`.
+    #[repr(C)]
+    struct MblOpenFile {
+        _file: [u64; 3],
+        path: libc::vnode_info_path,
+    }
+
+    /// `proc_regionwithpathinfo` of the same header: a `proc_regioninfo` of
+    /// 96 bytes, whose last two numbers are the region's address and size,
+    /// then the `vnode_info_path` of the file that the region maps.
+    #[repr(C)]
+    struct MblRegion {
+        _head: [u32; 4],
+        _offset: u64,
+        _counts: [u32; 14],
+        address: u64,
+        size: u64,
+        path: libc::vnode_info_path,
+    }
+
+    /// The flavors `PROC_PIDFDVNODEPATHINFO` and `PROC_PIDREGIONPATHINFO` of
+    /// that header.
+    const MBL_FD_VNODE_PATH: libc::c_int = 2;
+    const MBL_REGION_PATH: libc::c_int = 8;
+
+    const _: () = assert!(std::mem::size_of::<MblOpenFile>() == 1200);
+    const _: () = assert!(std::mem::size_of::<MblRegion>() == 1272);
+
+    /// The probe's count line: the lines of a state that it printed, and of
+    /// them those whose title was read, was refused for the missing grant or
+    /// was not there, and the states whose browser did not start.
+    #[derive(Default)]
+    struct MblCount {
+        lines: u32,
+        read: u32,
+        refused: u32,
+        no_title: u32,
+        not_started: u32,
+    }
+
+    impl MblCount {
+        fn title(&mut self, title: &TitleRead) {
+            self.lines += 1;
+            match title {
+                Ok(Some(_)) => self.read += 1,
+                Err(TitleError::NotTrusted) => self.refused += 1,
+                Ok(None) | Err(_) => self.no_title += 1,
+            }
+        }
+    }
+
+    /// Serves the probe's pages on 127.0.0.1 from a thread of its own and
+    /// gives its port: `/private` holds the private window's title, every
+    /// other path the first window's.
+    fn mbl_serve() -> u16 {
+        use std::io::{BufRead, BufReader, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let port = listener.local_addr().expect("the port").port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let mut reader = BufReader::new(&stream);
+                let mut first = String::new();
+                if reader.read_line(&mut first).is_err() {
+                    continue;
+                }
+                loop {
+                    let mut header = String::new();
+                    match reader.read_line(&mut header) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) if header.trim().is_empty() => break,
+                        Ok(_) => {}
+                    }
+                }
+                let title = if first.contains("/private") {
+                    MBL_PRIVATE_TITLE
+                } else {
+                    MBL_TITLE
+                };
+                let body = format!(
+                    "<!doctype html><html><head><title>{title}</title></head><body><p>probe</p></body></html>"
+                );
+                let mut stream = &stream;
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                )
+                .ok();
+            }
+        });
+        port
+    }
+
+    /// The version that an app's Info.plist names, or `unread`.
+    fn mbl_version(bundle: &str) -> String {
+        std::process::Command::new("/usr/bin/plutil")
+            .args([
+                "-extract",
+                "CFBundleShortVersionString",
+                "raw",
+                "-o",
+                "-",
+                &format!("{bundle}/Contents/Info.plist"),
+            ])
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            .unwrap_or_else(|| "unread".to_string())
+    }
+
+    /// `text` with every sign written as its code point that is no letter,
+    /// digit or blank and no plain sign of ASCII, or that the probe's lines
+    /// use to part their fields.
+    fn mbl_text(text: &str) -> String {
+        text.chars()
+            .map(|c| {
+                let plain = c.is_alphanumeric()
+                    || c == ' '
+                    || (c.is_ascii_graphic()
+                        && !matches!(c, '"' | '\\' | '|' | '[' | ']' | '{' | '}' | '<' | '>'));
+                if plain {
+                    c.to_string()
+                } else {
+                    format!("<U+{:04X}>", u32::from(c))
+                }
+            })
+            .collect()
+    }
+
+    fn mbl_yes(yes: bool) -> &'static str {
+        if yes {
+            "yes"
+        } else {
+            "no"
+        }
+    }
+
+    fn mbl_errno() -> i32 {
+        std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
+    }
+
+    /// Runs the system's `defaults` tool with `args` and says whether it
+    /// exited with 0.
+    fn mbl_defaults(args: &[&str]) -> bool {
+        std::process::Command::new("/usr/bin/defaults")
+            .args(args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+
+    /// A language read as the probe prints it.
+    fn mbl_languages(read: &Languages) -> String {
+        match read {
+            Languages::Failed => "failed".to_string(),
+            Languages::NoValue => "no_value".to_string(),
+            Languages::List(list) => format!("list:{}", mbl_text(&list.join(","))),
+        }
+    }
+
+    /// The path that a `vnode_info_path` holds, up to its first NUL.
+    fn mbl_path(path: &libc::vnode_info_path) -> String {
+        let bytes: Vec<u8> = path
+            .vip_path
+            .iter()
+            .flatten()
+            .map(|unit| unit.to_ne_bytes()[0])
+            .take_while(|&unit| unit != 0)
+            .collect();
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
+    /// What the kept paths tell, and the paths themselves: `lang=<code>` with
+    /// `in_bundle=` where they hold exactly one `<code>.lproj/locale.pak`, be
+    /// it open more than once, `lang=none` where they hold none and
+    /// `lang=many:<count>` else. `place` is the place of the browser's bundle.
+    fn mbl_paks(paks: &[String], place: Option<&str>) -> String {
+        let mut files: Vec<&str> = paks
+            .iter()
+            .filter_map(|path| path.strip_suffix(".lproj/locale.pak"))
+            .collect();
+        files.sort_unstable();
+        files.dedup();
+        let lang = match files.as_slice() {
+            [] => "none".to_string(),
+            [one] => {
+                let code = one.rsplit('/').next().unwrap_or("");
+                let inside = place.is_some_and(|place| {
+                    one.starts_with(&format!("{}/", place.trim_end_matches('/')))
+                });
+                format!("{} in_bundle={}", mbl_text(code), mbl_yes(inside))
+            }
+            many => format!("many:{}", many.len()),
+        };
+        let list: Vec<String> = paks.iter().map(|path| mbl_text(path)).collect();
+        format!("lang={lang} pak=[{}]", list.join("|"))
+    }
+
+    /// One reading of the files that the process `pid` holds open, through
+    /// the two calls of way (iii): the list of its open files, then the path
+    /// of each that is a file of a disk. Of the paths only those that end in
+    /// `.pak` are kept; every other one is dropped unprinted.
+    fn mbl_open_files(pid: libc::pid_t, place: Option<&str>) -> String {
+        let begun = Instant::now();
+        let entry = std::mem::size_of::<libc::proc_fdinfo>();
+        // SAFETY: with a null buffer of no bytes the call writes nothing and
+        // answers the bytes that the list takes.
+        let need =
+            unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
+        if need <= 0 {
+            return format!(
+                "fd{{list=errno:{} ms={}}}",
+                mbl_errno(),
+                begun.elapsed().as_millis()
+            );
+        }
+        let room = usize::try_from(need).unwrap_or(0) / entry + 64;
+        let mut list = vec![
+            libc::proc_fdinfo {
+                proc_fd: 0,
+                proc_fdtype: 0,
+            };
+            room
+        ];
+        let bytes = libc::c_int::try_from(room * entry).unwrap_or(libc::c_int::MAX);
+        // SAFETY: `list` is writable for `bytes` bytes, and the call writes at
+        // most that many.
+        let wrote = unsafe {
+            libc::proc_pidinfo(
+                pid,
+                libc::PROC_PIDLISTFDS,
+                0,
+                list.as_mut_ptr().cast(),
+                bytes,
+            )
+        };
+        if wrote <= 0 {
+            return format!(
+                "fd{{list=errno:{} ms={}}}",
+                mbl_errno(),
+                begun.elapsed().as_millis()
+            );
+        }
+        list.truncate(usize::try_from(wrote).unwrap_or(0) / entry);
+        let size = libc::c_int::try_from(std::mem::size_of::<MblOpenFile>()).expect("a small size");
+        let (mut vnodes, mut unread, mut unread_errno) = (0, 0, 0);
+        let mut paks = Vec::new();
+        for open in &list {
+            if i64::from(open.proc_fdtype) != i64::from(libc::PROX_FDTYPE_VNODE) {
+                continue;
+            }
+            vnodes += 1;
+            let mut info = std::mem::MaybeUninit::<MblOpenFile>::zeroed();
+            // SAFETY: `info` is writable for a whole vnode_fdinfowithpath, the
+            // struct of this flavor, which is all that the call writes.
+            let answer = unsafe {
+                libc::proc_pidfdinfo(
+                    pid,
+                    open.proc_fd,
+                    MBL_FD_VNODE_PATH,
+                    info.as_mut_ptr().cast(),
+                    size,
+                )
+            };
+            if answer != size {
+                unread += 1;
+                unread_errno = mbl_errno();
+                continue;
+            }
+            // SAFETY: the buffer was zeroed before the call, and every bit
+            // pattern is a value of this struct of plain numbers.
+            let info = unsafe { info.assume_init() };
+            let path = mbl_path(&info.path);
+            if path.ends_with(".pak") {
+                paks.push(path);
+            }
+        }
+        format!(
+            "fd{{list=ok fds={} files={vnodes} unread={unread} unread_errno={unread_errno} ms={} {}}}",
+            list.len(),
+            begun.elapsed().as_millis(),
+            mbl_paks(&paks, place)
+        )
+    }
+
+    /// One reading of the files that the process `pid` has mapped, beside
+    /// the open files: a walk of its regions, for at most five seconds. Of
+    /// the paths only those that end in `.pak` are kept, each once.
+    fn mbl_mapped_files(pid: libc::pid_t, place: Option<&str>) -> String {
+        let begun = Instant::now();
+        let size = libc::c_int::try_from(std::mem::size_of::<MblRegion>()).expect("a small size");
+        let (mut address, mut regions) = (0u64, 0u32);
+        let mut paks: Vec<String> = Vec::new();
+        let walk = loop {
+            if regions >= 400_000 || begun.elapsed() > Duration::from_secs(5) {
+                break "cut".to_string();
+            }
+            let mut region = std::mem::MaybeUninit::<MblRegion>::zeroed();
+            // SAFETY: `region` is writable for a whole
+            // proc_regionwithpathinfo, the struct of this flavor, which is
+            // all that the call writes.
+            let answer = unsafe {
+                libc::proc_pidinfo(
+                    pid,
+                    MBL_REGION_PATH,
+                    address,
+                    region.as_mut_ptr().cast(),
+                    size,
+                )
+            };
+            if answer != size {
+                break format!("ended_errno:{}", mbl_errno());
+            }
+            // SAFETY: the buffer was zeroed before the call, and every bit
+            // pattern is a value of this struct of plain numbers.
+            let region = unsafe { region.assume_init() };
+            regions += 1;
+            let path = mbl_path(&region.path);
+            if path.ends_with(".pak") && !paks.contains(&path) {
+                paks.push(path);
+            }
+            let next = region.address.saturating_add(region.size);
+            if next <= address {
+                break "no_step".to_string();
+            }
+            address = next;
+        };
+        format!(
+            "map{{walk={walk} regions={regions} ms={} {}}}",
+            begun.elapsed().as_millis(),
+            mbl_paks(&paks, place)
+        )
+    }
+
+    /// Both readings of the process `pid`.
+    fn mbl_holds(pid: libc::pid_t, place: Option<&str>) -> String {
+        format!(
+            "{} {}",
+            mbl_open_files(pid, place),
+            mbl_mapped_files(pid, place)
+        )
+    }
+
+    /// The titles that [`window_title::titles_under`] gives, read up to six
+    /// times, half a second apart, until the read answers with at least one.
+    fn mbl_titles(pid: libc::pid_t, container: Option<&str>, list: &str) -> String {
+        let mut last = "unread".to_string();
+        for _ in 0..6 {
+            let begun = Instant::now();
+            let read = window_title::titles_under(pid, container, list);
+            let ms = begun.elapsed().as_millis();
+            last = match read {
+                Ok(titles) if !titles.is_empty() => {
+                    let titles: Vec<String> = titles.iter().map(|title| mbl_text(title)).collect();
+                    return format!("ok:[{}] ms:{ms}", titles.join("|"));
+                }
+                Ok(_) => format!("empty ms:{ms}"),
+                Err(error) => {
+                    let error = format!("{error:?}").replace(' ', "");
+                    format!("error:{error} ms:{ms}")
+                }
+            };
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        last
+    }
+
+    /// The title that the capture's own read gives for the browser of `pid`,
+    /// read every 250 ms until it holds `wanted` or the read is refused, for
+    /// at most 30 s.
+    fn mbl_title(pid: libc::pid_t, wanted: &str) -> TitleRead {
+        let until = Instant::now() + Duration::from_secs(30);
+        loop {
+            let read = window_title::focused_window_title(pid);
+            let holds = matches!(&read, Ok(Some(title)) if title.text().contains(wanted));
+            if holds || matches!(read, Err(TitleError::NotTrusted)) || Instant::now() >= until {
+                return read;
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+
+    /// A title read as the probe prints it, with what the rule by the
+    /// browser's own name does with it.
+    fn mbl_title_words(read: &TitleRead, id: &str) -> String {
+        match read {
+            Ok(Some(title)) => {
+                let name_rule = match window_title::listed(id) {
+                    Listed::Ending(_, own) => {
+                        if title
+                            .clone()
+                            .of_a_browser_kept_by_its_name(own)
+                            .left_out_by_its_browser()
+                        {
+                            "left_out"
+                        } else {
+                            "kept"
+                        }
+                    }
+                    Listed::Browser | Listed::Domain | Listed::Other => "not_listed",
+                };
+                format!(
+                    "name_rule={name_rule} title=\"{}\" end64=\"{}\"",
+                    mbl_text(title.text()),
+                    mbl_text(title.ending())
+                )
+            }
+            Ok(None) => "title=none".to_string(),
+            Err(TitleError::NotTrusted) => "title=refused grant=missing".to_string(),
+            Err(error) => {
+                let error = format!("{error:?}").replace(' ', "");
+                format!("title=error:{error}")
+            }
+        }
+    }
+
+    /// What the product's rules say today of the process `pid` of the
+    /// browser `id` at the change `change` of the app in front.
+    fn mbl_rule(rules: &mut TitleRules, id: &str, pid: libc::pid_t, change: u64) -> &'static str {
+        let request = TitleRequest {
+            front: tests_support::front(id, pid),
+            change,
+        };
+        match rules.rule_of(&request) {
+            TitleRule::NameEnding(_) => "english",
+            TitleRule::NoTitle => "not_english",
+            TitleRule::Kept => "no_browser",
+        }
+    }
+
+    /// The app in front as the product reads it.
+    fn mbl_front() -> (Option<libc::pid_t>, String) {
+        match read_frontmost() {
+            Some(front) => {
+                let id = match &front.identity {
+                    AppIdentity::BundleId(id) => mbl_text(id.as_str()),
+                    AppIdentity::ExecutablePath(_) => "no_bundle_id".to_string(),
+                    AppIdentity::Unknown => "unknown".to_string(),
+                };
+                (
+                    Some(front.pid),
+                    format!("front_pid={} front_id={id}", front.pid),
+                )
+            }
+            None => (None, "front_pid=unread front_id=unread".to_string()),
+        }
+    }
+
+    /// Starts `binary` on the profile folder `profile` with the probe's
+    /// flags, the flags `before` the page `url` and the arguments `after` it.
+    fn mbl_start(
+        binary: &str,
+        profile: &std::path::Path,
+        before: &[&str],
+        url: &str,
+        after: &[&str],
+    ) -> std::io::Result<std::process::Child> {
+        std::process::Command::new(binary)
+            .arg(format!("--user-data-dir={}", profile.display()))
+            .args([
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-search-engine-choice-screen",
+                "--use-mock-keychain",
+                "--new-window",
+            ])
+            .args(before)
+            .arg(url)
+            .args(after)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+    }
+
+    /// Ends the process of `child` where it still runs: a TERM, five
+    /// seconds, then a KILL.
+    fn mbl_end(mut child: std::process::Child) {
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        if let Ok(pid) = libc::pid_t::try_from(child.id()) {
+            // SAFETY: kill takes plain values; the pid is this test's own
+            // child, which has not been waited for.
+            unsafe {
+                libc::kill(pid, libc::SIGTERM);
+            }
+        }
+        let until = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < until {
+            if matches!(child.try_wait(), Ok(Some(_))) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        child.kill().ok();
+        child.wait().ok();
+    }
+
+    #[test]
+    #[ignore = "hosted alone: it starts a real Chrome and a real Edge; the check 66-mac-browser-language runs it"]
+    fn a_real_chrome_and_edge_print_the_language_that_each_process_tells() {
+        if std::env::var("GITHUB_ACTIONS").as_deref() != Ok("true")
+            || std::env::var("HALVO_HOSTED_BROWSER_LANGUAGE").as_deref() != Ok("1")
+        {
+            return;
+        }
+        println!();
+        let port = mbl_serve();
+        let browsers = [
+            (
+                "chrome",
+                "/Applications/Google Chrome.app",
+                "Google Chrome",
+                "com.google.Chrome",
+                "--incognito",
+            ),
+            (
+                "edge",
+                "/Applications/Microsoft Edge.app",
+                "Microsoft Edge",
+                "com.microsoft.edgemac",
+                "--inprivate",
+            ),
+        ];
+        let home = std::env::var("HOME").ok();
+        let mut count = MblCount::default();
+        for (name, bundle, binary_name, id, private_flag) in browsers {
+            let version = mbl_version(bundle);
+            let binary = format!("{bundle}/Contents/MacOS/{binary_name}");
+            for state in ["plain", "argument", "domain"] {
+                let mut langs = browser_reads::SystemLanguages;
+                let mut prior: Option<Vec<String>> = None;
+                let domain = match state {
+                    "argument" => format!(
+                        "probe_key_written:{}",
+                        mbl_yes(mbl_defaults(&[
+                            "write",
+                            id,
+                            "HalvoProbeKey",
+                            "-bool",
+                            "true"
+                        ]))
+                    ),
+                    "domain" => {
+                        if mbl_defaults(&["read", id, "AppleLanguages"]) {
+                            if let Languages::List(list) = langs.own(id) {
+                                prior = Some(list);
+                            }
+                        }
+                        format!(
+                            "AppleLanguages_de_written:{}",
+                            mbl_yes(mbl_defaults(&[
+                                "write",
+                                id,
+                                "AppleLanguages",
+                                "-array",
+                                "de"
+                            ]))
+                        )
+                    }
+                    _ => "as_found".to_string(),
+                };
+                let put_back = |prior: &Option<Vec<String>>| match state {
+                    "argument" => mbl_defaults(&["delete", id, "HalvoProbeKey"]),
+                    "domain" => match prior {
+                        Some(list) => {
+                            let mut args = vec!["write", id, "AppleLanguages", "-array"];
+                            args.extend(list.iter().map(String::as_str));
+                            mbl_defaults(&args)
+                        }
+                        None => mbl_defaults(&["delete", id, "AppleLanguages"]),
+                    },
+                    _ => true,
+                };
+                let mut rules = TitleRules::system();
+                rules.begin();
+                let profile = std::env::temp_dir().join(format!("halvo-mbl-{name}-{state}"));
+                std::fs::create_dir_all(&profile).ok();
+                let url = format!("http://127.0.0.1:{port}/page");
+                let after: &[&str] = if state == "argument" {
+                    &["-AppleLanguages", "(de)"]
+                } else {
+                    &[]
+                };
+                let Ok(child) = mbl_start(&binary, &profile, &[], &url, after) else {
+                    count.not_started += 1;
+                    let back = put_back(&prior);
+                    for window in ["", "-private"] {
+                        count.lines += 1;
+                        println!(
+                            "MBL browser={name} version={version} state={state}{window} started=no domain={domain} put_back={}",
+                            mbl_yes(back)
+                        );
+                    }
+                    continue;
+                };
+                let child_pid = libc::pid_t::try_from(child.id()).expect("a pid");
+                let mut title = mbl_title(child_pid, MBL_TITLE);
+                let (front_pid, front) = mbl_front();
+                let pid = match front_pid {
+                    Some(front_pid)
+                        if front_pid != child_pid && langs.place(front_pid, id).is_some() =>
+                    {
+                        title = mbl_title(front_pid, MBL_TITLE);
+                        front_pid
+                    }
+                    _ => child_pid,
+                };
+                let tick = |langs: &mut browser_reads::SystemLanguages| {
+                    langs
+                        .started(pid)
+                        .map_or_else(|| "unread".to_string(), |start| start.to_string())
+                };
+                let started = tick(&mut langs);
+                let place = langs.place(pid, id);
+                let at_first = mbl_holds(pid, place.as_deref());
+                let menu = mbl_titles(pid, Some("AXMenuBar"), "AXChildren");
+                let (own, global) = (langs.own(id), langs.global());
+                let list = match (&own, &global) {
+                    (Languages::List(list), _) | (Languages::NoValue, Languages::List(list)) => {
+                        Some(list.clone())
+                    }
+                    _ => None,
+                };
+                let localization = match (&place, &list) {
+                    (Some(place), Some(list)) => langs
+                        .localization(place, list)
+                        .unwrap_or_else(|| "none".to_string()),
+                    _ => "unread".to_string(),
+                };
+                let in_applications = place.as_deref().map_or("unread", |place| {
+                    mbl_yes(window_title::in_applications(place, home.as_deref()))
+                });
+                let rule = mbl_rule(&mut rules, id, pid, 1);
+                std::thread::sleep(Duration::from_secs(20));
+                let at_20s = mbl_holds(pid, place.as_deref());
+                count.title(&title);
+                println!(
+                    "MBL browser={name} version={version} state={state} pid={pid} child_pid={child_pid} {front} started={started} domain={domain} own={} global={} localization={} in_applications={in_applications} rule_today={rule} {} menu={menu} at_first={at_first} at_20s={at_20s}",
+                    mbl_languages(&own),
+                    mbl_languages(&global),
+                    mbl_text(&localization),
+                    mbl_title_words(&title, id),
+                );
+                let private_url = format!("http://127.0.0.1:{port}/private");
+                let second = mbl_start(&binary, &profile, &[private_flag], &private_url, &[]);
+                let private_title = mbl_title(pid, MBL_PRIVATE_TITLE);
+                let (_, private_front) = mbl_front();
+                let at_private = mbl_holds(pid, place.as_deref());
+                let private_menu = mbl_titles(pid, Some("AXMenuBar"), "AXChildren");
+                let windows = mbl_titles(pid, None, "AXWindows");
+                let private_rule = mbl_rule(&mut rules, id, pid, 2);
+                let private_started = tick(&mut langs);
+                let second_started = second.is_ok();
+                if let Ok(second) = second {
+                    mbl_end(second);
+                }
+                mbl_end(child);
+                let back = put_back(&prior);
+                let own_after = langs.own(id);
+                count.title(&private_title);
+                println!(
+                    "MBL browser={name} version={version} state={state}-private pid={pid} child_pid={child_pid} {private_front} started={private_started} second_start={} rule_today={private_rule} {} windows={windows} menu={private_menu} at_private={at_private} put_back={} own_after={}",
+                    mbl_yes(second_started),
+                    mbl_title_words(&private_title, id),
+                    mbl_yes(back),
+                    mbl_languages(&own_after),
+                );
+            }
+        }
+        println!("MBL other_user pid=1 {}", mbl_holds(1, None));
+        println!(
+            "MBL lines={} read={} refused={} no_title={} not_started={}",
+            count.lines, count.read, count.refused, count.no_title, count.not_started
+        );
+        assert_eq!(
+            count.refused, 0,
+            "the accessibility grant is missing for the test's process"
+        );
+        assert_eq!(count.not_started, 0, "a browser did not start");
+    }
 }
