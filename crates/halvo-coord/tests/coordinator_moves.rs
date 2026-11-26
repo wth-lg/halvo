@@ -511,6 +511,7 @@ fn an_agent_whose_newest_run_the_store_has_not_ended_shows_waiting_turn_store() 
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.tick();
@@ -832,6 +833,7 @@ fn rd61e_pin_an_answered_runs_check_then_an_unknown_effect_at_the_end_brings_the
             day: DAY,
             outcome: Outcome::EffectUnknown,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.end_runner(&run);
@@ -1900,6 +1902,7 @@ fn the_next_life_raises_no_setup_for_an_agent_of_a_dismissed_workflow_or_one_wit
                     day: DAY,
                     outcome: Outcome::Completed,
                     unknown: 1,
+                    notes: halvo_coord::types::Notes::default(),
                 });
             }
         }
@@ -2191,6 +2194,7 @@ fn the_holds_check_item_never_lapses_by_time() {
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.set_clock(T0 + 1_000, DAY);
@@ -2224,6 +2228,7 @@ fn after_a_lapse_at_wait_limit_the_person_finds_no_card_the_row_stopped_early_an
             day: DAY,
             outcome: Outcome::HandedBack,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.set_clock(grace + 1_000, DAY);
@@ -2432,6 +2437,7 @@ fn after_the_quits_first_step_a_tick_serves_no_queue_starts_nothing_and_raises_n
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     let _ = c.quit_stop();
@@ -2543,6 +2549,7 @@ fn a_run_started_whose_acknowledgement_was_lost_is_closed_in_this_life_and_count
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.set_clock(T0 + 3_000, DAY);
@@ -3624,6 +3631,7 @@ fn the_persons_stop_of_an_agent_with_no_live_run_or_a_stopping_one_lapses_nothin
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.set_clock(T0 + 1_000, DAY);
@@ -4779,6 +4787,7 @@ fn a_ticks_start_whose_read_brings_a_lost_switch_off_stores_nothing_and_the_next
                 day: DAY,
                 outcome: Outcome::Completed,
                 unknown: 0,
+                notes: halvo_coord::types::Notes::default(),
             },
         );
         c.ports().ports.set_clock(T0 + 1_000, DAY);
@@ -8162,6 +8171,7 @@ fn rd122_a_held_place_of_the_items_list_stops_the_ticks_start_at_the_coordinator
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     for k in 1..=3u64 {
@@ -8686,6 +8696,7 @@ fn ended_in_store(c: &Coordinator<Both>, run: &RunId, outcome: Outcome) {
             day: DAY,
             outcome,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.tick();
@@ -9777,6 +9788,7 @@ fn rd133_rows_that_waited_for_a_stamp_are_read_lost_by_the_next_lives_recovery()
                 day: DAY,
                 outcome: Outcome::Failed,
                 unknown: 0,
+                notes: halvo_coord::types::Notes::default(),
             },
             effects: Vec::new(),
         },
@@ -11185,6 +11197,7 @@ fn adv3_store_ends(c: &Coordinator<Both>, run: &RunId) {
             day: DAY,
             outcome: halvo_coord::types::Outcome::Completed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.tick();
@@ -13930,6 +13943,7 @@ fn u24s_r1_a_later_run_starts_after_a_switch_off_that_could_not_be_saved() {
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.tick();
@@ -13973,6 +13987,7 @@ fn u24s_r1_a_card_after_the_switch_off_that_could_not_be_saved_has_its_own_line(
             day: DAY,
             outcome: Outcome::EffectUnknown,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.tick();
@@ -14244,6 +14259,7 @@ fn u24s_r7_unknown_outcome(o: &Both, made: &AgentId, flow: &WorkflowId) {
                 day: DAY,
                 outcome: Outcome::Completed,
                 unknown: 1,
+                notes: halvo_coord::types::Notes::default(),
             });
         }
     }
@@ -14336,6 +14352,7 @@ fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_shows_the_agent_off() {
             day: DAY,
             outcome: Outcome::Completed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.tick();
@@ -14811,6 +14828,7 @@ fn u24t_check_card_with_a_kept_field() -> (Coordinator<Both>, RunId) {
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 0,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.agents.borrow_mut()[0]
@@ -14923,6 +14941,7 @@ fn u24t_rd135_the_kept_fields_go_with_the_card_and_a_new_card_takes_its_own() {
             day: DAY,
             outcome: Outcome::Failed,
             unknown: 1,
+            notes: halvo_coord::types::Notes::default(),
         },
     );
     c.ports().ports.agents.borrow_mut()[0].unknown.clear();
@@ -15004,6 +15023,7 @@ fn u24t_with_a_past_run(dropped: bool) -> Coordinator<Both> {
                 day: DAY,
                 outcome: Outcome::Completed,
                 unknown: 0,
+                notes: halvo_coord::types::Notes::default(),
             },
             effects: Vec::new(),
         },

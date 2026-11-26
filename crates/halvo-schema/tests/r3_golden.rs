@@ -208,6 +208,7 @@ fn agent_run(outcome: Outcome, mode: Mode, unknown: u32) -> AgentRun {
         other_task: None,
         held_earlier: None,
         earlier_page: None,
+        letters_guessed: None,
     }
 }
 

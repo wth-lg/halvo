@@ -604,6 +604,7 @@ fn build(state: State) -> Vec<Built> {
                 day: p.day,
                 outcome: p.end,
                 unknown: p.unknown,
+                notes: crate::types::Notes::default(),
             })
             .collect();
         history.reverse();

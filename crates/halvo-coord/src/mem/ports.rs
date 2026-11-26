@@ -379,6 +379,7 @@ impl<C> Ports<C> {
                     day,
                     outcome: Outcome::Failed,
                     unknown: 0,
+                    notes: crate::types::Notes::default(),
                 },
             );
             let lost: Vec<Unknown> = self

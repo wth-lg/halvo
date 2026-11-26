@@ -14,7 +14,7 @@ use halvo_schema::executable::{
     ActionClass, AgentCheckpoint, AgentConfig, Bound, BoundField, Cause, CheckpointState, Digest,
     EffectState, ExecutableStep, Outcome, RunnerCall, RunnerReply,
 };
-use halvo_sheet::{Folder, Locks, Prepared, Range, Sha256, Value};
+use halvo_sheet::{Folder, Letters, Locks, Prepared, Range, Sha256, Value};
 
 use halvo_schema::executable::day::day_of;
 
@@ -189,6 +189,8 @@ pub(crate) struct ReadUnder {
     slot: Name,
     source: String,
     folder: PathBuf,
+    /// Whether `read_data` read the file's letters by the computer's code page (r3 U11.10).
+    guessed: bool,
 }
 
 impl Runner {
@@ -255,7 +257,9 @@ impl Runner {
         }
     }
 
-    /// A `file` `read`: the rows of the source file of the target's slot, kept under the name of the arg `as`.
+    /// A `file` `read`: the rows of the source file of the target's slot, kept under the name of the arg `as`, and
+    /// whether its letters were read by the computer's code page, which a write that `replace` then answers well
+    /// sets as the run's `letters_guessed`, before its `committed` row (r3 U11.10; the coordinator's way (b)).
     pub(crate) fn file_read(
         &mut self,
         step: &ExecutableStep,
@@ -271,14 +275,15 @@ impl Runner {
         let (_, dir) = workbook_of(loaded, &slot)?;
         let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
         let source = slot_path(loaded, &target.file, Cause::NoDataFile)?;
-        let rows = folder
-            .read_source(&source)
+        let data = folder
+            .read_data(&source)
             .map_err(|e| Failure::Step(source_cause(&e)))?;
-        self.kept.insert(name.as_str().to_string(), rows);
+        self.kept.insert(name.as_str().to_string(), data.rows);
         self.read_under = Some(ReadUnder {
             slot: target.file.clone(),
             source: source.to_string_lossy().into_owned(),
             folder: dir,
+            guessed: matches!(data.letters, Letters::Page(_)),
         });
         Ok(())
     }
@@ -393,7 +398,11 @@ impl Runner {
                     cause: Cause::NotReplaced,
                 };
                 match self.link.settle(|| folder.replace(&prepared))? {
-                    Some(Ok(())) => {}
+                    Some(Ok(())) => {
+                        if self.read_under.as_ref().is_some_and(|read| read.guessed) {
+                            self.letters_guessed = true;
+                        }
+                    }
                     Some(Err(error)) if left_as_it_was(&error) => {
                         self.advance(at, not_replaced)?;
                         return Err(Failure::Step(sheet_cause(&error)));

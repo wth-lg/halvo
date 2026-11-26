@@ -106,8 +106,9 @@ pub enum PathRefusal {
 /// header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceRefusal {
-    /// The file is not UTF-8. Its cause is `data_encoding` (r3 U11.5); every other refusal's is
-    /// `data_form`.
+    /// The file is not UTF-8, not UTF-16 by its mark and not, on Windows, text that the computer's
+    /// page reads with no control sign (r3 U11.10). Its cause is `data_encoding` (r3 U11.5); every
+    /// other refusal's is `data_form`, but `data_narrow`'s.
     Encoding,
     /// The file holds a carriage return that no line feed follows, inside a quoted field or
     /// outside one.
