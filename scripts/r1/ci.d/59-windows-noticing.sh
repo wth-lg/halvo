@@ -23,6 +23,12 @@ step_s=40
 row_s=40
 poll_s=2
 tries=3
+# The walk's own bound for the show of the app's window (READY_WAIT of the walk), and the
+# check's bound for the line of that step.
+app_window_s=45
+ready_s=50
+rest_s=10
+rest_step_s=2
 watch_s=20
 watch_wait_s=2
 # The carriage return that ends a line of a program of Windows; measure reads it.
@@ -434,6 +440,31 @@ wait_count() {
   done
 }
 
+# The front at rest behind the show of the app's window. The counts of foreground_app records
+# and of titles that the store holds were read once behind the step ready; they are read again
+# behind the step passer, and then every rest_step_s until two reads in a row are equal, rest_s
+# at most. The last read is the baseline of occasion 1, so that no record of the opening lands
+# behind that baseline.
+rest_stage() {
+  stage=rest
+  rest_reads=1
+  waited=0
+  while :; do
+    read_counts
+    rest_reads=$((rest_reads + 1))
+    [ "$c_fa:$c_titles" != "$rest_fa:$rest_titles" ] || break
+    if [ "$waited" -ge "$rest_s" ]; then
+      read_status
+      fail "occasion 0, stage rest: foreground_app and window_title did not hold still between two reads within $rest_s s behind the show of the app's window: foreground_app=+$((c_fa - first_fa)) window_title=+$((c_titles - first_titles)) since the first read; $status_text"
+    fi
+    rest_fa=$c_fa
+    rest_titles=$c_titles
+    pause "$rest_step_s"
+    waited=$((waited + rest_step_s))
+  done
+  stage_ok "rest occasion=0 ok reads=$rest_reads foreground_app=+$((c_fa - first_fa)) window_title=+$((c_titles - first_titles)) since its first read"
+}
+
 # Prints the line of a green stage with the seconds since the stage before it.
 stage_ok() {
   now
@@ -794,22 +825,28 @@ cases() {
     waited=$((waited + poll_s))
   done
   start_walk EXCEL.EXE workbook walk.out
-  walk_do ready "$step_s"
+  walk_do ready "$ready_s"
   need_own
   field halvo_window "$walk_line"
-  [ "$value" = yes ] || fail "occasion 0, stage service: no window of the app within 20 s of the walk's start: $walk_line"
+  [ "$value" = yes ] || fail "occasion 0, stage service: no window of the app within $app_window_s s of the walk's start: $walk_line"
+  read_counts
+  rest_fa=$c_fa
+  rest_titles=$c_titles
+  first_fa=$c_fa
+  first_titles=$c_titles
   start_walk noticing-pass.exe passer passer.out
   walk_do passer "$step_s"
   field ok "$walk_line"
   [ "$value" = yes ] || fail "occasion 0, stage service: the second program of the check showed no window: $walk_line"
   stage_ok "service occasion=0 ok desired=$s_desired capture=$s_capture lease=$s_lease store=$s_store sources=$s_shown"
   lap service
+  rest_stage
+  lap rest
 
   occasion=1
   stage=title
   form=new-title
   watch_mark baseline
-  read_counts
   o_pointer=$c_pointer
   o_titles=$c_titles
   o_fa=$c_fa
@@ -823,8 +860,16 @@ cases() {
     field front "$walk_line"
     fail "occasion 1, stage title: window_title=+$((c_titles - o_titles)) within $title_s s behind the click into the window; pointer=+$((c_pointer - o_pointer)) foreground_app=+$((c_fa - o_fa)); $status_text; walk front=$value"
   fi
-  book_bytes=$(((c_tbytes - o_bytes) / (c_titles - o_titles)))
-  stage_ok "title occasion=1 ok window_title=+$((c_titles - o_titles)) foreground_app=+$((c_fa - o_fa)) pointer=+$((c_pointer - o_pointer)) title_bytes=+$((c_tbytes - o_bytes))"
+  gained_fa=$((c_fa - o_fa))
+  gained_titles=$((c_titles - o_titles))
+  if [ "$gained_fa" -ne 1 ] || [ "$gained_titles" -gt 2 ]; then
+    read_status
+    cause='a record of another program stands among them, so the front was not at rest at the baseline and'
+    [ "$gained_fa" -ne 0 ] || cause='the program in front did not change at the click, so'
+    fail "occasion 1, stage title: foreground_app=+$gained_fa window_title=+$gained_titles title_bytes=+$((c_tbytes - o_bytes)) behind the baseline, wanted +1 and +1 or +2: $cause the bytes of the workbook's title cannot be read; pointer=+$((c_pointer - o_pointer)); $status_text"
+  fi
+  book_bytes=$(((c_tbytes - o_bytes) / gained_titles))
+  stage_ok "title occasion=1 ok window_title=+$gained_titles foreground_app=+$gained_fa pointer=+$((c_pointer - o_pointer)) title_bytes=+$((c_tbytes - o_bytes))"
   show_watch title
   clicks_stage
   t_hold=$c_titles
@@ -1082,6 +1127,9 @@ fixture() {
   early_s=30
   step_s=5
   row_s=5
+  ready_s=5
+  rest_s=4
+  rest_step_s=2
   watch_s=4
   watch_wait_s=2
   w_clock=1000
@@ -1111,6 +1159,7 @@ fixture() {
   }
   pause() {
     w_clock=$((w_clock + $1))
+    [ "$mode:$stage" != the-opening-never-rests:rest ] || world_adds fa 1
     if [ -n "$w_second_due" ] && [ "$w_clock" -ge "$w_second_due" ]; then
       w_second_due=
       world_second_pair
@@ -1235,9 +1284,18 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
       ready)
         window=yes
         [ "$mode" = service-no-window-of-the-app ] && window=no
-        walk_line="walk: step=ready ok=yes pid=4242 halvo_window=$window"
+        walk_line="walk: step=ready ok=yes pid=4242 halvo_window=$window waited_ms=0"
         ;;
       passer)
+        # A record of the opening that lands behind the first read of the stage rest: a title
+        # of a third program with its foreground record, or one foreground record.
+        case $mode in
+          the-opening-comes-to-rest-late)
+            world_adds fa 1
+            world_adds title 1 338
+            ;;
+          the-opening-never-rests) world_adds fa 1 ;;
+        esac
         walk_line='walk: step=passer ok=yes pid=4343'
         [ "$mode" != service-no-window-of-the-passer ] || walk_line='walk: step=passer ok=no why=no-passer-window'
         ;;
@@ -1251,7 +1309,15 @@ total events=$((w_fa + w_pointer + w_titles)) bytes=0 disk_bytes=0"
         [ "$w_front" = own ] || world_adds fa 1
         w_front=own
         if [ "$w_last_title" != workbook ] && [ "$mode:$w_titles" != no-title-count:0 ]; then
-          world_adds title 1 60
+          if [ "$mode:$w_titles" = a-third-program-behind-the-baseline:0 ]; then
+            # The red runs' form: the third program's foreground record and its title of 338
+            # bytes behind the baseline, and the workbook's title of 311 bytes.
+            world_adds fa 1
+            world_adds title 1 338
+            world_adds title 1 311
+          else
+            world_adds title 1 60
+          fi
           w_last_title=workbook
         fi
         w_last_input=$w_clock
@@ -1384,6 +1450,14 @@ self_test() {
   wrong=
   rejected=0
   run_case green PASS 'stage row occasion=3 ok state=running proposals=1 stored=1 category=spreadsheet_fill count=3 by_hand=no'
+  # The opening: the baseline of occasion 1 is read where the front is at rest behind the show
+  # of the app's own window. The last of these cases is the form of the three red runs of
+  # 2026-11-26, in which a title of a third program and its foreground record came behind the
+  # baseline, beside the workbook's two: 649 bytes for two titles.
+  run_case the-opening-is-at-rest PASS 'stage rest occasion=0 ok reads=2 foreground_app=+0 window_title=+0 since its first read'
+  run_case the-opening-comes-to-rest-late PASS 'stage rest occasion=0 ok reads=3 foreground_app=+1 window_title=+1 since its first read'
+  run_case the-opening-never-rests FAIL '(occasion 0, stage rest: foreground_app and window_title did not hold still between two reads within 4 s behind the show of the app'"'"'s window: foreground_app=+'
+  run_case a-third-program-behind-the-baseline FAIL '(occasion 1, stage title: foreground_app=+2 window_title=+2 title_bytes=+649 behind the baseline, wanted +1 and +1 or +2: a record of another program stands among them, so the front was not at rest at the baseline and the bytes of the workbook'"'"'s title cannot be read;'
   run_case two-titles-at-each-return PASS 'stage return-short occasion=2 ok foreground_app=+2 window_title=+2 title_bytes=+120, the titles are the workbook'"'"'s, wanted +2 and +1 or +2;'
   run_case second-pair-comes-late PASS 'second worker occasion=3: 1 batch lines behind the own one, 1 commit lines behind its commit, waited 2 s'
   # The list of the check's third program: its lines to the end of the stage title of occasion 1

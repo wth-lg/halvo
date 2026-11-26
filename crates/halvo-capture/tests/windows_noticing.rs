@@ -90,6 +90,14 @@ const HEIGHT: i32 = 240;
 /// The clicks of one occasion.
 const CLICKS: u32 = 12;
 
+/// The least width and the least height of Halvo's own window, in pixels. The app holds a
+/// second visible window, its event window of 16 by 16 pixels, which is none.
+const MAIN_WINDOW_MIN: i32 = 200;
+
+/// How long the step `ready` waits for Halvo's own window: the app builds and shows it behind
+/// its tray item and its poller, so the capture service can stand before the window shows.
+const READY_WAIT: Duration = Duration::from_secs(45);
+
 /// How long Halvo's own window stays in front at the return `own`.
 const OWN_STAY: Duration = Duration::from_millis(3_000);
 
@@ -568,20 +576,25 @@ fn top_windows() -> Vec<HWND> {
     all
 }
 
-/// The largest visible top-level window of the app, Halvo's own window.
+/// The largest visible top-level window of the app that is at least `MAIN_WINDOW_MIN` pixels
+/// wide and high: Halvo's own window, and never the app's event window.
 fn app_window() -> Option<HWND> {
     top_windows()
         .into_iter()
-        .filter(|window| {
+        .filter_map(|window| {
             // SAFETY: IsWindowVisible reads a handle value.
-            unsafe { IsWindowVisible(*window) }.as_bool()
-                && file_of(*window).eq_ignore_ascii_case(APP_FILE)
+            if !unsafe { IsWindowVisible(window) }.as_bool() {
+                return None;
+            }
+            let rect = rect_of(window)?;
+            let (width, height) = (rect.right - rect.left, rect.bottom - rect.top);
+            let main = width >= MAIN_WINDOW_MIN
+                && height >= MAIN_WINDOW_MIN
+                && file_of(window).eq_ignore_ascii_case(APP_FILE);
+            main.then_some((window, i64::from(width) * i64::from(height)))
         })
-        .max_by_key(|window| {
-            rect_of(*window).map_or(0, |rect| {
-                i64::from(rect.right - rect.left) * i64::from(rect.bottom - rect.top)
-            })
-        })
+        .max_by_key(|(_, area)| *area)
+        .map(|(window, _)| window)
 }
 
 fn seen_count() -> usize {
@@ -641,9 +654,11 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
-/// The step `ready`: whether the app shows a window, within 20 s.
+/// The step `ready`: whether Halvo's own window shows, within `READY_WAIT`, and the
+/// milliseconds that the step waited for it.
 fn ready(workbook: HWND, notes: HWND) -> String {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let began = Instant::now();
+    let deadline = began + READY_WAIT;
     let found = loop {
         if app_window().is_some() {
             break true;
@@ -654,9 +669,10 @@ fn ready(workbook: HWND, notes: HWND) -> String {
         pump(Duration::from_millis(250));
     };
     format!(
-        "ok=yes pid={} halvo_window={} workbook={:#x} notes={:#x}",
+        "ok=yes pid={} halvo_window={} waited_ms={} workbook={:#x} notes={:#x}",
         std::process::id(),
         yes_no(found),
+        began.elapsed().as_millis(),
         workbook.0 as usize,
         notes.0 as usize
     )
