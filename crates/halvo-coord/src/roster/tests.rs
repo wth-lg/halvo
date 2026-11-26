@@ -617,7 +617,7 @@ fn u711_an_agent_that_was_never_allowed_a_model_rests_by_its_configuration() {
     let back = [RunEnd::HandedBack];
     let rows = [
         (
-            "on_device, web, no playbook, every row hands back, no run",
+            "on_device, web, no playbook, every compile, recover and write row hands back, no run",
             Tier::OnDevice,
             Runtime::Web,
             false,
@@ -637,7 +637,7 @@ fn u711_an_agent_that_was_never_allowed_a_model_rests_by_its_configuration() {
             true,
         ),
         (
-            "on_device, web, no playbook, every row hands back, after a failed run",
+            "on_device, web, no playbook, every compile, recover and write row hands back, after a failed run",
             Tier::OnDevice,
             Runtime::Web,
             false,
@@ -730,6 +730,7 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
         "This version of Halvo cannot do this agent's task, so Halvo does not ask you to start it.";
     let s2 = "This agent needs an AI model to do its task, so Halvo does not ask you to start it. To let it use one, choose Use an AI model.";
     let failed_line = "Last time, it could not finish its task.";
+    let paid = "Last time, it sent a payment, and Halvo could not match the amount on the site's page afterwards.";
     let failures = "Halvo switched it off after several tries in a row did not work. To try again, choose Switch on.";
     let shortfall = "Last time, Halvo could not do this agent's task with the AI model that this agent may use. The agent waits until you choose Start now.";
     let shut = ModelUse {
@@ -747,9 +748,9 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
         "Use this computer only",
         "Delete",
     ];
-    let rows: [(&str, Facts<Config>, &str, &str, &[&str]); 8] = [
+    let rows: [(&str, Facts<Config>, &str, &str, &[&str]); 10] = [
         (
-            "on_device, every row hands back, no run",
+            "on_device, every compile, recover and write row hands back, no run",
             u711_agent(
                 Tier::OnDevice,
                 Runtime::Web,
@@ -779,7 +780,7 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
             &["Start now", "Switch off", "Use an AI model", "Delete"],
         ),
         (
-            "on_device, every row hands back, after a failed start of the person",
+            "on_device, every compile, recover and write row hands back, after a failed start of the person",
             u711_agent(
                 Tier::OnDevice,
                 Runtime::Web,
@@ -794,7 +795,7 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
             &plain,
         ),
         (
-            "on_device, every row hands back, three failed starts and the hold failures",
+            "on_device, every compile, recover and write row hands back, three failed starts and the hold failures",
             u711_agent(
                 Tier::OnDevice,
                 Runtime::Web,
@@ -809,7 +810,7 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
             &["Start now", "Switch on", "Delete"],
         ),
         (
-            "frontier with its yes, every row hands back, shortfall",
+            "frontier with its yes, every compile, recover and write row hands back, shortfall",
             u711_agent(
                 Tier::Frontier,
                 Runtime::Web,
@@ -824,7 +825,7 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
             &back,
         ),
         (
-            "frontier whose yes does not stand, every row hands back, no_agreement",
+            "frontier whose yes does not stand, every compile, recover and write row hands back, no_agreement",
             u711_agent(
                 Tier::Frontier,
                 Runtime::Web,
@@ -867,6 +868,39 @@ fn u711_the_row_of_a_resting_agent_with_no_stored_playbook_says_why_by_the_fact_
             failed_line,
             "Problem",
             &plain,
+        ),
+        (
+            "on_device, every compile, recover and write row hands back, a run that paid ended amount_differs",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(ModelUse {
+                    hands_back: true,
+                    ..model(false)
+                }),
+                &[RunEnd::Failed],
+                Some(LastCause::AmountDiffers),
+                false,
+            ),
+            paid,
+            "Problem",
+            &plain,
+        ),
+        (
+            "on_device, a row open, a run that paid ended amount_differs",
+            u711_agent(
+                Tier::OnDevice,
+                Runtime::Web,
+                false,
+                Some(model(false)),
+                &[RunEnd::Failed],
+                Some(LastCause::AmountDiffers),
+                false,
+            ),
+            paid,
+            "Problem",
+            &["Start now", "Switch off", "Use an AI model", "Delete"],
         ),
     ];
     for (row, f, line, word, controls) in rows {
