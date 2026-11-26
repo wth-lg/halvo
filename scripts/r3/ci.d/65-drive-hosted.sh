@@ -2,7 +2,6 @@
 # jobs: windows
 # rule: The hosted form of the driver trial (r3 U0.8) holds against its scripted host on 127.0.0.1: the tests of tools/r3-trials/drive pass, its seven whole rounds pass (a cell past the ceiling sends nothing, a round sends no request past its bound, no request holds a word of a stored step, the key stands in no line and no file of a cell, a round counts the two ends of the host that the door refuses as cut and declined apart from a failed ask, the hosted ask of an action tells the model its form, a round with the runner's mask sends no text of a slot and no key), and the paid form of hosted.sh refuses with REFUSED prices on a fixture rate before it starts anything (a copy of hosted.sh in a tree of its own whose price file holds one, so that the case reads the same whatever rates the tracked price file holds); no run reaches a host. It joins no slice and no merge gate: it runs by hand with named checks, the windows job alone, before the paid round and at each change of the trial tool or of the door.
 # lane: alone
-# limit: 2400
 set -u
 name=65-drive-hosted
 rounds='tests::a_cell_past_the_ceiling_ends_notrun_and_sends_nothing tests::a_round_sends_no_request_past_its_bound tests::no_request_of_a_cell_holds_a_word_of_a_stored_step tests::the_key_stands_in_no_line_and_no_file_of_a_cell tests::the_round_counts_the_hosts_two_ends_apart_from_a_failed_ask tests::the_hosted_ask_of_an_action_tells_the_model_its_form tests::a_round_with_the_mask_sends_no_slot_text_and_no_key'

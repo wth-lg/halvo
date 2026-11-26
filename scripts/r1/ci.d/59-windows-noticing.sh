@@ -2,7 +2,6 @@
 # jobs: windows
 # rule: on a hosted Windows machine the built app with its capture service, the owner of the derived store and the search worker notices a repeated task from the system's own input: a program of the check under the file name EXCEL.EXE takes 12 clicks in one window on three occasions, the second by the title that the search carried, with two returns to that window behind the second, one from Halvo's own window and one from a second program of the check that hands the front back at once, each read by the foreground_app and window_title records that the store gained; the third occasion rests on the title of the last return alone, and the reply to the request that the app's command sends holds one row of the category spreadsheet_fill with the count 3; a red run names its occasion and its stage
 # lane: alone
-# limit: 1800
 set -u
 name=59-windows-noticing
 target=windows_noticing
