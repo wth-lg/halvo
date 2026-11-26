@@ -270,12 +270,12 @@ docs-2 confirms each sentence of this section against the merged code.
 A person's agent runs in a program of its own, halvo-runner. That program links
 no crate that opens a store (check 21, `scripts/r1/ci.d/21-tree-bans.sh`), and
 no client of the capture service, which can pause the capture and delete
-everything. The stored records that it gets are the answers to the fourteen
+everything. The stored records that it gets are the answers to the fifteen
 runner bodies that its supervisor answers, and a runner body answers records of
 these kinds alone:
 
 - `agent_config`, `agent_finished`, `agent_playbook`, `agent_bindings`,
-  `agent_session`, `agent_start` and `agent_reply`;
+  `agent_session`, `agent_start`, `agent_reply` and `agent_reply_body`;
 - the target of a `learn_edit` row, laid on a step of `load_steps`.
 
 The twelfth body, `drop_session`, answers no record: it makes Halvo stop using
@@ -417,3 +417,26 @@ These never leave with such a request:
   `the_request_that_leaves_holds_the_closed_fields_alone` and
   `with_a_grant_one_request_reaches_the_granted_origin_alone`
   (`crates/halvo-model/tests/door.rs`) hold it.
+
+Halvo keeps the text of a reply that an AI model wrote for an agent, so that,
+while the draft of that reply waits in the person's mailbox for an answer on its
+card, the agent's next card shows the same text and the draft keeps it. It keeps
+that text as the card showed it, and nothing else that the model wrote, in its
+store on this computer, for 35 days from the day of the draft. A draft that
+still waits when those 35 days have passed gets, at the agent's next task, the
+text that Halvo sets itself in the place of the model's, on its card and in the
+mailbox. Deleting the agent, or Delete everything, takes the kept text away with
+the agent's other records. After the reply was sent, after Halvo found that its
+draft was removed from the mailbox or no longer answers the sender alone, and
+where Halvo could not tell whether it was sent, no task of the agent reads that
+text again, and it stays in the store until its 35 days have passed. The test
+`u79_a_waiting_draft_keeps_the_writers_text_at_a_later_start_and_its_send_holds_what_the_card_showed`
+(`crates/halvo-runner/src/model/write/tests.rs`) holds that a later task shows
+and sends the kept text and starts no request to a model, and the test
+`u79_a_kept_reply_text_reads_while_its_draft_waits_and_no_read_hands_it_out_after_its_reply_moves_on`
+(`crates/halvo-agent-store/src/reply_tests.rs`) holds that the read answers
+while the draft waits and no more once the reply has moved on; that the kept
+text goes with the agent's records when the agent is deleted and at Delete
+everything, and that it goes after its 35 days, is read from the code, and no
+test runs it. While every write row of the router's table hands back, no model
+writes such a text, and Halvo keeps none.

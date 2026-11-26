@@ -312,7 +312,7 @@ fn serve(mut stream: TcpStream, messages: &[Value], seen: &Mutex<Vec<String>>) {
 }
 
 /// What a run of a test is given: the agent's tier and whether the start names it (`--hosted`); whether the test's
-/// policy opens the cell `email write` at `frontier` (else the release table, which hands it back); the stored key;
+/// policy opens the cell `email write` at `frontier` (else the release table); the stored key;
 /// the store's refusal of a `model_hold`; the agent's autonomy, whether `send` is allowed and whether its caps split;
 /// the person's answer on every card; the messages whose own newest row is `drafted` with the draft
 /// `draft-<id>`; and the text that the store keeps for the draft of such a message (r3 U7.9).
