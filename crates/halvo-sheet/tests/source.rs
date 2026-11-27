@@ -183,7 +183,7 @@ fn a_source_out_of_the_form_is_refused_and_names_no_cell() {
         // fourteen ANSI pages, and the run says which way the hosted runner's page went.
         scratch.write("source.csv", b"secret,\xff\n");
         let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
-        match folder.read_data(std::path::Path::new("source.csv")) {
+        match folder.read_data(std::path::Path::new("source.csv"), None) {
             Ok(data) => {
                 let text = matches!(
                     data.rows.as_slice(),

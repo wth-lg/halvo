@@ -17,7 +17,7 @@ pub enum Value {
 /// systems (r3 U11.10).
 #[cfg(test)]
 pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
-    data(bytes, None, None).map(|data| data.rows)
+    data(bytes, None, None, None).map(|data| data.rows)
 }
 
 /// How the letters of a data file were read (r3 U11.10).
@@ -51,12 +51,21 @@ pub struct Data {
 /// fault of the form stops the read where it stands, and rows of unequal length are refused. Then
 /// a file with a field of number signs alone is refused (`number_signs`, r3 U11.9). Each field's
 /// value is told last, by the file's numbers (`Numbers::of`) and by its column, in which an amount
-/// as a spreadsheet program shows it turns whole or not at all (`turning`).
-pub(crate) fn data(bytes: &[u8], page: Option<u16>, own_sign: Option<char>) -> Result<Data, Error> {
+/// as a spreadsheet program shows it turns whole or not at all (`turning`). `own_sign` is the
+/// computer's own decimal sign (r3 U11.12) and `width` the width of the named cells, each where
+/// the caller can tell it: the comma and a width of 1 let `reading` tell a file of one column of
+/// numbers with a decimal comma (r3 U11.13).
+pub(crate) fn data(
+    bytes: &[u8],
+    page: Option<u16>,
+    own_sign: Option<char>,
+    width: Option<u32>,
+) -> Result<Data, Error> {
     let (text, letters) = letters(bytes, page)?;
+    let column = own_sign == Some(',') && width == Some(1);
     let rows = match letters {
-        Letters::Page(_) => page_rows(&text, own_sign)?,
-        Letters::Utf8 | Letters::Utf16 => rows(&text, own_sign)?,
+        Letters::Page(_) => page_rows(&text, own_sign, column)?,
+        Letters::Utf8 | Letters::Utf16 => rows(&text, own_sign, column)?,
     };
     Ok(Data { rows, letters })
 }
@@ -177,20 +186,20 @@ fn four_byte(bytes: &[u8]) -> bool {
 /// another number under another, in the list or outside it (R3); whether it is a number at all can
 /// differ between a page of one-byte letters and a page of two-byte letters, since `as_money` drops
 /// one sign of 40 to 7E behind a sign beyond ASCII.
-fn page_rows(text: &str, own_sign: Option<char>) -> Result<Vec<Vec<Value>>, Error> {
+fn page_rows(text: &str, own_sign: Option<char>, column: bool) -> Result<Vec<Vec<Value>>, Error> {
     let letters: String = text
         .chars()
         .map(|c| if c.is_ascii() { c } else { 'a' })
         .collect();
     let money = as_money(text);
-    let separator = |text: &str| reading(text).map(|(sign, _)| sign);
+    let separator = |text: &str| reading(text, column).map(|(sign, _)| sign);
     let told = separator(&letters)?;
     if separator(&money)? != told || separator(text)? != told {
         return Err(encoding());
     }
-    let numbers = rows(&letters, own_sign)?;
-    let others = rows(&money, own_sign)?;
-    let (_, fields) = reading(text)?;
+    let numbers = rows(&letters, own_sign, column)?;
+    let others = rows(&money, own_sign, column)?;
+    let (_, fields) = reading(text, column)?;
     let shape = numbers.len() == fields.len()
         && others.len() == fields.len()
         && numbers
@@ -316,8 +325,8 @@ pub(crate) fn system_sign() -> Option<char> {
 }
 
 /// The rows of `text`, as `parse` states them after the encoding.
-fn rows(text: &str, own_sign: Option<char>) -> Result<Vec<Vec<Value>>, Error> {
-    let (separator, rows) = reading(text)?;
+fn rows(text: &str, own_sign: Option<char>, column: bool) -> Result<Vec<Vec<Value>>, Error> {
+    let (separator, rows) = reading(text, column)?;
     if let Some(line) = number_signs(&rows) {
         return Err(Error::Source(SourceRefusal::NumberSigns { line }));
     }
@@ -362,7 +371,11 @@ fn number_signs(rows: &Rows<'_>) -> Option<usize> {
 /// line that is not empty holds one or more of it outside its quoted fields and as many as every
 /// other such line (`holds`); an empty line counts for nothing. A file in which the semicolon and
 /// the tab both hold is refused, as its separator is in doubt; a file in which neither holds is
-/// read by commas, as before r3 U11.5; a file in which the semicolon or the tab holds is read by
+/// read by commas, as before r3 U11.5, but where `column` holds (the computer's own decimal sign
+/// is the comma and the named cells are one column wide, `data`) and the file is one column of
+/// numbers with a decimal comma (`one_column`, r3 U11.13): such a file is read by lines, the line
+/// feed as its separator, so that each line is one field, and its fields are told as those of a
+/// file read by semicolons (`Numbers::of`); a file in which the semicolon or the tab holds is read by
 /// that sign, and a fault of that read refuses it, as r3 U11.5 has it. Where the semicolon (or the
 /// tab) and the comma both hold, the file is read by commas only where it speaks plainly for the
 /// comma: its read by commas stands too, and all three hold: (i) some comma outside its quoted
@@ -373,11 +386,12 @@ fn number_signs(rows: &Rows<'_>) -> Option<usize> {
 /// reading begins with one (`spaced`): a text behind a semicolon is a word, a cell of signs and
 /// digits alone is not, and a field with a space at each end is a cell that a program padded. In
 /// every other such file the semicolon (or the tab) stands. No count of numbers decides (r3 U11.6).
-fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
+fn reading(text: &str, column: bool) -> Result<(u8, Rows<'_>), Error> {
     let sign = match (holds(text, b';'), holds(text, b'\t')) {
         (true, true) => return Err(Error::Source(SourceRefusal::TwoSeparators)),
         (true, false) => b';',
         (false, true) => b'\t',
+        (false, false) if column && one_column(text) => return Ok((b'\n', read(text, b'\n')?)),
         (false, false) => return Ok((b',', read(text, b',')?)),
     };
     let theirs = read(text, sign)?;
@@ -396,6 +410,26 @@ fn reading(text: &str) -> Result<(u8, Rows<'_>), Error> {
         Ok(commas) if !spaced(commas.iter().flatten()) => Ok((b',', commas)),
         _ => Ok((sign, theirs)),
     }
+}
+
+/// Whether `text` is one column of numbers with a decimal comma (r3 U11.13, the coordinator's
+/// ruling of log line 24914): (1) each comma of the text stands between two digits, (2) no line
+/// holds more than one comma, and (3) one line or more is a number with a decimal comma of one
+/// reading (`with_sign`: `3,5`, `-41,20`; not `1,250`, of the thousands group's shape). A title
+/// line, a whole number, a line such as `1,250` and an amount (`41,20 €`) may stand beside it. A
+/// line of (3) holds a comma and no quote, so the read by commas cuts it in two: no file that is
+/// read by commas as one column is one.
+fn one_column(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let digit = |at: Option<usize>| {
+        at.and_then(|at| bytes.get(at))
+            .is_some_and(u8::is_ascii_digit)
+    };
+    let between = (0..bytes.len())
+        .filter(|&at| bytes[at] == b',')
+        .all(|at| digit(at.checked_sub(1)) && digit(Some(at + 1)));
+    let once = lines(text).all(|line| line.bytes().filter(|&b| b == b',').count() <= 1);
+    between && once && lines(text).any(|line| with_sign(line, ',').is_some())
 }
 
 /// The signs of money and the percent sign that a number may carry at one of its ends
@@ -533,7 +567,8 @@ fn read(text: &str, separator: u8) -> Result<Rows<'_>, Error> {
 }
 
 /// The fields of the line `line` that starts at the byte `at` of `text`, separated by
-/// `separator`, and the byte behind its line end (LF or CRLF) or the end of the text.
+/// `separator`, and the byte behind its line end (LF or CRLF) or the end of the text. The line end
+/// is told before the separator, so a line read by the line feed is one field (r3 U11.13).
 fn row(
     text: &str,
     mut at: usize,
@@ -546,10 +581,10 @@ fn row(
         let (cell, end) = field(text, at, line, separator)?;
         row.push(cell);
         match bytes.get(end) {
-            Some(&b) if b == separator => at = end + 1,
             Some(b'\n') => return Ok((row, end + 1)),
             Some(b'\r') if bytes.get(end + 1) == Some(&b'\n') => return Ok((row, end + 2)),
             Some(b'\r') => return Err(Error::Source(SourceRefusal::CarriageReturn)),
+            Some(&b) if b == separator => at = end + 1,
             None => return Ok((row, end)),
             // Text behind the quote that closed the field.
             Some(_) => return Err(Error::Source(SourceRefusal::Quote { line })),
@@ -625,7 +660,8 @@ impl Numbers {
     /// (`amount`) tells it the same way (r3 U11.8); where fields tell both signs, no amount
     /// tells one. A file read by commas has the point, but where a field tells the comma
     /// (`Numbers::Commas`, r3 U11.10) or where the computer's own decimal sign is the comma and no
-    /// field tells the point.
+    /// field tells the point. A file of one column read by lines (`one_column`, r3 U11.13) is told
+    /// as one read by semicolons.
     fn of(separator: u8, rows: &[Vec<Cow<'_, str>>], own_sign: Option<char>) -> Numbers {
         if separator == b',' {
             let any = |told: fn(&str) -> bool| rows.iter().flatten().any(|cell| told(cell));
@@ -2384,7 +2420,7 @@ mod tests {
                 rows,
                 letters: Letters::Page(page),
             });
-            let got = data(bytes, Some(page), None);
+            let got = data(bytes, Some(page), None, None);
             if got != want {
                 wrong.push(format!("{name}: got {got:?}"));
             }
@@ -2415,7 +2451,7 @@ mod tests {
             ("no page, as on the Mac", b"M\xfcller,1\r\n", None),
         ];
         for (name, bytes, page) in refused {
-            assert_eq!(data(bytes, page, None), Err(encoding()), "{name}");
+            assert_eq!(data(bytes, page, None, None), Err(encoding()), "{name}");
         }
         let utf_8 = "Müller,1\r\n".as_bytes();
         let le = utf_16([0xff, 0xfe], "Müller,1\r\n", u16::to_le_bytes);
@@ -2424,7 +2460,7 @@ mod tests {
             ("UTF-8", utf_8.to_vec(), Letters::Utf8),
             ("UTF-16LE", le, Letters::Utf16),
         ] {
-            let got = data(&bytes, Some(1252), None);
+            let got = data(&bytes, Some(1252), None, None);
             let want = Ok(Data {
                 rows: want.clone(),
                 letters,
@@ -2451,7 +2487,7 @@ mod tests {
             letters: Letters::Page(page),
         });
         assert_eq!(
-            data(b"Gr\xfc\xdfe,12.50\r\n", system_page(), None),
+            data(b"Gr\xfc\xdfe,12.50\r\n", system_page(), None, None),
             want,
             "page {page}"
         );
@@ -2692,7 +2728,7 @@ mod tests {
         if number_texts(&rows) != vec![0, 0, 2] {
             wrong.push(format!("Q7 (c), way (A): {:?}", number_texts(&rows)));
         }
-        let paged = data(b"Miete;12,50 \x80\r\n", Some(1252), None)
+        let paged = data(b"Miete;12,50 \x80\r\n", Some(1252), None, None)
             .expect("the file reads")
             .rows;
         if paged != vec![vec![t("Miete"), t("12,50 €")]] || number_texts(&paged) != vec![0, 1] {
@@ -2711,7 +2747,7 @@ mod tests {
     #[test]
     fn on_a_comma_computer_a_thousands_point_of_a_commas_file_is_a_counted_text() {
         let bytes = "Miete,1.250\nStrom,€ 980\nGas,12\n".as_bytes();
-        let read = |own_sign| data(bytes, None, own_sign).map(|read| read.rows);
+        let read = |own_sign| data(bytes, None, own_sign, None).map(|read| read.rows);
         let texts = vec![
             vec![t("Miete"), t("1.250")],
             vec![t("Strom"), t("€ 980")],
@@ -2763,7 +2799,7 @@ mod tests {
     #[test]
     fn the_readers_file_holds_no_other_number_under_1251_beside_1252() {
         for page in [1251, 1252] {
-            match data(READERS_FILE, Some(page), None) {
+            match data(READERS_FILE, Some(page), None, None) {
                 Err(error) => assert_eq!(error, encoding(), "{page}"),
                 Ok(read) => {
                     let got = numbers(&read.rows);
@@ -2783,7 +2819,7 @@ mod tests {
     fn under_each_page_a_file_reads_as_its_twins_in_utf_8_or_is_refused() {
         let mut wrong = Vec::new();
         for own in THE_PAGES {
-            let read = match data(READERS_FILE, Some(own), None) {
+            let read = match data(READERS_FILE, Some(own), None, None) {
                 Ok(read) => read.rows,
                 Err(error) if error == encoding() => continue,
                 Err(error) => {
@@ -2849,7 +2885,7 @@ mod tests {
             for separator in *b";\t" {
                 let bytes = readers_file_of(sign, separator);
                 for page in THE_PAGES {
-                    match data(&bytes, Some(page), None) {
+                    match data(&bytes, Some(page), None, None) {
                         Err(error) if error == encoding() => {}
                         Err(error) => wrong.push(format!("{sign:02x} {page}: {error:?}")),
                         Ok(read) => {
@@ -2896,7 +2932,7 @@ mod tests {
                     if by_page(&renamed, page).is_err() {
                         continue;
                     }
-                    let Ok(read) = data(&renamed, Some(page), None) else {
+                    let Ok(read) = data(&renamed, Some(page), None, None) else {
                         continue;
                     };
                     let widths: Vec<usize> = read.rows.iter().map(Vec::len).collect();
@@ -2943,7 +2979,7 @@ mod tests {
         ];
         let mut wrong = Vec::new();
         for (bytes, rows) in cases {
-            let got = data(bytes, Some(1252), None).map(|read| read.rows);
+            let got = data(bytes, Some(1252), None, None).map(|read| read.rows);
             if got != Ok(rows) {
                 wrong.push(format!("{}: got {got:?}", shown(bytes)));
             }
@@ -2956,7 +2992,7 @@ mod tests {
     /// `data_encoding`: the first reader's file with the byte 80, the euro sign under 1252.
     #[test]
     fn a_file_whose_page_tells_another_separator_than_its_letters_is_refused() {
-        assert_eq!(data(READERS_FILE, Some(1252), None), Err(encoding()));
+        assert_eq!(data(READERS_FILE, Some(1252), None, None), Err(encoding()));
     }
 
     /// r3 U11.10 round 3, R4 (the coordinator's log line 24070): in a page-read file a cell is a
@@ -2996,10 +3032,139 @@ mod tests {
         ];
         let mut wrong = Vec::new();
         for (bytes, rows, counts) in cases {
-            let got = data(bytes, Some(1252), None).map(|read| read.rows);
+            let got = data(bytes, Some(1252), None, None).map(|read| read.rows);
             let count = got.as_deref().map(number_texts).ok();
             if got != Ok(rows) || count != Some(counts) {
                 wrong.push(format!("{}: got {got:?}, counted {count:?}", shown(bytes)));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// The rows of `text` as `data` reads them with the computer's own decimal sign `own_sign` and
+    /// named cells `width` columns wide (r3 U11.13).
+    fn read_with(
+        text: &str,
+        own_sign: Option<char>,
+        width: Option<u32>,
+    ) -> Result<Vec<Vec<Value>>, Error> {
+        data(text.as_bytes(), None, own_sign, width).map(|read| read.rows)
+    }
+
+    /// Each of `files` that a computer of the comma with cells one column wide reads otherwise
+    /// than the read with no sign and no width, the read of before r3 U11.13.
+    fn not_as_before(files: &[&str]) -> Vec<String> {
+        files
+            .iter()
+            .filter_map(|text| {
+                let (got, before) = (
+                    read_with(text, Some(','), Some(1)),
+                    read_with(text, None, None),
+                );
+                (got != before)
+                    .then(|| format!("{}: {got:?}, before {before:?}", text.escape_debug()))
+            })
+            .collect()
+    }
+
+    /// r3 U11.13, condition (1) of `one_column`: a file with a comma that does not stand between
+    /// two digits reads by commas, as before, though a line of it is `3,5`.
+    #[test]
+    fn on_a_comma_computer_a_comma_beside_no_digit_keeps_the_read_by_commas() {
+        let wrong = not_as_before(&["Betrag, EUR\n3,5\n41,20\n", "3,5\n,5\n", "3,5\n41,\n"]);
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.13, condition (2) of `one_column`: a file with two commas in a line reads by commas,
+    /// as before, though every comma of it stands between two digits.
+    #[test]
+    fn on_a_comma_computer_two_commas_in_a_line_keep_the_read_by_commas() {
+        let wrong = not_as_before(&["3,5\n1,2,3\n41,20\n", "Betrag\n3,5\n1,234,5\n"]);
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.13, condition (3) of `one_column`: a file in which no line is a number with a decimal
+    /// comma of one reading, its comma lines all of the thousands group's shape, reads by commas,
+    /// as before.
+    #[test]
+    fn on_a_comma_computer_comma_lines_of_the_thousands_shape_alone_keep_the_read_by_commas() {
+        let wrong = not_as_before(&["Betrag\n1,250\n2,500\n", "1,250\n12\n"]);
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.13: on a computer whose own decimal sign is the comma, with cells one column wide, a
+    /// file of numbers with a decimal comma, with or without a title line, is one column: each
+    /// line one field, a semicolon in it too, read as a field of a file of semicolons, so `3,5` is
+    /// 3.5, a whole number and an amount (`41,20 €`) are numbers, and a title line and an empty
+    /// line are texts that no count holds.
+    #[test]
+    fn on_a_comma_computer_one_column_with_or_without_a_title_line_is_one_column_of_numbers() {
+        let cases = [
+            (
+                "3,5\n41,20\n-0,125\n12\n",
+                vec![vec![n(3.5)], vec![n(41.2)], vec![n(-0.125)], vec![n(12.0)]],
+            ),
+            (
+                "Betrag; in EUR\r\n3,5\r\n\r\n41,20 €\r\n12",
+                vec![
+                    vec![t("Betrag; in EUR")],
+                    vec![n(3.5)],
+                    vec![t("")],
+                    vec![n(41.2)],
+                    vec![n(12.0)],
+                ],
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (text, want) in cases {
+            let got = read_with(text, Some(','), Some(1));
+            let counts = got.as_deref().map(number_texts);
+            if got.as_ref() != Ok(&want) || counts != Ok(vec![0]) {
+                wrong.push(format!(
+                    "{}: {got:?}, counts {counts:?}",
+                    text.escape_debug()
+                ));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.13: in such a column a line of the thousands group's shape (`1,250`) is a text that
+    /// `number_texts` counts, and it blocks the column (r3 U11.8): beside it `3,5` and a whole
+    /// number stay numbers, and an amount with a sign of money (`41,20 €`) is a counted text too.
+    #[test]
+    fn on_a_comma_computer_a_thousands_shape_in_one_column_is_a_counted_text() {
+        let got = read_with("Betrag\n3,5\n1,250\n12\n41,20 €\n", Some(','), Some(1));
+        let want = vec![
+            vec![t("Betrag")],
+            vec![n(3.5)],
+            vec![t("1,250")],
+            vec![n(12.0)],
+            vec![t("41,20 €")],
+        ];
+        let counts = got.as_deref().map(number_texts).ok();
+        assert_eq!((got, counts), (Ok(want), Some(vec![2])));
+    }
+
+    /// r3 U11.13: with the comma and cells two columns wide, with the point or no sign read at a
+    /// width of one, and with the comma where the width cannot be told, the same bytes read by
+    /// commas, as before: each number is cut in two, and beside a title line or a whole number
+    /// the rows differ in length.
+    #[test]
+    fn one_column_of_decimal_commas_reads_by_commas_at_two_columns_the_point_or_no_sign() {
+        let halves = vec![vec![n(3.0), n(5.0)], vec![n(41.0), n(20.0)]];
+        let ragged = Err(Error::Source(SourceRefusal::Ragged { line: 2 }));
+        let mut wrong = Vec::new();
+        for (own_sign, width) in [
+            (Some(','), Some(2)),
+            (Some('.'), Some(1)),
+            (None, Some(1)),
+            (Some(','), None),
+        ] {
+            let read = |text: &str| read_with(text, own_sign, width);
+            let (cut, mixed) = (read("3,5\n41,20\n"), read("Betrag\n41,20\n12\n"));
+            if cut.as_ref() != Ok(&halves) || mixed != ragged {
+                wrong.push(format!("{own_sign:?} {width:?}: {cut:?}, {mixed:?}"));
             }
         }
         assert!(wrong.is_empty(), "{wrong:#?}");

@@ -200,18 +200,31 @@ impl Folder {
     /// first such line named; a field of the first row that is one `#` alone is a title and passes
     /// (r3 U11.9).
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
-        self.read_data(source).map(|data| data.rows)
+        self.read_data(source, None).map(|data| data.rows)
     }
 
-    /// The rows of the source file at `source`, as [`Folder::read_source`] gives them, and how
-    /// its letters were read: [`Letters::Page`] where Halvo read them by the computer's page, a
-    /// guess that the run's record keeps (r3 U11.10).
-    pub fn read_data(&self, source: &Path) -> Result<Data, Error> {
+    /// The rows of the source file at `source`, as [`Folder::read_source`] gives them but for a
+    /// file of one column of numbers with a decimal comma (r3 U11.13, below), and how its letters
+    /// were read: [`Letters::Page`] where Halvo read them by the computer's page, a guess that the
+    /// run's record keeps (r3 U11.10). `width` is the width of the named cells where the caller
+    /// can tell it; where it is none, the file reads as [`Folder::read_source`] reads it. On a
+    /// computer whose own decimal sign is the comma (r3 U11.12), where `width` is 1, a file in
+    /// which neither the semicolon nor the tab holds is one column where each comma of the file
+    /// stands between two digits, no line holds more than one comma, and one line or more is a
+    /// number with a decimal comma of one reading (`3,5` is 3.5; not the shape of a thousands
+    /// group, above). Each line is then one field, read as a field of a file read by semicolons
+    /// is read (above): a number with the comma as its decimal sign or a whole number is that
+    /// number, a line such as `1,250` is a text that blocks the column, and a title line is a
+    /// text. Every other such file reads by commas and each number is cut in two, as before, with
+    /// the shape check between it and the workbook; a file whose lines stand in quotes reads by
+    /// commas as one column, as before.
+    pub fn read_data(&self, source: &Path, width: Option<u32>) -> Result<Data, Error> {
         let full = self.file(source)?;
         source::data(
             &std::fs::read(full)?,
             source::system_page(),
             source::system_sign(),
+            width,
         )
     }
 

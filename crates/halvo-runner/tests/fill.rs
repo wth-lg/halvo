@@ -1312,7 +1312,7 @@ fn a_data_file_that_is_not_utf_8_ends_the_run_failed_with_data_encoding_and_writ
             .expect("the locks open");
         halvo_sheet::Folder::new(&files.dir, locks)
             .expect("the folder opens")
-            .read_data(&files.source)
+            .read_data(&files.source, None)
             .is_ok()
     };
     let seen = fill(78, &files).serve(|_, _| Act::Answer, LONG);
