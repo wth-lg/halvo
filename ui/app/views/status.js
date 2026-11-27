@@ -238,7 +238,7 @@
   function leftOutNow(s) {
     if (leftOutInDoubt(s)) return w.LEFT_OUT_IN_DOUBT;
     if (!runs(s) || frontStopped(s)) return "";
-    return heldPrivate(s) || noKeyArrives(s) || (keptPrivate(s) ? w.TYPING_KEPT_PRIVATE : "");
+    return heldPrivate(s) || noKeyArrives(s) || detectorSays(s) || (keptPrivate(s) ? w.TYPING_KEPT_PRIVATE : "");
   }
 
   function noKeyArrives(s) {
@@ -271,10 +271,18 @@
     });
   }
 
-  function heldPrivate(s) {
-    var parts = partsOf(leftOutBy(s.left_out, "secure_input"));
+  function partsSaid(entry, sentence) {
+    var parts = partsOf(entry);
     if (parts.length === 0) return "";
-    return w.KEPT_PRIVATE.replace("{parts_or}", joined(parts, w.PARTS_OR)).replace("{parts_and}", joined(parts, w.PARTS_AND));
+    return sentence.replace("{parts_or}", joined(parts, w.PARTS_OR)).replace("{parts_and}", joined(parts, w.PARTS_AND));
+  }
+
+  function heldPrivate(s) {
+    return partsSaid(leftOutBy(s.left_out, "secure_input"), w.KEPT_PRIVATE);
+  }
+
+  function detectorSays(s) {
+    return partsSaid(leftOutBy(s.left_out, "field_not_read_yet"), w.FIELD_NOT_READ_YET) || partsSaid(leftOutBy(s.left_out, "detector_not_started"), w.DETECTOR_NOT_STARTED);
   }
 
   function localOf(ms) {

@@ -268,6 +268,14 @@ pub struct SourceCounters {
     /// seconds through which keys were pressed on the computer and none of them reached the
     /// source's tap; none while that does not stand.
     pub no_key_since: Option<u64>,
+    /// A Windows service set alone: the second, counted from 1970, of the attach of its password
+    /// detector that answered late, while a source holds its gate, the detector's first read has
+    /// not landed and its thread runs; none otherwise and on a Mac.
+    pub detector_late_since: Option<u64>,
+    /// A Windows service set alone: the second, counted from 1970, of the attach of its password
+    /// detector that failed, or that answered late and whose detector ended with no first read,
+    /// while a source holds its gate; none otherwise and on a Mac.
+    pub detector_failed_since: Option<u64>,
     /// A Mac's input source alone: the last hold of the system's secure input that it saw end
     /// after the hold had stood for a minute or more, which a status tells of behind its end;
     /// none before the first such hold of the process and behind a delete of everything.
@@ -990,6 +998,8 @@ mod tests {
             secure_hold_keys: false,
             secure_hold_since: None,
             no_key_since: None,
+            detector_late_since: None,
+            detector_failed_since: None,
             secure_hold_before: None,
             handoff_full_drops: 0,
         };

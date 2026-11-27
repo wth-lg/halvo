@@ -1601,6 +1601,14 @@ pub enum LeftOutCause {
     /// A Mac's alone: through 30 seconds keys were pressed on the computer and none of
     /// them reached the input source's tap.
     NoKeyArrives,
+    /// A Windows service's alone: the attach of the password detector answered late, its first
+    /// read has not landed and its thread runs, so no typing, window title or screen frame is
+    /// recorded.
+    FieldNotReadYet,
+    /// A Windows service's alone: the attach of the password detector failed, or answered late
+    /// and the detector ended with no first read, so no typing, window title or screen frame is
+    /// recorded while a source holds its gate.
+    DetectorNotStarted,
     #[serde(other)]
     Other,
 }

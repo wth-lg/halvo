@@ -477,6 +477,8 @@ impl InputCounters {
             secure_hold_keys: f.kept_private.load(Ordering::Relaxed),
             secure_hold_since: Some(read(&f.secure_hold_since)).filter(|since| *since > 0),
             no_key_since: Some(read(&f.no_key_since)).filter(|since| *since > 0),
+            detector_late_since: None,
+            detector_failed_since: None,
             secure_hold_before: *f.hold_before.lock().unwrap_or_else(PoisonError::into_inner),
             handoff_full_drops: 0,
         }
