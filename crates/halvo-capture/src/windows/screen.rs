@@ -359,6 +359,13 @@ impl ScreenSource {
         self.counts.read()
     }
 
+    /// This source with hand-offs that count their drops at a full queue in
+    /// `full` as well: the count of the service set that makes it.
+    pub(crate) fn counting_full_drops_in(mut self, full: &super::FullDrops) -> Self {
+        self.counts = Arc::new(LossCounts::counting_full_drops_in(full));
+        self
+    }
+
     /// A screen source that reads a password gate, the one of the service
     /// set or of a keyboard source, by the gate's content reading.
     pub fn with_password_gate(mut self, gate: Arc<PasswordGate>) -> Self {

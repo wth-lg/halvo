@@ -12,11 +12,12 @@ pub enum Value {
     Text(String),
 }
 
-/// The rows of `bytes` as `data` reads them where no page is given, as on the Mac: the reader of
-/// the tests, whose files read alike on both systems (r3 U11.10).
+/// The rows of `bytes` as `data` reads them where no page is given, as on the Mac, and no decimal
+/// sign of the computer (r3 U11.12): the reader of the tests, whose files read alike on both
+/// systems (r3 U11.10).
 #[cfg(test)]
 pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
-    data(bytes, None).map(|data| data.rows)
+    data(bytes, None, None).map(|data| data.rows)
 }
 
 /// How the letters of a data file were read (r3 U11.10).
@@ -51,11 +52,11 @@ pub struct Data {
 /// a file with a field of number signs alone is refused (`number_signs`, r3 U11.9). Each field's
 /// value is told last, by the file's numbers (`Numbers::of`) and by its column, in which an amount
 /// as a spreadsheet program shows it turns whole or not at all (`turning`).
-pub(crate) fn data(bytes: &[u8], page: Option<u16>) -> Result<Data, Error> {
+pub(crate) fn data(bytes: &[u8], page: Option<u16>, own_sign: Option<char>) -> Result<Data, Error> {
     let (text, letters) = letters(bytes, page)?;
     let rows = match letters {
-        Letters::Page(_) => page_rows(&text)?,
-        Letters::Utf8 | Letters::Utf16 => rows(&text)?,
+        Letters::Page(_) => page_rows(&text, own_sign)?,
+        Letters::Utf8 | Letters::Utf16 => rows(&text, own_sign)?,
     };
     Ok(Data { rows, letters })
 }
@@ -176,7 +177,7 @@ fn four_byte(bytes: &[u8]) -> bool {
 /// another number under another, in the list or outside it (R3); whether it is a number at all can
 /// differ between a page of one-byte letters and a page of two-byte letters, since `as_money` drops
 /// one sign of 40 to 7E behind a sign beyond ASCII.
-fn page_rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
+fn page_rows(text: &str, own_sign: Option<char>) -> Result<Vec<Vec<Value>>, Error> {
     let letters: String = text
         .chars()
         .map(|c| if c.is_ascii() { c } else { 'a' })
@@ -187,8 +188,8 @@ fn page_rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
     if separator(&money)? != told || separator(text)? != told {
         return Err(encoding());
     }
-    let numbers = rows(&letters)?;
-    let others = rows(&money)?;
+    let numbers = rows(&letters, own_sign)?;
+    let others = rows(&money, own_sign)?;
     let (_, fields) = reading(text)?;
     let shape = numbers.len() == fields.len()
         && others.len() == fields.len()
@@ -255,13 +256,72 @@ pub(crate) fn system_page() -> Option<u16> {
     None
 }
 
+/// The decimal sign that Windows gives as the person's own (`GetLocaleInfoEx` with
+/// `LOCALE_SDECIMAL` for the user's locale, as the Region settings set it), where it is one letter;
+/// none where the call fails (r3 U11.12).
+#[cfg(windows)]
+pub(crate) fn system_sign() -> Option<char> {
+    use windows_sys::Win32::Globalization::{GetLocaleInfoEx, LOCALE_SDECIMAL};
+    let mut units = [0u16; 8];
+    let room = i32::try_from(units.len()).ok()?;
+    // SAFETY: a null name is LOCALE_NAME_USER_DEFAULT; the call writes at most `room` units into
+    // `units`, which holds that many, and only reads a setting of the system.
+    let written =
+        unsafe { GetLocaleInfoEx(std::ptr::null(), LOCALE_SDECIMAL, units.as_mut_ptr(), room) };
+    let len = usize::try_from(written).ok()?.checked_sub(1)?;
+    let mut letters = char::decode_utf16(units.get(..len)?.iter().copied());
+    match (letters.next(), letters.next()) {
+        (Some(Ok(sign)), None) => Some(sign),
+        _ => None,
+    }
+}
+
+/// The decimal sign of the person's own locale on a Mac (`CFLocaleCopyCurrent`, which carries the
+/// number format that the person sets), where it is one letter; none where a call answers
+/// nothing (r3 U11.12).
+#[cfg(target_os = "macos")]
+pub(crate) fn system_sign() -> Option<char> {
+    use core_foundation_sys::base::{CFGetTypeID, CFRelease};
+    use core_foundation_sys::locale::{
+        kCFLocaleDecimalSeparator, CFLocaleCopyCurrent, CFLocaleGetValue,
+    };
+    use core_foundation_sys::string::{
+        CFStringGetCharacterAtIndex, CFStringGetLength, CFStringGetTypeID, CFStringRef,
+    };
+    // SAFETY: CFLocaleCopyCurrent takes no argument and gives a locale that the caller owns, or
+    // null; the value that CFLocaleGetValue gives belongs to that locale, is read as a string only
+    // after its type is checked, and is read before CFRelease gives the locale back.
+    unsafe {
+        let locale = CFLocaleCopyCurrent();
+        if locale.is_null() {
+            return None;
+        }
+        let value = CFLocaleGetValue(locale, kCFLocaleDecimalSeparator);
+        let mut unit = None;
+        if !value.is_null() && CFGetTypeID(value) == CFStringGetTypeID() {
+            let text: CFStringRef = value.cast();
+            if CFStringGetLength(text) == 1 {
+                unit = Some(CFStringGetCharacterAtIndex(text, 0));
+            }
+        }
+        CFRelease(locale.cast());
+        char::from_u32(u32::from(unit?))
+    }
+}
+
+/// The computer's own decimal sign: none on another system (r3 U11.12).
+#[cfg(not(any(windows, target_os = "macos")))]
+pub(crate) fn system_sign() -> Option<char> {
+    None
+}
+
 /// The rows of `text`, as `parse` states them after the encoding.
-fn rows(text: &str) -> Result<Vec<Vec<Value>>, Error> {
+fn rows(text: &str, own_sign: Option<char>) -> Result<Vec<Vec<Value>>, Error> {
     let (separator, rows) = reading(text)?;
     if let Some(line) = number_signs(&rows) {
         return Err(Error::Source(SourceRefusal::NumberSigns { line }));
     }
-    let numbers = Numbers::of(separator, &rows);
+    let numbers = Numbers::of(separator, &rows, own_sign);
     let columns = turning(numbers, &rows);
     Ok(rows
         .iter()
@@ -540,11 +600,12 @@ enum Numbers {
     /// A file read by commas: A11.3's form (`is_number`), with the point as the decimal sign.
     Points,
     /// A file read by commas whose own amounts show the decimal comma: a field tells the comma
-    /// (`tells_comma`) (r3 U11.10, the coordinator's ways (d) of Q2 and (c) of Q7). A field of the
-    /// thousands point shape (`thousands_point`) is no number in it; `comma` says that no field
-    /// tells the point (`tells_point`), so that the amounts of a column that holds a field that
-    /// tells the comma have the comma as their decimal sign. Every other field is told as in
-    /// `Points`.
+    /// (`tells_comma`) (r3 U11.10, the coordinator's ways (d) of Q2 and (c) of Q7); or a file
+    /// read by commas in which no field tells the point, on a computer whose own decimal sign is
+    /// the comma (r3 U11.12). A field of the thousands point shape (`thousands_point`) is no
+    /// number in it; `comma` says that no field tells the point (`tells_point`), so that the
+    /// amounts of a column that holds a field that tells the comma have the comma as their
+    /// decimal sign. Every other field is told as in `Points`.
     Commas { comma: bool },
     /// A file read by semicolons or by tabs whose fields hold numbers of this one decimal sign,
     /// the comma or the point, and none of the other (r3 U11.5, `with_sign`).
@@ -563,15 +624,16 @@ impl Numbers {
     /// nothing. Only where no field tells a sign, an amount as a spreadsheet program shows it
     /// (`amount`) tells it the same way (r3 U11.8); where fields tell both signs, no amount
     /// tells one. A file read by commas has the point, but where a field tells the comma
-    /// (`Numbers::Commas`, r3 U11.10).
-    fn of(separator: u8, rows: &[Vec<Cow<'_, str>>]) -> Numbers {
+    /// (`Numbers::Commas`, r3 U11.10) or where the computer's own decimal sign is the comma and no
+    /// field tells the point.
+    fn of(separator: u8, rows: &[Vec<Cow<'_, str>>], own_sign: Option<char>) -> Numbers {
         if separator == b',' {
-            let mut cells = rows.iter().flatten();
-            if !cells.any(|cell| tells_comma(cell)) {
-                return Numbers::Points;
+            let any = |told: fn(&str) -> bool| rows.iter().flatten().any(|cell| told(cell));
+            let comma = !any(tells_point);
+            if any(tells_comma) || (comma && own_sign == Some(',')) {
+                return Numbers::Commas { comma };
             }
-            let comma = !rows.iter().flatten().any(|cell| tells_point(cell));
-            return Numbers::Commas { comma };
+            return Numbers::Points;
         }
         let has = |sign: char| {
             rows.iter()
@@ -2322,7 +2384,7 @@ mod tests {
                 rows,
                 letters: Letters::Page(page),
             });
-            let got = data(bytes, Some(page));
+            let got = data(bytes, Some(page), None);
             if got != want {
                 wrong.push(format!("{name}: got {got:?}"));
             }
@@ -2353,7 +2415,7 @@ mod tests {
             ("no page, as on the Mac", b"M\xfcller,1\r\n", None),
         ];
         for (name, bytes, page) in refused {
-            assert_eq!(data(bytes, page), Err(encoding()), "{name}");
+            assert_eq!(data(bytes, page, None), Err(encoding()), "{name}");
         }
         let utf_8 = "Müller,1\r\n".as_bytes();
         let le = utf_16([0xff, 0xfe], "Müller,1\r\n", u16::to_le_bytes);
@@ -2362,7 +2424,7 @@ mod tests {
             ("UTF-8", utf_8.to_vec(), Letters::Utf8),
             ("UTF-16LE", le, Letters::Utf16),
         ] {
-            let got = data(&bytes, Some(1252));
+            let got = data(&bytes, Some(1252), None);
             let want = Ok(Data {
                 rows: want.clone(),
                 letters,
@@ -2389,9 +2451,20 @@ mod tests {
             letters: Letters::Page(page),
         });
         assert_eq!(
-            data(b"Gr\xfc\xdfe,12.50\r\n", system_page()),
+            data(b"Gr\xfc\xdfe,12.50\r\n", system_page(), None),
             want,
             "page {page}"
+        );
+    }
+
+    /// r3 U11.12 (order 09, A3): on each system the call answers the computer's own decimal sign,
+    /// which `Folder::read_data` hands in; the hosted machines write the point.
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn the_system_answers_the_computers_own_decimal_sign() {
+        assert!(
+            system_sign().is_some(),
+            "the system answered no decimal sign"
         );
     }
 
@@ -2619,7 +2692,7 @@ mod tests {
         if number_texts(&rows) != vec![0, 0, 2] {
             wrong.push(format!("Q7 (c), way (A): {:?}", number_texts(&rows)));
         }
-        let paged = data(b"Miete;12,50 \x80\r\n", Some(1252))
+        let paged = data(b"Miete;12,50 \x80\r\n", Some(1252), None)
             .expect("the file reads")
             .rows;
         if paged != vec![vec![t("Miete"), t("12,50 €")]] || number_texts(&paged) != vec![0, 1] {
@@ -2627,6 +2700,39 @@ mod tests {
                 "a page-read amount with a euro sign: {paged:?}, counts {:?}",
                 number_texts(&paged)
             ));
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.12 (order 09, A3): on a computer whose own decimal sign is the comma, a file read by
+    /// commas in which no field tells the point lands a field of the thousands point shape as a
+    /// text that blocks its column, so the amounts of that column stay texts, and `number_texts`
+    /// counts them; with the point, and with no sign read, the same bytes read as before.
+    #[test]
+    fn on_a_comma_computer_a_thousands_point_of_a_commas_file_is_a_counted_text() {
+        let bytes = "Miete,1.250\nStrom,€ 980\nGas,12\n".as_bytes();
+        let read = |own_sign| data(bytes, None, own_sign).map(|read| read.rows);
+        let texts = vec![
+            vec![t("Miete"), t("1.250")],
+            vec![t("Strom"), t("€ 980")],
+            vec![t("Gas"), n(12.0)],
+        ];
+        let before = vec![
+            vec![t("Miete"), n(1.25)],
+            vec![t("Strom"), n(980.0)],
+            vec![t("Gas"), n(12.0)],
+        ];
+        let mut wrong = Vec::new();
+        for (own_sign, want, counts) in [
+            (Some(','), &texts, vec![0, 2]),
+            (Some('.'), &before, vec![0, 0]),
+            (None, &before, vec![0, 0]),
+        ] {
+            let got = read(own_sign);
+            let counted = got.as_ref().map(|rows| number_texts(rows));
+            if got.as_ref() != Ok(want) || counted.as_ref() != Ok(&counts) {
+                wrong.push(format!("{own_sign:?}: {got:?}, counts {counted:?}"));
+            }
         }
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
@@ -2657,7 +2763,7 @@ mod tests {
     #[test]
     fn the_readers_file_holds_no_other_number_under_1251_beside_1252() {
         for page in [1251, 1252] {
-            match data(READERS_FILE, Some(page)) {
+            match data(READERS_FILE, Some(page), None) {
                 Err(error) => assert_eq!(error, encoding(), "{page}"),
                 Ok(read) => {
                     let got = numbers(&read.rows);
@@ -2677,7 +2783,7 @@ mod tests {
     fn under_each_page_a_file_reads_as_its_twins_in_utf_8_or_is_refused() {
         let mut wrong = Vec::new();
         for own in THE_PAGES {
-            let read = match data(READERS_FILE, Some(own)) {
+            let read = match data(READERS_FILE, Some(own), None) {
                 Ok(read) => read.rows,
                 Err(error) if error == encoding() => continue,
                 Err(error) => {
@@ -2743,7 +2849,7 @@ mod tests {
             for separator in *b";\t" {
                 let bytes = readers_file_of(sign, separator);
                 for page in THE_PAGES {
-                    match data(&bytes, Some(page)) {
+                    match data(&bytes, Some(page), None) {
                         Err(error) if error == encoding() => {}
                         Err(error) => wrong.push(format!("{sign:02x} {page}: {error:?}")),
                         Ok(read) => {
@@ -2790,7 +2896,7 @@ mod tests {
                     if by_page(&renamed, page).is_err() {
                         continue;
                     }
-                    let Ok(read) = data(&renamed, Some(page)) else {
+                    let Ok(read) = data(&renamed, Some(page), None) else {
                         continue;
                     };
                     let widths: Vec<usize> = read.rows.iter().map(Vec::len).collect();
@@ -2837,7 +2943,7 @@ mod tests {
         ];
         let mut wrong = Vec::new();
         for (bytes, rows) in cases {
-            let got = data(bytes, Some(1252)).map(|read| read.rows);
+            let got = data(bytes, Some(1252), None).map(|read| read.rows);
             if got != Ok(rows) {
                 wrong.push(format!("{}: got {got:?}", shown(bytes)));
             }
@@ -2850,7 +2956,7 @@ mod tests {
     /// `data_encoding`: the first reader's file with the byte 80, the euro sign under 1252.
     #[test]
     fn a_file_whose_page_tells_another_separator_than_its_letters_is_refused() {
-        assert_eq!(data(READERS_FILE, Some(1252)), Err(encoding()));
+        assert_eq!(data(READERS_FILE, Some(1252), None), Err(encoding()));
     }
 
     /// r3 U11.10 round 3, R4 (the coordinator's log line 24070): in a page-read file a cell is a
@@ -2890,7 +2996,7 @@ mod tests {
         ];
         let mut wrong = Vec::new();
         for (bytes, rows, counts) in cases {
-            let got = data(bytes, Some(1252)).map(|read| read.rows);
+            let got = data(bytes, Some(1252), None).map(|read| read.rows);
             let count = got.as_deref().map(number_texts).ok();
             if got != Ok(rows) || count != Some(counts) {
                 wrong.push(format!("{}: got {got:?}, counted {count:?}", shown(bytes)));

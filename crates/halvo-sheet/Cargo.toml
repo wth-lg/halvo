@@ -16,5 +16,8 @@ zip = { version = "=9.5.1", default-features = false, features = ["deflate"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "=0.61.2", features = ["Win32_Globalization"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation-sys = "=0.8.7"
+
 [dev-dependencies]
 halvo-test-dir = { path = "../halvo-test-dir" }

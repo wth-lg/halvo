@@ -653,6 +653,13 @@ impl WindowTitleSource {
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
     }
+
+    /// This source with hand-offs that count their drops at a full queue in
+    /// `full` as well: the count of the service set that makes it.
+    pub(crate) fn counting_full_drops_in(mut self, full: &super::FullDrops) -> Self {
+        self.life = Lifecycle::counting_full_drops_in(full);
+        self
+    }
 }
 
 impl Default for WindowTitleSource {

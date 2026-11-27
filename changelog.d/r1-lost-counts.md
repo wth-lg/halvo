@@ -1,0 +1,1 @@
+- Fixed: (capture run, r1 lost-counts) On Windows, where Halvo had to drop part of what it recorded because its own queue was full, the Status page now says so, with the sentence that it has for a part that could not be saved. Before, nothing counted that part.
