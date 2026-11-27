@@ -1049,4 +1049,166 @@ mod tests {
         );
         assert_eq!(behind_the_stop, [spent.clone(), spent]);
     }
+
+    /// Over a stand-in attach and stand-in sources, with no detector and no real second: the
+    /// status's left_out as the wire writes it, from a begin under an attach that answered late
+    /// until the gate's first reading of a field, and behind an attach that failed while a
+    /// source holds the gate, a failed restart of the keyboard source among them, until the last
+    /// stop.
+    #[test]
+    fn from_an_attach_that_answered_late_until_the_first_read_lands_and_for_the_whole_life_where_the_attach_failed_left_out_names_the_cause_and_the_parts_by_the_switches(
+    ) {
+        use std::sync::Arc;
+
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{LastStop, Lease, Parent};
+
+        use super::super::now_tick;
+        use super::Gated;
+        use crate::daemon::board::Board;
+        use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::state::{Cap, Desired, StateHealth};
+        use crate::daemon::supervisor::SystemSources;
+        use crate::floor::exclude::unix_seconds_now;
+        use crate::secure_input::windows::{Attached, FocusRead, Kind};
+
+        const ALL: &str = r#""typing","window_titles","screen_activity""#;
+        const TITLES: &str = r#""window_titles""#;
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let ctx = SourceContext::new(sink);
+        let written = |set: &ServiceSet, switches: Switches| {
+            let mut board = Board::new(Platform::Windows);
+            board.figures = set.figures();
+            let parts = StatusParts {
+                board,
+                desired: Desired::Running,
+                lease: Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap: Cap::Known(StorageCap::DEFAULT),
+                switches,
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: false,
+                held: false,
+                typing_off_unsaved: None,
+                search: None,
+                left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
+            };
+            let facts = RunFacts {
+                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+                parent: Parent::None,
+                last_stop: LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+        };
+        let keyboard = |set: &ServiceSet| Gated {
+            source: StandIn,
+            hold: Arc::clone(&set.hold),
+            holding: false,
+            typing: Some(Arc::clone(&set.typing_holders)),
+        };
+        let entry = |cause: &str, what: &str, (from, to): (u64, u64), told: &Option<String>| {
+            (from..=to).any(|second| {
+                let since = UtcSecond::from_unix_seconds(i64::try_from(second).unwrap()).unwrap();
+                *told
+                    == Some(format!(
+                        r#"[{{"cause":"{cause}","what":[{what}],"since":"{since}"}}]"#
+                    ))
+            })
+        };
+        let mut every = Switches::default();
+        for switch in Switch::ALL {
+            every.set(switch, true);
+        }
+        let mut titles_alone = Switches::default();
+        titles_alone.set(Switch::TitleText, true);
+
+        let late = ServiceSet::with_attach(|| Ok(Attached::Late));
+        let before_any = written(&late, every);
+        let mut typing = keyboard(&late);
+        let mut titles = late.gated(StandIn);
+        let from = unix_seconds_now();
+        let begun = [typing.begin(ctx.clone()), titles.begin(ctx.clone())];
+        let late_at = (from, unix_seconds_now());
+        let late_every = written(&late, every);
+        let late_titles = written(&late, titles_alone);
+        let late_none = written(&late, Switches::default());
+        late.password_gate().focus_read_at(
+            now_tick(),
+            FocusRead::Answered {
+                is_password: false,
+                protected: false,
+                kind: Kind::NativeEdit,
+            },
+            false,
+        );
+        let after_the_read = written(&late, every);
+        let stopped = [typing.shutdown(), titles.shutdown()];
+
+        let failing = ServiceSet::with_attach(|| Err(CaptureError::ThreadEnded));
+        let mut typing = keyboard(&failing);
+        let mut titles = failing.gated(StandIn);
+        let mut screen = failing.gated(StandIn);
+        let from = unix_seconds_now();
+        let failed_begun = [
+            typing.begin(ctx.clone()),
+            titles.begin(ctx.clone()),
+            screen.begin(ctx.clone()),
+        ];
+        let failed_at = (from, unix_seconds_now());
+        let failed_every = written(&failing, every);
+        let restarted = typing.begin(ctx.clone());
+        let behind_the_restart = written(&failing, every);
+        let titles_stopped = titles.shutdown();
+        let behind_the_titles = written(&failing, titles_alone);
+        let screen_stopped = screen.shutdown();
+        let behind_the_last = written(&failing, every);
+
+        assert_eq!(before_any, None, "before any begin");
+        assert_eq!(begun, [Ok(Started::Running), Ok(Started::Running)]);
+        assert!(
+            entry("field_not_read_yet", ALL, late_at, &late_every),
+            "late, every switch on: {late_every:?}"
+        );
+        assert!(
+            entry("field_not_read_yet", TITLES, late_at, &late_titles),
+            "late, title_text alone on: {late_titles:?}"
+        );
+        assert_eq!(late_none, None, "late, every switch off");
+        assert_eq!(after_the_read, None, "behind the first read");
+        assert_eq!(stopped, [Ok(()), Ok(())]);
+        assert_eq!(
+            failed_begun,
+            [
+                Err(CaptureError::ThreadEnded),
+                Ok(Started::Running),
+                Ok(Started::Running)
+            ]
+        );
+        assert!(
+            entry("detector_not_started", ALL, failed_at, &failed_every),
+            "failed, every switch on: {failed_every:?}"
+        );
+        assert_eq!(
+            restarted,
+            Err(CaptureError::ThreadEnded),
+            "a restart of typing"
+        );
+        assert_eq!(
+            behind_the_restart, failed_every,
+            "behind the restart's failed begin"
+        );
+        assert_eq!((titles_stopped, screen_stopped), (Ok(()), Ok(())));
+        assert!(
+            entry("detector_not_started", TITLES, failed_at, &behind_the_titles),
+            "behind the stop of titles, while screen activity holds the gate: {behind_the_titles:?}"
+        );
+        assert_eq!(behind_the_last, None, "behind the last stop");
+    }
 }
