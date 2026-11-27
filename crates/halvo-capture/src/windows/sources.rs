@@ -9,6 +9,7 @@ use super::foreground::ForegroundAppSource;
 use super::input::{GateCounts, RawInputSource};
 use super::screen::ScreenSource;
 use super::window_title::WindowTitleSource;
+use super::FullDrops;
 use crate::daemon::sources::SourceFactory;
 use crate::secure_input::windows::{Attached, PasswordGate};
 use crate::source::{
@@ -31,7 +32,10 @@ use crate::source::{
 /// stop of one of them leaves the detector to the others. The window_title
 /// and screen sources read the gate, and the keyboard source notes a key only
 /// through it. The set keeps one set of counts for the run, which its
-/// keyboard source writes and its figures read.
+/// keyboard source writes and its figures read, and one count of the events
+/// that the hand-offs of its sources dropped at a full queue, which every
+/// source that it makes writes, its figures read and the slot of a delete of
+/// everything takes back to nought.
 ///
 /// The set makes one screen source, at its first make of the name; every make
 /// behind it gives a spent source that starts nothing, so that a process
@@ -43,6 +47,7 @@ pub struct ServiceSet {
     last_app: Arc<Mutex<Option<String>>>,
     hold: Arc<GateHold>,
     counts: Arc<GateCounts>,
+    full_drops: FullDrops,
     typing_holders: Arc<AtomicUsize>,
     screen_made: bool,
     screen_failed: Arc<Mutex<Option<CaptureError>>>,
@@ -86,6 +91,13 @@ impl ServiceSet {
             }),
             ..ServiceSet::default()
         }
+    }
+
+    /// The count of the events that the hand-offs of the set's sources
+    /// dropped at a full queue.
+    #[cfg(test)]
+    pub(crate) fn full_drops(&self) -> &FullDrops {
+        &self.full_drops
     }
 
     /// The set whose first screen source is `first` in place of the gated
@@ -132,7 +144,12 @@ impl ServiceSet {
             });
         }
         Box::new(FirstScreen {
-            source: Box::new(self.gated_screen(ScreenSource::new(Arc::clone(&self.last_app)))),
+            source: Box::new(
+                self.gated_screen(
+                    ScreenSource::new(Arc::clone(&self.last_app))
+                        .counting_full_drops_in(&self.full_drops),
+                ),
+            ),
             failed: Arc::clone(&self.screen_failed),
         })
     }
@@ -154,7 +171,8 @@ impl ServiceSet {
             source: RawInputSource::keyboard_of_the_set(
                 self.password_gate(),
                 Arc::clone(&self.counts),
-            ),
+            )
+            .counting_full_drops_in(&self.full_drops),
             hold: Arc::clone(&self.hold),
             holding: false,
             typing: Some(Arc::clone(&self.typing_holders)),
@@ -163,9 +181,11 @@ impl ServiceSet {
 }
 
 impl crate::daemon::supervisor::SystemSources for ServiceSet {
-    /// What the set's keyboard source counted in the run, and the reading of
-    /// the set's gate while a keyboard source holds it; nothing of typing
-    /// where no keyboard source ran.
+    /// What the set's keyboard source counted in the run, the reading of the
+    /// set's gate while a keyboard source holds it, and the events that the
+    /// hand-offs of the set's sources dropped at a full queue since the start
+    /// of the run or the last delete of everything; nothing of typing where no
+    /// keyboard source ran.
     fn figures(&self) -> SourceCounters {
         SourceCounters {
             late_events: u64::from(self.counts.late.load(Ordering::Relaxed)),
@@ -173,8 +193,13 @@ impl crate::daemon::supervisor::SystemSources for ServiceSet {
             keys_withheld: self.counts.withheld.load(Ordering::Relaxed),
             typing_gate: (self.typing_holders.load(Ordering::Relaxed) > 0)
                 .then(|| self.hold.gate.typing_gate()),
+            handoff_full_drops: self.full_drops.read(),
             ..SourceCounters::default()
         }
+    }
+
+    fn forget_handoff_drops(&mut self) {
+        self.full_drops.forget();
     }
 }
 
@@ -366,11 +391,16 @@ impl CaptureSource for SpentScreen {
 impl SourceFactory for ServiceSet {
     fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
         match name {
-            SourceName::Foreground => Some(Box::new(ForegroundAppSource::new())),
-            SourceName::Pointer => Some(Box::new(RawInputSource::pointer(Arc::clone(
-                &self.last_app,
-            )))),
-            SourceName::WindowTitle => Some(Box::new(self.gated_title(WindowTitleSource::new()))),
+            SourceName::Foreground => Some(Box::new(
+                ForegroundAppSource::new().counting_full_drops_in(&self.full_drops),
+            )),
+            SourceName::Pointer => Some(Box::new(
+                RawInputSource::pointer(Arc::clone(&self.last_app))
+                    .counting_full_drops_in(&self.full_drops),
+            )),
+            SourceName::WindowTitle => Some(Box::new(
+                self.gated_title(WindowTitleSource::new().counting_full_drops_in(&self.full_drops)),
+            )),
             SourceName::Screen => Some(self.screen()),
             SourceName::Keyboard if self.typing_on() => Some(Box::new(self.gated_keyboard())),
             SourceName::Keyboard

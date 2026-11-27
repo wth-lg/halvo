@@ -232,14 +232,70 @@ struct Queue {
     writer_gone: bool,
 }
 
+/// The events that the hand-offs of a Windows service set's sources dropped at a full queue,
+/// over every source that the set makes in the life of the service: a push into a hand-off that
+/// a stop has closed is not counted, and the slot of a delete of everything takes the count
+/// back to nought, behind which a hand-off whose counts were made before that slot counts
+/// nothing in it.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FullDrops(Arc<Mutex<FullCount>>);
+
+/// The count of [`FullDrops`] and the number of its forgets, which change together.
+#[derive(Debug, Default)]
+struct FullCount {
+    drops: u64,
+    forgets: u64,
+}
+
+impl FullDrops {
+    pub(crate) fn read(&self) -> u64 {
+        self.lock().drops
+    }
+
+    pub(crate) fn forget(&self) {
+        let mut count = self.lock();
+        count.drops = 0;
+        count.forgets = count.forgets.saturating_add(1);
+    }
+
+    fn forgets(&self) -> u64 {
+        self.lock().forgets
+    }
+
+    /// Counts one drop of a hand-off whose counts were made behind `forgets`
+    /// forgets, and none of one made before the last forget.
+    fn count(&self, forgets: u64) {
+        let mut count = self.lock();
+        if count.forgets == forgets {
+            count.drops = count.drops.saturating_add(1);
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, FullCount> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct LossCounts {
     lost: AtomicU64,
     coalesced: AtomicU64,
     dropped_at_stop: AtomicU64,
+    full: FullDrops,
+    full_since: u64,
 }
 
 impl LossCounts {
+    /// The counts of a hand-off whose drops at a full queue also count in
+    /// `full`, until the next forget of `full`.
+    pub(crate) fn counting_full_drops_in(full: &FullDrops) -> Self {
+        Self {
+            full: full.clone(),
+            full_since: full.forgets(),
+            ..Self::default()
+        }
+    }
+
     fn lose(&self, events: u64) {
         self.lost.fetch_add(events, Ordering::Relaxed);
     }
@@ -337,8 +393,13 @@ impl Drop for HandOff {
 impl Producer {
     pub(crate) fn push(&self, event: FloorEvent) {
         let mut queue = self.shared.lock();
-        if queue.closed || queue.events.len() >= HANDOFF_CAPACITY {
+        if queue.closed {
             self.shared.counts.lose(1);
+            return;
+        }
+        if queue.events.len() >= HANDOFF_CAPACITY {
+            self.shared.counts.lose(1);
+            self.shared.counts.full.count(self.shared.counts.full_since);
             return;
         }
         queue.events.push_back(event);
@@ -617,6 +678,20 @@ pub(crate) struct Lifecycle {
 }
 
 impl Lifecycle {
+    /// The life of a source whose hand-offs count their drops at a full queue
+    /// in `full` as well.
+    pub(crate) fn counting_full_drops_in(full: &FullDrops) -> Self {
+        Self {
+            pump: None,
+            handoff: None,
+            counts: Arc::new(LossCounts::counting_full_drops_in(full)),
+            timed_out: None,
+            removal_failed: None,
+            stopped: false,
+            off: false,
+        }
+    }
+
     /// A begin whose switch is off: nothing is installed and the health reads
     /// Off until a begin with the switch on.
     pub(crate) fn off(&mut self) -> Result<Started, CaptureError> {
@@ -1581,6 +1656,96 @@ pub(crate) mod tests {
                 coalesced: 0,
                 pointer_dropped_at_stop: 0
             }
+        );
+    }
+
+    #[test]
+    fn a_push_into_a_full_hand_off_moves_the_status_s_events_lost_by_one_for_each_event_one_into_a_closed_hand_off_does_not_and_a_delete_of_everything_takes_it_back_to_nought(
+    ) {
+        use crate::daemon::server::{status_of, RunFacts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::supervisor::Supervisor;
+        use crate::daemon::WindowsLoop;
+        use halvo_control::proto::{LastStop, Parent, Platform};
+
+        type Run = Supervisor<sources::ServiceSet, WindowsLoop>;
+        fn events_lost(supervisor: &mut Run, slot: Slot) -> u64 {
+            supervisor.set_slot_answering(slot, None, &mut |_| {});
+            let facts = RunFacts {
+                started_at: halvo_control::model::UtcSecond::from_unix_seconds(1_800_000_000)
+                    .unwrap(),
+                parent: Parent::None,
+                last_stop: LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            status_of(&supervisor.status_parts(None), &facts)
+                .expect("the status holds together")
+                .fields()
+                .events_lost
+        }
+
+        let set = sources::ServiceSet::new();
+        let full = set.full_drops().clone();
+        let mut supervisor = Supervisor::new(Platform::Windows, set, WindowsLoop::new());
+        let full_hand_off = || {
+            let (sink, writer) = crate::sink::channel(1);
+            assert!(forward_one(&sink, pointer("filler")) == Emitted::Queued);
+            let counts = Arc::new(LossCounts::counting_full_drops_in(&full));
+            let handoff = HandOff::start(sink, "halvo-test-forward", counts).expect("hand-off");
+            let producer = handoff.producer();
+            producer.push(pointer("taken"));
+            wait_until("the forwarder took no packet", || handoff.queued() == 0);
+            for _ in 0..HANDOFF_CAPACITY {
+                producer.push(pointer("queued"));
+            }
+            (handoff, producer, writer)
+        };
+        let (first, first_producer, _first_writer) = full_hand_off();
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            0,
+            "a full queue that dropped nothing"
+        );
+        for _ in 0..3 {
+            first_producer.push(pointer("beyond the full queue"));
+        }
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            3,
+            "three pushes into the full queue"
+        );
+        first.close();
+        first_producer.push(pointer("behind the stop"));
+        first_producer.push(pointer("behind the stop"));
+        assert_eq!(
+            first.counts().lost,
+            3 + HANDOFF_CAPACITY as u64 + 2,
+            "the hand-off's own count holds the queue that the close dropped and both pushes behind it"
+        );
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            3,
+            "two pushes into the hand-off that the stop closed"
+        );
+        let (_before, before_producer, _before_writer) = full_hand_off();
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Deleting),
+            0,
+            "behind the slot of a delete of everything"
+        );
+        before_producer.push(pointer("beyond the full queue"));
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            0,
+            "a push into the full queue of a hand-off whose counts were made before the slot"
+        );
+        let (_behind, behind_producer, _behind_writer) = full_hand_off();
+        behind_producer.push(pointer("beyond the full queue"));
+        behind_producer.push(pointer("beyond the full queue"));
+        assert_eq!(
+            events_lost(&mut supervisor, Slot::Opening),
+            2,
+            "a hand-off whose counts were made behind the slot counts again"
         );
     }
 
