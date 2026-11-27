@@ -230,16 +230,17 @@ fn the_built_app_starts_its_daemon_and_the_daemon_ends_with_it() {
             dir.display()
         )
     );
-    let status = within(WITHIN, "the child's status with lease=fresh", || {
-        let out = ctl(&daemon, &dir, "status");
-        let text = String::from_utf8_lossy(&out.stdout).into_owned();
-        (out.status.success() && text.lines().any(|line| line == "lease=fresh")).then_some(text)
-    });
-    for line in [
-        format!("pid={}", child.0),
-        "parent=watched".to_owned(),
-        "store=open".to_owned(),
-    ] {
+    let status = within(
+        WITHIN,
+        "the child's status with lease=fresh and store=open",
+        || {
+            let out = ctl(&daemon, &dir, "status");
+            let text = String::from_utf8_lossy(&out.stdout).into_owned();
+            let holds = |want: &str| text.lines().any(|line| line == want);
+            (out.status.success() && holds("lease=fresh") && holds("store=open")).then_some(text)
+        },
+    );
+    for line in [format!("pid={}", child.0), "parent=watched".to_owned()] {
         assert!(
             status.lines().any(|held| held == line),
             "the status holds {line}: {status}"
