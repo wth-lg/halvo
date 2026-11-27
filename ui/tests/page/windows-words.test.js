@@ -43,3 +43,13 @@ test("win-crash-reports: where a crash report of the window stayed at the start,
   const none = await page(running);
   assert.equal(none.text("crash-report-line"), "");
 });
+
+test("detector-told: on Windows, where the status's left_out names the password detector's late first read or its failed start, the line under the heading says each sentence", async () => {
+  const running = fixture("capture_status-running-windows");
+  const entry = (cause, what) => ({ cause, what, since: "2027-01-15T08:00:30Z" });
+  const late = await page({ ...running, left_out: [entry("field_not_read_yet", ["typing", "window_titles", "screen_activity"])] });
+  assert.equal(late.text("capture-reason"), "Halvo is not recording typing, window titles or screen activity yet, because it has not yet read which field has the cursor. It records typing, window titles and screen activity by itself as soon as it has.");
+  const failedTyping = running.sources.map((source) => (source.name === "keyboard" ? { ...source, state: "failed", reason: "os_error" } : source));
+  const notStarted = await page({ ...running, capture: "partial", sources: failedTyping, left_out: [entry("detector_not_started", ["window_titles", "screen_activity"])] });
+  assert.equal(notStarted.text("capture-reason"), "Halvo is not recording window titles or screen activity, because the part of Halvo that tells a password field from other fields did not start. Press Pause and then Resume to have Halvo try again.");
+});
