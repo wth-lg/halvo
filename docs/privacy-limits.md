@@ -156,8 +156,9 @@ Where a sentence names a unit, that unit makes it true.
   the browser holds none of them or more than one, or where macOS does not give Halvo
   the numbers, it records no title of that browser, so under any other language it
   records none. A browser carries more than one file for each language; Halvo takes it
-  for English only where the one that it holds open lies in the folder `en.lproj`, and
-  no run has read a browser that holds another one of them open. A Chrome or Edge that
+  for English where the one that it holds open lies in the folder `en.lproj` or
+  `en_GB.lproj`, and a run has read a Chrome and an Edge set to British English; no run
+  has read a browser that holds another one of them open. A Chrome or Edge that
   was open before Halvo started is told in the same way as one that you open later.
   Where the files of the version that runs were taken off the disk while that browser
   ran, as when its app is replaced by hand, the browser holds files that the disk no

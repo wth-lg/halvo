@@ -151,12 +151,14 @@ fn bounded_title(text: &CFString) -> TitleText {
     }
 }
 
-/// The code of the language file under which the rules keep a browser's
-/// titles: the `en` of the bundle's `en.lproj`, for which [`NAME_ENDINGS`]
-/// holds the US-English ending of an ordinary window. Where a language puts
-/// its private words and the name is each translation's own, and no other is
-/// read.
-pub(crate) const ENGLISH: &str = "en";
+/// The codes of the language files under which the rules keep a browser's
+/// titles: the `en` of the bundle's `en.lproj` and the `en_GB` of its
+/// `en_GB.lproj`, for both of which [`NAME_ENDINGS`] holds the ending of an
+/// ordinary window: GitHub's hosted Macs read the same endings from Chrome
+/// 158.0.8127.37 and Edge 157.0.4341.60 under British English as under US
+/// English. Where a language puts its private words and the name is each
+/// translation's own, and no other is read.
+pub(crate) const ENGLISH: [&str; 2] = ["en", "en_GB"];
 
 /// What a title of Chrome or Edge ends with where Halvo keeps it: the
 /// browser's own name as it ends the title of an ordinary window, behind
@@ -211,7 +213,7 @@ fn is_invisible_mark(c: char) -> bool {
 }
 
 /// Chrome and Edge, each matched whole, with the ending of an ordinary
-/// window's title in the localization [`ENGLISH`]. Chrome's is the end of its
+/// window's title in the localizations [`ENGLISH`]. Chrome's is the end of its
 /// format for the accessible title of a tabbed window, ` - Google Chrome`,
 /// behind which a window under one of several profiles has ` - ` and the
 /// profile's name; the title of its Incognito, Guest or isolated window, of an

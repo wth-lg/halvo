@@ -1,0 +1,1 @@
+- Fixed: (capture run, r1 british-english-titles) On a Mac, Halvo records the window titles of a Chrome or Edge that shows British English, by the same rule as for English. Before, it recorded none.
