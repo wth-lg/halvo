@@ -210,12 +210,14 @@ impl Folder {
     /// can tell it; where it is none, the file reads as [`Folder::read_source`] reads it. On a
     /// computer whose own decimal sign is the comma (r3 U11.12), where `width` is 1, a file in
     /// which neither the semicolon nor the tab holds is one column where each comma of the file
-    /// stands between two digits, no line holds more than one comma, and one line or more is a
-    /// number with a decimal comma of one reading (`3,5` is 3.5; not the shape of a thousands
-    /// group, above). Each line is then one field, read as a field of a file read by semicolons
-    /// is read (above): a number with the comma as its decimal sign or a whole number is that
-    /// number, a line such as `1,250` is a text that blocks the column, and a title line is a
-    /// text. Every other such file reads by commas and each number is cut in two, as before, with
+    /// stands between two digits, no line holds more than one comma, and one line or more that
+    /// holds a comma is a number as a field of a file read by semicolons whose sign is the comma
+    /// (above): `3,5` is 3.5, and so are `41,20 €`, `1.234,56` and a number with a space at an
+    /// end, but not the shape of a thousands group (`1,250`, `1,250 €`). Each line is then one
+    /// field, read as a field of a file read by semicolons is read: a number with the comma as
+    /// its decimal sign, a whole number and an amount are that number, a line such as `1,250` is
+    /// a text that blocks the column, so that an amount beside it is a text too, and a title line
+    /// is a text. Every other such file reads by commas and each number is cut in two, as before, with
     /// the shape check between it and the workbook; a file whose lines stand in quotes reads by
     /// commas as one column, as before.
     pub fn read_data(&self, source: &Path, width: Option<u32>) -> Result<Data, Error> {

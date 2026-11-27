@@ -185,13 +185,16 @@ fn four_byte(bytes: &[u8]) -> bool {
 /// other sign one, so their rows hold the same cells. No cell is one number under one page and
 /// another number under another, in the list or outside it (R3); whether it is a number at all can
 /// differ between a page of one-byte letters and a page of two-byte letters, since `as_money` drops
-/// one sign of 40 to 7E behind a sign beyond ASCII.
+/// one sign of 40 to 7E behind a sign beyond ASCII. Whether the file is one column (`one_column`,
+/// r3 U11.13) is told by the text with every sign beyond ASCII taken as a plain letter, as R4
+/// makes no number of a line that holds such a sign, and all three texts are read by that answer.
 fn page_rows(text: &str, own_sign: Option<char>, column: bool) -> Result<Vec<Vec<Value>>, Error> {
     let letters: String = text
         .chars()
         .map(|c| if c.is_ascii() { c } else { 'a' })
         .collect();
     let money = as_money(text);
+    let column = column && one_column(&letters);
     let separator = |text: &str| reading(text, column).map(|(sign, _)| sign);
     let told = separator(&letters)?;
     if separator(&money)? != told || separator(text)? != told {
@@ -413,12 +416,13 @@ fn reading(text: &str, column: bool) -> Result<(u8, Rows<'_>), Error> {
 }
 
 /// Whether `text` is one column of numbers with a decimal comma (r3 U11.13, the coordinator's
-/// ruling of log line 24914): (1) each comma of the text stands between two digits, (2) no line
-/// holds more than one comma, and (3) one line or more is a number with a decimal comma of one
-/// reading (`with_sign`: `3,5`, `-41,20`; not `1,250`, of the thousands group's shape). A title
-/// line, a whole number, a line such as `1,250` and an amount (`41,20 €`) may stand beside it. A
-/// line of (3) holds a comma and no quote, so the read by commas cuts it in two: no file that is
-/// read by commas as one column is one.
+/// rulings of log lines 24914 and 24985): (1) each comma of the text stands between two digits,
+/// (2) no line holds more than one comma, and (3) one line or more holds a comma and is a number
+/// as a field of a file of semicolons whose sign is the comma (`comma_line`: `3,5`, `41,20 €`,
+/// `1.234,56`, `3,5 `; not `1,250` or `1,250 €`, of the thousands group's shape). A title line, a
+/// whole number and a line such as `1,250` may stand beside it. A line of (3) is read as it
+/// stands, quotes and all, so it holds a comma outside quotes and the read by commas cuts it in
+/// two: no file that is read by commas as one column is one.
 fn one_column(text: &str) -> bool {
     let bytes = text.as_bytes();
     let digit = |at: Option<usize>| {
@@ -429,7 +433,18 @@ fn one_column(text: &str) -> bool {
         .filter(|&at| bytes[at] == b',')
         .all(|at| digit(at.checked_sub(1)) && digit(Some(at + 1)));
     let once = lines(text).all(|line| line.bytes().filter(|&b| b == b',').count() <= 1);
-    between && once && lines(text).any(|line| with_sign(line, ',').is_some())
+    between && once && lines(text).any(comma_line)
+}
+
+/// Whether `line` holds a comma and is a number when it is read as a field of a file of
+/// semicolons whose sign is the comma, in a column whose amounts turn (`Numbers::value`):
+/// condition (3) of `one_column` (r3 U11.13, the coordinator's log line 24985).
+fn comma_line(line: &str) -> bool {
+    let column = Column {
+        turn: true,
+        comma: false,
+    };
+    line.contains(',') && matches!(Numbers::Sign(',').value(line, column), Value::Number(_))
 }
 
 /// The signs of money and the percent sign that a number may carry at one of its ends
@@ -3144,6 +3159,47 @@ mod tests {
         ];
         let counts = got.as_deref().map(number_texts).ok();
         assert_eq!((got, counts), (Ok(want), Some(vec![2])));
+    }
+
+    /// r3 U11.13, condition (3) of `one_column` as the coordinator's log line 24985 rules it: on a
+    /// computer whose own decimal sign is the comma, with cells one column wide, a column of money
+    /// (`41,20 €` on every line, as a spreadsheet program saves a column formatted as money) is one
+    /// column of numbers, with or without a title line, and so are a column of `1.234,56` and one
+    /// of numbers with a space at an end: each line is a number as a field of a file of semicolons.
+    #[test]
+    fn on_a_comma_computer_a_column_of_money_is_one_column_of_numbers() {
+        let cases = [
+            (
+                "41,20 €\r\n1.234,56 €\r\n-3,50 €\r\n",
+                vec![vec![n(41.2)], vec![n(1234.56)], vec![n(-3.5)]],
+            ),
+            (
+                "Betrag\n€ 41,20\n€ 12,00\n",
+                vec![vec![t("Betrag")], vec![n(41.2)], vec![n(12.0)]],
+            ),
+            (
+                "1.234,56\n2.500,10\n",
+                vec![vec![n(1234.56)], vec![n(2500.1)]],
+            ),
+            ("3,5 \n 41,20\n", vec![vec![n(3.5)], vec![n(41.2)]]),
+        ];
+        let mut wrong = Vec::new();
+        for (text, want) in cases {
+            let got = read_with(text, Some(','), Some(1));
+            if got.as_ref() != Ok(&want) {
+                wrong.push(format!("{}: {got:?}", text.escape_debug()));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    /// r3 U11.13, condition (3) of `one_column` as log line 24985 rules it: a file whose comma
+    /// lines are all of the shape `1,250 €`, a thousands group with a sign of money, which has two
+    /// readings, reads by commas, as before.
+    #[test]
+    fn on_a_comma_computer_money_lines_of_the_thousands_shape_alone_keep_the_read_by_commas() {
+        let wrong = not_as_before(&["1,250 €\n2,500 €\n", "Betrag\n€ 1,250\n12 €\n"]);
+        assert!(wrong.is_empty(), "{wrong:#?}");
     }
 
     /// r3 U11.13: with the comma and cells two columns wide, with the point or no sign read at a
