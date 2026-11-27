@@ -29,6 +29,8 @@
     PARTS_OR: " or ",
     PARTS_AND: " and ",
     NO_KEY_ARRIVES: "Keys are being pressed on this Mac and none of them reaches Halvo, so Halvo is not recording typing right now. It records typing again by itself as soon as keys reach it.",
+    FIELD_NOT_READ_YET: "Halvo is not recording {parts_or} yet, because it has not yet read which field has the cursor. It records {parts_and} by itself as soon as it has.",
+    DETECTOR_NOT_STARTED: "Halvo is not recording {parts_or}, because the part of Halvo that tells a password field from other fields did not start.",
     LEFT_OUT_BEFORE_TODAY: "Today from {from} to {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
     LEFT_OUT_BEFORE: "From {from_date} at {from} to {until_date} at {until}, Halvo recorded nothing, because it could not tell whether to leave out the app that you were using.",
     KEPT_PRIVATE_BEFORE_TODAY: "Today from {from} to {until}, Halvo recorded no {parts_or}, because a password field or another app had asked your Mac to keep typing private.",
