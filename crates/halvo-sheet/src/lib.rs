@@ -170,9 +170,10 @@ impl Folder {
     /// column turns whole (r3 U11.10); in a
     /// file read by semicolons or by tabs the sign that its numbers tell, or where none tells
     /// one, the sign that its amounts tell where they tell one alone; a file with a number of
-    /// each sign has none. In a file read by commas whose own amounts show the decimal comma, a
-    /// field of the thousands point shape (`1.250`, `12.500`) is no number but a text, and as such
-    /// it blocks its column (r3 U11.10). Halvo turns the amounts of a column into numbers only where it can
+    /// each sign has none. In a file read by commas whose own amounts show the decimal comma (r3
+    /// U11.10), and, on a computer whose own decimal sign is the comma, in a file read by commas in
+    /// which no field tells the point (r3 U11.12), a field of the thousands point shape (`1.250`,
+    /// `12.500`) is no number but a text, and as such it blocks its column. Halvo turns the amounts of a column into numbers only where it can
     /// read every value of that column: every field that holds a digit and gets no number blocks
     /// its column, but a field of the first row that holds a letter (a header); a blocked column
     /// reads as before r3 U11.8, and a field that is a number by the forms above stays that
@@ -207,7 +208,11 @@ impl Folder {
     /// guess that the run's record keeps (r3 U11.10).
     pub fn read_data(&self, source: &Path) -> Result<Data, Error> {
         let full = self.file(source)?;
-        source::data(&std::fs::read(full)?, source::system_page())
+        source::data(
+            &std::fs::read(full)?,
+            source::system_page(),
+            source::system_sign(),
+        )
     }
 
     /// The first half of a file edit (contracts.md A11.3, A5.2), which changes nothing of the
