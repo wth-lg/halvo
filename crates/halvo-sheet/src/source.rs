@@ -3202,6 +3202,19 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:#?}");
     }
 
+    /// r3 U11.13, the line of `page_rows` that tells one column by the text with every sign beyond
+    /// ASCII taken as a plain letter: a column of `41,20 €` with the euro as the byte 80, read with
+    /// the page 1252, the comma and the width 1, reads as with no sign and no width (R4 of r3
+    /// U11.10 makes no number of a line that holds such a sign).
+    #[test]
+    fn on_a_comma_computer_a_page_read_column_of_euros_reads_as_before() {
+        let bytes = b"41,20 \x80\r\n12,00 \x80\r\n";
+        let read = |own_sign, width| data(bytes, Some(1252), own_sign, width).map(|r| r.rows);
+        let before = read(None, None);
+        assert!(before.is_ok(), "{before:?}");
+        assert_eq!(read(Some(','), Some(1)), before);
+    }
+
     /// r3 U11.13: with the comma and cells two columns wide, with the point or no sign read at a
     /// width of one, and with the comma where the width cannot be told, the same bytes read by
     /// commas, as before: each number is cut in two, and beside a title line or a whole number
