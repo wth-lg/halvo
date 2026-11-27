@@ -1,0 +1,1 @@
+- Added: (capture run, r1 detector-told) On Windows, the Status page says when Halvo is not yet recording typing, window titles or screen activity because it has not read which field has the cursor, and when it cannot because that part did not start.

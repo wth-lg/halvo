@@ -182,6 +182,43 @@ fn within<T>(bound: Duration, what: &str, mut read: impl FnMut() -> Option<T>) -
     }
 }
 
+fn status_within(
+    bound: Duration,
+    what: &str,
+    daemon: &Path,
+    dir: &Path,
+    wanted: &[&str],
+) -> String {
+    let until = Instant::now() + bound;
+    let mut newest = None;
+    loop {
+        let out = ctl(daemon, dir, "status");
+        if out.status.success() {
+            let text = String::from_utf8_lossy(&out.stdout).into_owned();
+            if wanted
+                .iter()
+                .all(|want| text.lines().any(|line| line == *want))
+            {
+                return text;
+            }
+            newest = Some(text);
+        }
+        if Instant::now() >= until {
+            match &newest {
+                Some(text) => panic!(
+                    "{what}: not within {} s; the last status that ctl status printed:\n{text}",
+                    bound.as_secs()
+                ),
+                None => panic!(
+                    "{what}: not within {} s, and no ctl status answered with exit 0",
+                    bound.as_secs()
+                ),
+            }
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
 #[test]
 fn the_built_app_starts_its_daemon_and_the_daemon_ends_with_it() {
     if !on_a_hosted_runner(NAME, "the built app and its capture daemon") {
@@ -230,16 +267,14 @@ fn the_built_app_starts_its_daemon_and_the_daemon_ends_with_it() {
             dir.display()
         )
     );
-    let status = within(WITHIN, "the child's status with lease=fresh", || {
-        let out = ctl(&daemon, &dir, "status");
-        let text = String::from_utf8_lossy(&out.stdout).into_owned();
-        (out.status.success() && text.lines().any(|line| line == "lease=fresh")).then_some(text)
-    });
-    for line in [
-        format!("pid={}", child.0),
-        "parent=watched".to_owned(),
-        "store=open".to_owned(),
-    ] {
+    let status = status_within(
+        WITHIN,
+        "the child's status with lease=fresh and store=open",
+        &daemon,
+        &dir,
+        &["lease=fresh", "store=open"],
+    );
+    for line in [format!("pid={}", child.0), "parent=watched".to_owned()] {
         assert!(
             status.lines().any(|held| held == line),
             "the status holds {line}: {status}"

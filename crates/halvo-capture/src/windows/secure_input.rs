@@ -1968,6 +1968,16 @@ mod detector {
             self.attach_with(super::AtTheDeadline::GiveUp).map(|_| ())
         }
 
+        /// Whether the gate keeps a detector whose thread has ended.
+        pub(crate) fn detector_ended(&self) -> bool {
+            self.detector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .as_ref()
+                .and_then(|running| running.join.as_ref())
+                .is_some_and(std::thread::JoinHandle::is_finished)
+        }
+
         /// The service set's attach: a detector whose first read has not come
         /// by the deadline is kept, and the attach answers Late.
         pub(crate) fn attach_waiting(&self) -> Result<super::Attached, CaptureError> {

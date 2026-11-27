@@ -1,0 +1,1 @@
+- Fixed: (capture run, r1 app-start-waits) A test of the built app's start asked for an open store in the first status that showed a fresh lease; where the store opened a moment later, the merge gate's macos job failed. The test now waits for one status that shows both.

@@ -932,7 +932,12 @@ fn switch_of(name: SwitchName) -> Switch {
 /// the floor drops under it and whose switch is on: typing only where the tap asked for the
 /// key types, window titles and screen activity; no entry where none of them is on. And
 /// typing, while the Mac's input source holds that keys were pressed through 30 seconds
-/// and none of them reached its tap, since the first reading of those seconds.
+/// and none of them reached its tap, since the first reading of those seconds. And on
+/// Windows, while a source holds the password detector's gate, since the detector's attach:
+/// behind an attach that answered late until the detector's first read lands, and behind an
+/// attach that failed or whose late detector ended with no read, the parts whose switch is
+/// on, typing only where the build records typing on Windows; no entry where none of them is
+/// on.
 fn left_out_of(parts: &StatusParts) -> Vec<proto::LeftOut> {
     let mut left_out = Vec::new();
     let doubt = parts.doubt_told.since.filter(|_| parts.left_out_in_doubt);
@@ -975,6 +980,40 @@ fn left_out_of(parts: &StatusParts) -> Vec<proto::LeftOut> {
             what: vec![proto::LeftOutPart::Typing],
             since,
         });
+    }
+    let on = |switch| parts.switches.is_on(switch);
+    let unguarded: Vec<proto::LeftOutPart> = [
+        (
+            on(Switch::KeyClass) && halvo_control::texts::TYPING_ON_WINDOWS,
+            proto::LeftOutPart::Typing,
+        ),
+        (on(Switch::TitleText), proto::LeftOutPart::WindowTitles),
+        (
+            on(Switch::ScreenActivity),
+            proto::LeftOutPart::ScreenActivity,
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(left, part)| left.then_some(part))
+    .collect();
+    let figures = &parts.board.figures;
+    for (since, cause) in [
+        (
+            figures.detector_late_since,
+            proto::LeftOutCause::FieldNotReadYet,
+        ),
+        (
+            figures.detector_failed_since,
+            proto::LeftOutCause::DetectorNotStarted,
+        ),
+    ] {
+        if let Some(since) = since.and_then(utc_second).filter(|_| !unguarded.is_empty()) {
+            left_out.push(proto::LeftOut {
+                cause,
+                what: unguarded.clone(),
+                since,
+            });
+        }
     }
     left_out
 }

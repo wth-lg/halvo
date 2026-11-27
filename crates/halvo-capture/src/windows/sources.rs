@@ -11,7 +11,7 @@ use super::screen::ScreenSource;
 use super::window_title::WindowTitleSource;
 use super::FullDrops;
 use crate::daemon::sources::SourceFactory;
-use crate::secure_input::windows::{Attached, PasswordGate};
+use crate::secure_input::windows::{Attached, ContentReading, PasswordGate, UnknownBy};
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
     StopCause,
@@ -80,6 +80,18 @@ impl ServiceSet {
             return false;
         }
         halvo_control::texts::TYPING_ON_WINDOWS
+    }
+
+    /// The set whose gate's detector is attached by `attach`, a test's stand-in.
+    #[cfg(test)]
+    fn with_attach(attach: fn() -> Result<Attached, CaptureError>) -> ServiceSet {
+        ServiceSet {
+            hold: Arc::new(GateHold {
+                attach: Some(attach),
+                ..GateHold::default()
+            }),
+            ..ServiceSet::default()
+        }
     }
 
     #[cfg(test)]
@@ -182,11 +194,15 @@ impl ServiceSet {
 
 impl crate::daemon::supervisor::SystemSources for ServiceSet {
     /// What the set's keyboard source counted in the run, the reading of the
-    /// set's gate while a keyboard source holds it, and the events that the
+    /// set's gate while a keyboard source holds it, the events that the
     /// hand-offs of the set's sources dropped at a full queue since the start
-    /// of the run or the last delete of everything; nothing of typing where no
-    /// keyboard source ran.
+    /// of the run or the last delete of everything, and, while a source holds
+    /// the gate, since when the detector's first read has not landed behind
+    /// an attach that answered late, or since when its attach failed or its
+    /// late detector ended with no read; nothing of typing where no keyboard
+    /// source ran.
     fn figures(&self) -> SourceCounters {
+        let (detector_late_since, detector_failed_since) = self.hold.left_out_since();
         SourceCounters {
             late_events: u64::from(self.counts.late.load(Ordering::Relaxed)),
             max_lag_ms: self.counts.max_lag_ms.load(Ordering::Relaxed),
@@ -194,6 +210,8 @@ impl crate::daemon::supervisor::SystemSources for ServiceSet {
             typing_gate: (self.typing_holders.load(Ordering::Relaxed) > 0)
                 .then(|| self.hold.gate.typing_gate()),
             handoff_full_drops: self.full_drops.read(),
+            detector_late_since,
+            detector_failed_since,
             ..SourceCounters::default()
         }
     }
@@ -211,14 +229,19 @@ struct GateHold {
     said: AtomicBool,
     #[cfg(test)]
     lines_said: std::sync::atomic::AtomicU32,
+    #[cfg(test)]
+    attach: Option<fn() -> Result<Attached, CaptureError>>,
 }
 
-/// The number of the set's sources that hold its gate, and the error of the
-/// detector's attach where the first of them could not attach it.
+/// The number of the set's sources that hold its gate, the error of the
+/// detector's attach where the first of them could not attach it, whether
+/// that attach answered late, and its second, counted from 1970.
 #[derive(Debug, Default)]
 struct Holders {
     count: usize,
     failed: Option<CaptureError>,
+    late: bool,
+    since: u64,
 }
 
 impl GateHold {
@@ -227,7 +250,7 @@ impl GateHold {
     fn take(&self) -> Result<(), CaptureError> {
         let mut holders = self.holders.lock().unwrap_or_else(PoisonError::into_inner);
         if holders.count == 0 {
-            let attached = self.gate.attach_waiting();
+            let attached = self.attach();
             let line = match &attached {
                 Ok(Attached::Read) => None,
                 Ok(Attached::Late) => Some(
@@ -247,6 +270,8 @@ impl GateHold {
                     eprintln!("{line}");
                 }
             }
+            holders.late = matches!(attached, Ok(Attached::Late));
+            holders.since = crate::floor::exclude::unix_seconds_now();
             holders.failed = attached.err();
         }
         holders.count += 1;
@@ -259,8 +284,36 @@ impl GateHold {
         holders.count = holders.count.saturating_sub(1);
         if holders.count == 0 {
             holders.failed = None;
+            holders.late = false;
             let _ = self.gate.detach(super::INPUT_STOP_DEADLINE);
         }
+    }
+
+    /// The attach of the gate's detector, or a test's stand-in in its place.
+    fn attach(&self) -> Result<Attached, CaptureError> {
+        #[cfg(test)]
+        if let Some(attach) = self.attach {
+            return attach();
+        }
+        self.gate.attach_waiting()
+    }
+
+    /// While a source holds the gate, the second of the detector's attach:
+    /// first where that attach answered late, the gate's content reading is
+    /// still that of no read and the detector's thread runs, second where it
+    /// failed or where its late detector's thread has ended with no read.
+    fn left_out_since(&self) -> (Option<u64>, Option<u64>) {
+        let holders = self.holders.lock().unwrap_or_else(PoisonError::into_inner);
+        if holders.count == 0 {
+            return (None, None);
+        }
+        let unread = holders.late
+            && self.gate.content_reading() == ContentReading::Unknown(UnknownBy::BeforeFirstRead);
+        let ended = unread && self.gate.detector_ended();
+        (
+            (unread && !ended).then_some(holders.since),
+            (holders.failed.is_some() || ended).then_some(holders.since),
+        )
     }
 }
 
@@ -1048,5 +1101,173 @@ mod tests {
             Ok(()),
         );
         assert_eq!(behind_the_stop, [spent.clone(), spent]);
+    }
+
+    /// Over a stand-in attach and stand-in sources, with no detector and no real second: the
+    /// status's left_out as the wire writes it, from a begin under an attach that answered late,
+    /// on a gate started as an attach starts it, past a focus reading until the detector's own
+    /// first read, and behind an attach that failed while a source holds the gate, a failed
+    /// restart of the keyboard source among them, until the last stop.
+    #[test]
+    fn from_an_attach_that_answered_late_until_the_first_read_lands_and_for_the_whole_life_where_the_attach_failed_left_out_names_the_cause_and_the_parts_by_the_switches(
+    ) {
+        use std::sync::Arc;
+
+        use halvo_control::model::{StorageCap, UtcSecond};
+        use halvo_control::proto::{LastStop, Lease, Parent};
+
+        use super::super::now_tick;
+        use super::Gated;
+        use crate::daemon::board::Board;
+        use crate::daemon::server::{status_of, written_list, RunFacts, StatusParts};
+        use crate::daemon::slot::Slot;
+        use crate::daemon::state::{Cap, Desired, StateHealth};
+        use crate::daemon::supervisor::SystemSources;
+        use crate::floor::exclude::unix_seconds_now;
+        use crate::secure_input::windows::{Attached, FocusRead, Kind};
+
+        const ALL: &str = r#""typing","window_titles","screen_activity""#;
+        const TITLES: &str = r#""window_titles""#;
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let ctx = SourceContext::new(sink);
+        let written = |set: &ServiceSet, switches: Switches| {
+            let mut board = Board::new(Platform::Windows);
+            board.figures = set.figures();
+            let parts = StatusParts {
+                board,
+                desired: Desired::Running,
+                lease: Lease::Fresh,
+                slot: Slot::Opening,
+                obstructed: None,
+                health: StateHealth::Ok,
+                cap: Cap::Known(StorageCap::DEFAULT),
+                switches,
+                once_granted: Vec::new(),
+                asked: Vec::new(),
+                input_keys: false,
+                held: false,
+                typing_off_unsaved: None,
+                search: None,
+                left_out_in_doubt: false,
+                doubt_told: crate::floor::exclude::DoubtTold::default(),
+            };
+            let facts = RunFacts {
+                started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+                parent: Parent::None,
+                last_stop: LastStop::None,
+                rss_peak_bytes: 0,
+            };
+            written_list(&status_of(&parts, &facts).unwrap(), "left_out")
+        };
+        let keyboard = |set: &ServiceSet| Gated {
+            source: StandIn,
+            hold: Arc::clone(&set.hold),
+            holding: false,
+            typing: Some(Arc::clone(&set.typing_holders)),
+        };
+        let entry = |cause: &str, what: &str, (from, to): (u64, u64), told: &Option<String>| {
+            (from..=to).any(|second| {
+                let since = UtcSecond::from_unix_seconds(i64::try_from(second).unwrap()).unwrap();
+                *told
+                    == Some(format!(
+                        r#"[{{"cause":"{cause}","what":[{what}],"since":"{since}"}}]"#
+                    ))
+            })
+        };
+        let mut every = Switches::default();
+        let mut none = Switches::default();
+        for switch in Switch::ALL {
+            every.set(switch, true);
+            none.set(switch, false);
+        }
+        let mut titles_alone = none;
+        titles_alone.set(Switch::TitleText, true);
+        let clear = FocusRead::Answered {
+            is_password: false,
+            protected: false,
+            kind: Kind::NativeEdit,
+        };
+
+        let late = ServiceSet::with_attach(|| Ok(Attached::Late));
+        let before_any = written(&late, every);
+        let mut typing = keyboard(&late);
+        let mut titles = late.gated(StandIn);
+        let from = unix_seconds_now();
+        let begun = [typing.begin(ctx.clone()), titles.begin(ctx.clone())];
+        let late_at = (from, unix_seconds_now());
+        late.password_gate().started_at(now_tick());
+        let late_every = written(&late, every);
+        let late_titles = written(&late, titles_alone);
+        let late_none = written(&late, none);
+        late.password_gate().focus_read_at(now_tick(), clear, false);
+        let behind_a_focus_reading = written(&late, every);
+        late.password_gate().own_read_in(None, now_tick(), clear);
+        let after_the_read = written(&late, every);
+        let stopped = [typing.shutdown(), titles.shutdown()];
+
+        let failing = ServiceSet::with_attach(|| Err(CaptureError::ThreadEnded));
+        let mut typing = keyboard(&failing);
+        let mut titles = failing.gated(StandIn);
+        let mut screen = failing.gated(StandIn);
+        let from = unix_seconds_now();
+        let failed_begun = [
+            typing.begin(ctx.clone()),
+            titles.begin(ctx.clone()),
+            screen.begin(ctx.clone()),
+        ];
+        let failed_at = (from, unix_seconds_now());
+        let failed_every = written(&failing, every);
+        let restarted = typing.begin(ctx.clone());
+        let behind_the_restart = written(&failing, every);
+        let titles_stopped = titles.shutdown();
+        let behind_the_titles = written(&failing, titles_alone);
+        let screen_stopped = screen.shutdown();
+        let behind_the_last = written(&failing, every);
+
+        assert_eq!(before_any, None, "before any begin");
+        assert_eq!(begun, [Ok(Started::Running), Ok(Started::Running)]);
+        assert!(
+            entry("field_not_read_yet", ALL, late_at, &late_every),
+            "late, every switch on: {late_every:?}"
+        );
+        assert!(
+            entry("field_not_read_yet", TITLES, late_at, &late_titles),
+            "late, title_text alone on: {late_titles:?}"
+        );
+        assert_eq!(late_none, None, "late, every switch off");
+        assert_eq!(
+            behind_a_focus_reading, late_every,
+            "a focus reading before the detector's own first read"
+        );
+        assert_eq!(after_the_read, None, "behind the detector's own first read");
+        assert_eq!(stopped, [Ok(()), Ok(())]);
+        assert_eq!(
+            failed_begun,
+            [
+                Err(CaptureError::ThreadEnded),
+                Ok(Started::Running),
+                Ok(Started::Running)
+            ]
+        );
+        assert!(
+            entry("detector_not_started", ALL, failed_at, &failed_every),
+            "failed, every switch on: {failed_every:?}"
+        );
+        assert_eq!(
+            restarted,
+            Err(CaptureError::ThreadEnded),
+            "a restart of typing"
+        );
+        assert_eq!(
+            behind_the_restart, failed_every,
+            "behind the restart's failed begin"
+        );
+        assert_eq!((titles_stopped, screen_stopped), (Ok(()), Ok(())));
+        assert!(
+            entry("detector_not_started", TITLES, failed_at, &behind_the_titles),
+            "behind the stop of titles, while screen activity holds the gate: {behind_the_titles:?}"
+        );
+        assert_eq!(behind_the_last, None, "behind the last stop");
     }
 }

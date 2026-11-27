@@ -156,8 +156,9 @@ Where a sentence names a unit, that unit makes it true.
   the browser holds none of them or more than one, or where macOS does not give Halvo
   the numbers, it records no title of that browser, so under any other language it
   records none. A browser carries more than one file for each language; Halvo takes it
-  for English only where the one that it holds open lies in the folder `en.lproj`, and
-  no run has read a browser that holds another one of them open. A Chrome or Edge that
+  for English where the one that it holds open lies in the folder `en.lproj` or
+  `en_GB.lproj`, and a run has read a Chrome and an Edge set to British English; no run
+  has read a browser that holds another one of them open. A Chrome or Edge that
   was open before Halvo started is told in the same way as one that you open later.
   Where the files of the version that runs were taken off the disk while that browser
   ran, as when its app is replaced by hand, the browser holds files that the disk no
@@ -239,12 +240,18 @@ Where a sentence names a unit, that unit makes it true.
   title of the window in front only after it has read where the cursor is in that
   window. Until that read comes it records no title of that window, and where the read
   finds a password field, or fails, it records none. The same holds for screen activity,
-  where that is switched on. It records no key. A program that puts the cursor on its
-  window first, and moves it into a password field only after Halvo has read the window,
-  can have that window's title recorded. In Chrome and Edge, a page's title that changes
-  in the instant in which the page takes the cursor, or the title of a window that you
-  switch to in that instant, can be recorded although the cursor lands in a password
-  field.
+  where that is switched on. It records no key. When Halvo starts to record and that
+  read has not come within a second, the Status page says which of typing, window titles
+  and screen activity Halvo is not yet recording, until the read comes. Where the part
+  of Halvo that makes the read did not start, Halvo records no window title, no screen
+  activity and no key, and where a part that records window titles or screen activity
+  runs, the Status page says so; it says neither while that line shows another reason,
+  while the page says that the app in front has stopped, or while capture does not run.
+  A program that puts the cursor on its window first, and moves it into a password field
+  only after Halvo has read the window, can have that window's title recorded. In Chrome
+  and Edge, a page's title that changes in the instant in which the page takes the
+  cursor, or the title of a window that you switch to in that instant, can be recorded
+  although the cursor lands in a password field.
 - Some programs show what you type in the title of their window, for example the name of
   a document or the words of a search. Halvo records such a title like any other. It
   holds a title back while it can tell that the cursor is in a password field, and on
