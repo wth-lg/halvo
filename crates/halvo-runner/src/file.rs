@@ -116,6 +116,18 @@ fn folder_at(dir: &Path, data_dir: Option<&DataDir>) -> Result<Folder, Failure> 
 /// The slot of the one workbook that a write step may change (A9.4, CP-178 (7)).
 const WORKBOOK: &str = "workbook";
 
+/// The slot of the cells that the fill's write step names in `target.range` (playbooks/fill.jsonl).
+const RANGE: &str = "range";
+
+/// How many columns wide the cells of the slot `range` of `loaded` are, which the read step hands
+/// to the read of the data file (r3 U11.13); none where the slot is missing or names no cells, and
+/// the file then reads as before.
+fn cells_width(loaded: &LoadReply) -> Option<u32> {
+    let slot = Name::parse(RANGE).ok()?;
+    let text = slot_text(loaded, Some(&slot)).ok()?;
+    Range::parse(&text).ok().map(|range| range.cols())
+}
+
 /// The workbook of the slot `slot` and its directory, under the permission `user_files` of `loaded`: a write step
 /// names the slot `workbook` in `target.file`, the one slot that `digest_of` reads too; a read step takes the
 /// folder of the slot `workbook` (A9.4).
@@ -282,7 +294,8 @@ impl Runner {
         }
     }
 
-    /// A `file` `read`: the rows of the source file of the target's slot, kept under the name of the arg `as`, and
+    /// A `file` `read`: the rows of the source file of the target's slot, read with the width of the cells that the
+    /// write step fills (`cells_width`, r3 U11.13), kept under the name of the arg `as`, and
     /// whether its letters were read by the computer's code page, which a write that `replace` then answers well
     /// sets as the run's `letters_guessed`, before its `committed` row (r3 U11.10; the coordinator's way (b)).
     pub(crate) fn file_read(
@@ -301,7 +314,7 @@ impl Runner {
         let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
         let source = slot_path(loaded, &target.file, Cause::NoDataFile)?;
         let data = folder
-            .read_data(&source)
+            .read_data(&source, cells_width(loaded))
             .map_err(|e| Failure::Step(source_cause(&e)))?;
         self.kept.insert(name.as_str().to_string(), data.rows);
         self.read_under = Some(ReadUnder {
@@ -562,7 +575,10 @@ mod tests {
     use std::time::Duration;
 
     use halvo_policy::{check_playbook, preset};
+    use halvo_schema::executable::body::LoadedBindings;
+    use halvo_schema::executable::record::Slot;
     use halvo_schema::executable::step::Target;
+    use halvo_schema::executable::Playbook;
     use halvo_schema::{AgentId, Category, WorkflowId};
 
     use crate::link::Link;
@@ -681,5 +697,49 @@ mod tests {
         let plain = vec![vec![t("Rent"), Value::Number(12.0)]];
         let range = Range::parse("A1:B1").expect("a range");
         assert_eq!(texts_of(&plain, &range), None);
+    }
+
+    /// r3 U11.13 (order 09, A4): the read step hands the read of the data file the width of the
+    /// cells that the fill's write step names in its `range`: 1 for cells one column wide, 2 for
+    /// two; none where the slot is missing or names no cells, so that the file reads as before.
+    #[test]
+    fn the_read_step_hands_the_width_of_the_named_cells_to_the_read() {
+        let fill = Playbook::parse_file(include_bytes!("../playbooks/fill.jsonl")).expect("fill");
+        let named = fill.steps().iter().find_map(|step| match &step.target {
+            Some(Target::File(target)) if step.class == ActionClass::LocalEdit => {
+                target.range.clone()
+            }
+            _ => None,
+        });
+        assert_eq!(named.as_ref().map(Name::as_str), Some(RANGE));
+        let config = preset(
+            Category::SpreadsheetFill,
+            WorkflowId::from_random([7; 16]),
+            AgentId::from_random([6; 16]),
+        )
+        .expect("a preset");
+        let loaded = |slots: &[(&str, &str)]| LoadReply {
+            config: config.clone(),
+            playbook: None,
+            next_playbook: NonZeroU32::MIN,
+            bindings: Some(LoadedBindings {
+                rev: NonZeroU32::MIN,
+                origins: Vec::new(),
+                slots: slots
+                    .iter()
+                    .map(|(name, value)| Slot {
+                        name: Name::parse(name).expect("a name"),
+                        value: OwnValue::new(value),
+                    })
+                    .collect(),
+            }),
+            sessions: Vec::new(),
+            start: None,
+        };
+        let width = |slots: &[(&str, &str)]| cells_width(&loaded(slots));
+        assert_eq!(width(&[("sheet", "Ledger"), (RANGE, "B2:B6")]), Some(1));
+        assert_eq!(width(&[(RANGE, "B2:C6")]), Some(2));
+        assert_eq!(width(&[("sheet", "Ledger")]), None);
+        assert_eq!(width(&[(RANGE, "B2 to B6")]), None);
     }
 }
