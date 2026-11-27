@@ -269,8 +269,8 @@ pub struct SourceCounters {
     /// source's tap; none while that does not stand.
     pub no_key_since: Option<u64>,
     /// A Windows service set alone: the second, counted from 1970, of the attach of its password
-    /// detector that answered late, while a source holds its gate and the detector's first read
-    /// has not landed; none otherwise and on a Mac.
+    /// detector that answered late, while a source holds its gate, the detector's first read has
+    /// not landed and its thread runs; none otherwise and on a Mac.
     pub detector_late_since: Option<u64>,
     /// A Windows service set alone: the second, counted from 1970, of the attach of its password
     /// detector that failed, or that answered late and whose detector ended with no first read,

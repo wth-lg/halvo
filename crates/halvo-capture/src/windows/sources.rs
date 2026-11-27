@@ -1104,10 +1104,10 @@ mod tests {
     }
 
     /// Over a stand-in attach and stand-in sources, with no detector and no real second: the
-    /// status's left_out as the wire writes it, from a begin under an attach that answered late
-    /// until the gate's first reading of a field, and behind an attach that failed while a
-    /// source holds the gate, a failed restart of the keyboard source among them, until the last
-    /// stop.
+    /// status's left_out as the wire writes it, from a begin under an attach that answered late,
+    /// on a gate started as an attach starts it, past a focus reading until the detector's own
+    /// first read, and behind an attach that failed while a source holds the gate, a failed
+    /// restart of the keyboard source among them, until the last stop.
     #[test]
     fn from_an_attach_that_answered_late_until_the_first_read_lands_and_for_the_whole_life_where_the_attach_failed_left_out_names_the_cause_and_the_parts_by_the_switches(
     ) {
@@ -1176,11 +1176,18 @@ mod tests {
             })
         };
         let mut every = Switches::default();
+        let mut none = Switches::default();
         for switch in Switch::ALL {
             every.set(switch, true);
+            none.set(switch, false);
         }
-        let mut titles_alone = Switches::default();
+        let mut titles_alone = none;
         titles_alone.set(Switch::TitleText, true);
+        let clear = FocusRead::Answered {
+            is_password: false,
+            protected: false,
+            kind: Kind::NativeEdit,
+        };
 
         let late = ServiceSet::with_attach(|| Ok(Attached::Late));
         let before_any = written(&late, every);
@@ -1189,18 +1196,13 @@ mod tests {
         let from = unix_seconds_now();
         let begun = [typing.begin(ctx.clone()), titles.begin(ctx.clone())];
         let late_at = (from, unix_seconds_now());
+        late.password_gate().started_at(now_tick());
         let late_every = written(&late, every);
         let late_titles = written(&late, titles_alone);
-        let late_none = written(&late, Switches::default());
-        late.password_gate().focus_read_at(
-            now_tick(),
-            FocusRead::Answered {
-                is_password: false,
-                protected: false,
-                kind: Kind::NativeEdit,
-            },
-            false,
-        );
+        let late_none = written(&late, none);
+        late.password_gate().focus_read_at(now_tick(), clear, false);
+        let behind_a_focus_reading = written(&late, every);
+        late.password_gate().own_read_in(None, now_tick(), clear);
         let after_the_read = written(&late, every);
         let stopped = [typing.shutdown(), titles.shutdown()];
 
@@ -1234,7 +1236,11 @@ mod tests {
             "late, title_text alone on: {late_titles:?}"
         );
         assert_eq!(late_none, None, "late, every switch off");
-        assert_eq!(after_the_read, None, "behind the first read");
+        assert_eq!(
+            behind_a_focus_reading, late_every,
+            "a focus reading before the detector's own first read"
+        );
+        assert_eq!(after_the_read, None, "behind the detector's own first read");
         assert_eq!(stopped, [Ok(()), Ok(())]);
         assert_eq!(
             failed_begun,
